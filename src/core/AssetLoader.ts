@@ -16,23 +16,28 @@ export type AssetKey =
   | 'acoustic_ripple'
   | 'reticle_crosshair';
 
+// Prefixed with Vite's BASE_URL (not a hardcoded leading slash) so these
+// still resolve once built under a subpath, e.g. GitHub Pages' /Hushfire/ —
+// vite.config.ts's `base` doesn't rewrite runtime string literals, only
+// actual imports, so a hardcoded '/assets/...' 404s under any base but '/'.
+const base = import.meta.env.BASE_URL;
 const ASSET_PATHS: Record<AssetKey, string> = {
-  player_infiltrator: '/assets/sprites/player_infiltrator.png',
-  player_breacher: '/assets/sprites/player_breacher.png',
-  player_downed: '/assets/sprites/player_downed.png',
-  zombie_lurker: '/assets/sprites/zombie_lurker.png',
-  zombie_lurker_aggro: '/assets/sprites/zombie_lurker_aggro.png',
-  zombie_audio_stalker: '/assets/sprites/zombie_audio_stalker.png',
-  zombie_bio_carrier: '/assets/sprites/zombie_bio_carrier.png',
-  zombie_armored_brute: '/assets/sprites/zombie_armored_brute.png',
-  pickup_ammo: '/assets/items/pickup_ammo.png',
-  pickup_medkit: '/assets/items/pickup_medkit.png',
-  pickup_battery: '/assets/items/pickup_battery.png',
-  pickup_keycard: '/assets/items/pickup_keycard.png',
-  muzzle_flash: '/assets/fx/muzzle_flash.png',
-  blood_splatter: '/assets/fx/blood_splatter.png',
-  acoustic_ripple: '/assets/fx/acoustic_ripple.png',
-  reticle_crosshair: '/assets/fx/reticle_crosshair.png'
+  player_infiltrator: `${base}assets/sprites/player_infiltrator.png`,
+  player_breacher: `${base}assets/sprites/player_breacher.png`,
+  player_downed: `${base}assets/sprites/player_downed.png`,
+  zombie_lurker: `${base}assets/sprites/zombie_lurker.png`,
+  zombie_lurker_aggro: `${base}assets/sprites/zombie_lurker_aggro.png`,
+  zombie_audio_stalker: `${base}assets/sprites/zombie_audio_stalker.png`,
+  zombie_bio_carrier: `${base}assets/sprites/zombie_bio_carrier.png`,
+  zombie_armored_brute: `${base}assets/sprites/zombie_armored_brute.png`,
+  pickup_ammo: `${base}assets/items/pickup_ammo.png`,
+  pickup_medkit: `${base}assets/items/pickup_medkit.png`,
+  pickup_battery: `${base}assets/items/pickup_battery.png`,
+  pickup_keycard: `${base}assets/items/pickup_keycard.png`,
+  muzzle_flash: `${base}assets/fx/muzzle_flash.png`,
+  blood_splatter: `${base}assets/fx/blood_splatter.png`,
+  acoustic_ripple: `${base}assets/fx/acoustic_ripple.png`,
+  reticle_crosshair: `${base}assets/fx/reticle_crosshair.png`
 };
 
 /**
