@@ -109,7 +109,7 @@ export class ArmoryMenu {
     quitBtn.textContent = 'QUIT GAME ✕';
     quitBtn.style.cssText = `
       position: absolute; top: 18px; right: 22px; background: none; border: 1px solid ${PANEL_BORDER};
-      color: ${MUTED}; font-size: 11px; letter-spacing: 2px; padding: 8px 14px; cursor: pointer;
+      color: ${MUTED}; font-size: 12px; letter-spacing: 2px; padding: 8px 14px; cursor: pointer;
       font-family: inherit; border-radius: 3px;
     `;
     quitBtn.onmouseenter = () => { quitBtn.style.color = RED; quitBtn.style.borderColor = RED; };
@@ -123,7 +123,7 @@ export class ArmoryMenu {
       <h1 style="margin:0; font-size: 44px; letter-spacing: 6px; font-weight: 800;">
         <span style="color:${TEXT}; text-shadow: 0 0 18px rgba(235,244,250,0.35);">HUSH</span><span style="color:${ORANGE}; text-shadow: 0 0 22px rgba(255,158,27,0.55);">FIRE</span>
       </h1>
-      <div style="margin-top:8px; font-size:12px; letter-spacing:4px; color:${MUTED}; text-transform:uppercase;">
+      <div style="margin-top:8px; font-size:13px; letter-spacing:4px; color:${MUTED}; text-transform:uppercase;">
         Tactical Co-Op Extraction // Pre-Mission Armory
       </div>
     `;
@@ -133,13 +133,13 @@ export class ArmoryMenu {
     layout.style.cssText = 'display: flex; gap: 28px; flex-wrap: wrap; justify-content: center; max-width: 900px;';
     stage.appendChild(layout);
 
-    // ---- Card 1: deployment / game mode ----
-    const deployCard = this.buildCard('[ 1. CO-OP DEPLOYMENT ]', CYAN);
+    // ---- Card 1: game mode & mission briefing ----
+    const deployCard = this.buildCard('[ 1. MISSION BRIEFING ]', CYAN);
     layout.appendChild(deployCard.card);
 
     const modeLabel = document.createElement('div');
     modeLabel.textContent = 'GAME MODE:';
-    modeLabel.style.cssText = `font-size: 11px; letter-spacing: 1px; color: ${MUTED}; margin-bottom: 8px;`;
+    modeLabel.style.cssText = `font-size: 12px; letter-spacing: 1px; color: ${MUTED}; margin-bottom: 8px;`;
     deployCard.body.appendChild(modeLabel);
 
     const modeRow = document.createElement('div');
@@ -147,7 +147,7 @@ export class ArmoryMenu {
     deployCard.body.appendChild(modeRow);
 
     const modeButtonBase = `
-      flex: 1; padding: 12px 8px; font-size: 12px; letter-spacing: 1px; font-family: inherit;
+      flex: 1; padding: 12px 8px; font-size: 13px; letter-spacing: 1px; font-family: inherit;
       border-radius: 4px; cursor: pointer; border: 1px solid;
     `;
     const soloBtn = this.buildModeButton('SOLO ONLY');
@@ -165,7 +165,7 @@ export class ArmoryMenu {
     const loadoutBody = document.createElement('div');
 
     const operativeTabBase = `
-      padding: 6px 14px; font-size: 10.5px; letter-spacing: 1px; font-family: inherit;
+      padding: 6px 14px; font-size: 11.5px; letter-spacing: 1px; font-family: inherit;
       border-radius: 3px; cursor: pointer; border: 1px solid;
     `;
 
@@ -206,8 +206,8 @@ export class ArmoryMenu {
           ? 'Going down alone is fatal — with no partner to revive you, it means instant elimination.'
           : 'Downed partners can be revived by standing nearby!';
       protocolBox.innerHTML = `
-        <div style="color:${ORANGE}; font-size:11px; letter-spacing:1px; font-weight:bold; margin-bottom:8px;">SURVIVAL PROTOCOL:</div>
-        <ul style="margin:0; padding-left:18px; color:${MUTED}; font-size:12.5px; line-height:1.7;">
+        <div style="color:${ORANGE}; font-size:12px; letter-spacing:1px; font-weight:bold; margin-bottom:9px;">SURVIVAL PROTOCOL:</div>
+        <ul style="margin:0; padding-left:18px; color:${TEXT}; font-size:13.5px; line-height:1.8;">
           <li>Move through dark sectors to reach the Evac Point.</li>
           <li>Flashlights reveal the dark, but a direct beam on sleeping lurkers alerts them!</li>
           <li>Suppressed shots allow stealth kills. Unsilenced guns cause sector horde frenzies.</li>
@@ -410,7 +410,7 @@ export class ArmoryMenu {
 
     const lbl = document.createElement('label');
     lbl.textContent = label;
-    lbl.style.cssText = `display: block; font-size: 10.5px; color: ${MUTED}; margin-bottom: 5px; letter-spacing: 1px;`;
+    lbl.style.cssText = `display: block; font-size: 11.5px; color: ${MUTED}; margin-bottom: 6px; letter-spacing: 1px;`;
     wrap.appendChild(lbl);
 
     const selectWrap = document.createElement('div');
@@ -419,7 +419,7 @@ export class ArmoryMenu {
     const select = document.createElement('select');
     select.style.cssText = `
       width: 100%; padding: 9px 26px 9px 10px; background: ${FIELD_BG}; color: ${TEXT};
-      border: 1px solid ${PANEL_BORDER}; border-radius: 3px; font-family: inherit; font-size: 12.5px;
+      border: 1px solid ${PANEL_BORDER}; border-radius: 3px; font-family: inherit; font-size: 13.5px;
       appearance: none; cursor: pointer;
     `;
     for (const [value, text] of options) {
@@ -446,13 +446,13 @@ export class ArmoryMenu {
     box.style.cssText = `background: ${PANEL_BG}; border: 1px solid ${PANEL_BORDER}; border-radius: 4px; padding: 14px 16px; margin-top: 4px;`;
 
     const row = (label: string, value: string, color: string) => `
-      <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px; padding:4px 0; color:${MUTED};">
+      <div style="display:flex; justify-content:space-between; align-items:center; font-size:13px; padding:5px 0; color:${MUTED};">
         <span>${label}:</span><span style="color:${color}; font-weight:bold;">${value}</span>
       </div>
     `;
 
     const heading = (label: string) => `
-      <div style="font-size:10.5px; letter-spacing:1px; color:${ORANGE}; font-weight:bold; margin:${label === 'PRIMARY' ? '0' : '10px'} 0 4px;">${label}</div>
+      <div style="font-size:11.5px; letter-spacing:1px; color:${ORANGE}; font-weight:bold; margin:${label === 'PRIMARY' ? '0' : '10px'} 0 4px;">${label}</div>
     `;
 
     // Each weapon's stats reflect that slot's own muzzle/ammo choice now, since both
