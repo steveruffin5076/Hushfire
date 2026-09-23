@@ -104,7 +104,12 @@ hushfire/
 * Keep game physics fixed at $60\text{Hz}$ with delta-time accumulator in `Game.ts`.
 * Render loop interpolates between previous and current state for stutter-free 144Hz+ monitors.
 
-### 4. Multiplayer Synchronization
+### 4. Deployed Asset Paths (GitHub Pages)
+* This site deploys under a subpath (`vite.config.ts`'s `base: '/Hushfire/'` on GitHub Actions, `/` locally). Vite only rewrites actual imports and the `index.html` entry script for that base — it does **not** rewrite runtime string literals.
+* Never hardcode a leading-slash asset path like `'/assets/sprites/foo.png'` anywhere in `src/` — it resolves at the domain root and 404s under the Pages subpath, silently dropping to placeholder art with no error surfaced in the UI. Build every asset URL from `` `${import.meta.env.BASE_URL}assets/...` `` instead (see `src/core/AssetLoader.ts`).
+* After touching `AssetLoader.ts`, `vite.config.ts`'s `base`, or adding any new asset reference, verify by building with `GITHUB_ACTIONS=true npm run build`, serving `dist/` under a `/Hushfire/` subpath, and confirming the sprite/item/fx requests return 200 — not just that `npm run dev` looks fine, since dev always serves from `/` and won't catch this class of bug.
+
+### 5. Multiplayer Synchronization
 * Operative inputs are serialized as compact bitmasks (`uint8` for movement, `float32` for aim angle).
 * Host/Server is authoritative for zombie spawns, health, and extraction timers.
 * Client predicts local player movement and reconciles against server snapshots.
