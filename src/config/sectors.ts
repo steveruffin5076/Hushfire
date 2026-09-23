@@ -59,17 +59,21 @@ const SECTOR_1: SectorDef = {
   name: 'SECTOR 1 — TRANSIT',
   backgroundKey: 'sector1_bg',
   briefing: 'Find the keycard, override the blast door',
+  // Aligned to sector1_bg.jpg: the platform's equipment/trench row (~x310-395),
+  // the rusty mesh divider between the two rail tracks (~x810-855), and the
+  // support column on the platform's far right (~x1045-1090). The old wall at
+  // x560-600 sat in open rail gravel with nothing drawn there, so it's dropped
+  // rather than repositioned onto empty floor.
   boxes: [
-    { x1: 300, y1: 20, x2: 340, y2: 260 },
-    { x1: 300, y1: 440, x2: 340, y2: 700 },
-    { x1: 560, y1: 200, x2: 600, y2: 520 },
-    { x1: 800, y1: 100, x2: 840, y2: 380 },
-    { x1: 800, y1: 480, x2: 840, y2: 700 },
-    { x1: 1060, y1: 20, x2: 1080, y2: 280 },
-    { x1: 1060, y1: 440, x2: 1080, y2: 700 }
+    { x1: 310, y1: 20, x2: 395, y2: 260 },
+    { x1: 310, y1: 440, x2: 395, y2: 700 },
+    { x1: 810, y1: 60, x2: 855, y2: 380 },
+    { x1: 810, y1: 480, x2: 855, y2: 700 },
+    { x1: 1045, y1: 20, x2: 1090, y2: 280 },
+    { x1: 1045, y1: 440, x2: 1090, y2: 700 }
   ],
   doorWalls: [
-    { p1: { x: 1070, y: 280 }, p2: { x: 1070, y: 440 } }
+    { p1: { x: 1067, y: 280 }, p2: { x: 1067, y: 440 } }
   ],
   playerSpawns: [
     { x: 140, y: 340 },
@@ -98,15 +102,13 @@ const SECTOR_2: SectorDef = {
   name: 'SECTOR 2 — BIO-LAB',
   backgroundKey: 'sector2_bg',
   briefing: 'Disable the lockdown sequence at the lab terminal',
+  // sector2_bg.jpg is one open quarantine room — the only solid objects drawn
+  // in it are two floor grates. The previous 8 chokepoint walls had no visual
+  // counterpart at all (they floated over open tile), so they're replaced with
+  // just these two, matching the grates' actual footprint.
   boxes: [
-    { x1: 200, y1: 20, x2: 224, y2: 300 },
-    { x1: 200, y1: 420, x2: 224, y2: 700 },
-    { x1: 420, y1: 160, x2: 444, y2: 560 },
-    { x1: 620, y1: 20, x2: 644, y2: 240 },
-    { x1: 620, y1: 380, x2: 644, y2: 700 },
-    { x1: 840, y1: 180, x2: 864, y2: 540 },
-    { x1: 1020, y1: 20, x2: 1044, y2: 300 },
-    { x1: 1020, y1: 460, x2: 1044, y2: 700 }
+    { x1: 280, y1: 295, x2: 405, y2: 390 },
+    { x1: 880, y1: 295, x2: 1005, y2: 390 }
   ],
   doorWalls: [
     { p1: { x: 1032, y: 300 }, p2: { x: 1032, y: 460 } }
@@ -122,10 +124,10 @@ const SECTOR_2: SectorDef = {
     { x: 540, y: 640, angle: Math.PI, archetype: 'bio_carrier' },
     { x: 740, y: 320, angle: Math.PI, archetype: 'armored_brute' },
     { x: 760, y: 600, angle: 0, archetype: 'lurker' },
-    { x: 950, y: 380, angle: Math.PI, archetype: 'audio_stalker' }
+    { x: 950, y: 460, angle: Math.PI, archetype: 'audio_stalker' }
   ],
   pickups: [
-    { x: 300, y: 380, type: 'ammo' },
+    { x: 300, y: 460, type: 'ammo' },
     { x: 520, y: 380, type: 'medkit' },
     { x: 720, y: 120, type: 'battery' },
     { x: 940, y: 620, type: 'ammo' },
@@ -140,13 +142,17 @@ const SECTOR_3: SectorDef = {
   name: 'SECTOR 3 — HELIPAD',
   backgroundKey: 'sector3_bg',
   briefing: 'Call evac on the radio, then hold the pad until the chopper lands',
+  // Nudged onto sector3_bg.jpg's actual rooftop equipment: the corridor
+  // railing posts on the left (~x250-320), the walkway railing segments along
+  // the top/bottom edge (~x500-580), the satellite dish housing on the right
+  // (~x1075-1145), and the AC/vent unit cluster below it (~x990-1075).
   boxes: [
-    { x1: 260, y1: 140, x2: 340, y2: 220 },
-    { x1: 260, y1: 500, x2: 340, y2: 580 },
-    { x1: 520, y1: 80, x2: 600, y2: 160 },
-    { x1: 520, y1: 560, x2: 600, y2: 640 },
-    { x1: 1060, y1: 200, x2: 1140, y2: 280 },
-    { x1: 1060, y1: 440, x2: 1140, y2: 520 }
+    { x1: 250, y1: 130, x2: 320, y2: 210 },
+    { x1: 250, y1: 510, x2: 320, y2: 590 },
+    { x1: 500, y1: 70, x2: 580, y2: 150 },
+    { x1: 500, y1: 570, x2: 580, y2: 650 },
+    { x1: 1075, y1: 195, x2: 1145, y2: 265 },
+    { x1: 990, y1: 460, x2: 1075, y2: 545 }
   ],
   doorWalls: [],
   playerSpawns: [
