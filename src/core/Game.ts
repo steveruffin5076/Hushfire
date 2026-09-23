@@ -544,6 +544,9 @@ export class Game {
   }
 
   private renderFloor(ctx: CanvasRenderingContext2D) {
+    const bgKey = this.map.sector.backgroundKey;
+    if (bgKey && this.assets.drawStretched(ctx, bgKey, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT)) return;
+
     ctx.fillStyle = '#2A2F3A';
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 

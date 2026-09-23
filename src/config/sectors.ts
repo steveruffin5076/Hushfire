@@ -1,6 +1,7 @@
 import { Point, Segment } from '../lighting/Raycaster';
 import { ZombieArchetype } from '../entities/Zombie';
 import { PickupType } from '../entities/Pickup';
+import { AssetKey } from '../core/AssetLoader';
 
 export type ObjectiveKind = 'keycard_door' | 'lockdown_terminal' | 'evac_radio';
 
@@ -38,6 +39,8 @@ export interface SectorDef {
   id: number;
   name: string;
   briefing: string;
+  /** Drawn stretched across the full play field in place of the flat grid floor when present. */
+  backgroundKey?: AssetKey;
   boxes: BoxDef[];
   /** Walls removed once the sector objective completes (blast doors, shutters). */
   doorWalls: Segment[];
@@ -54,6 +57,7 @@ export interface SectorDef {
 const SECTOR_1: SectorDef = {
   id: 1,
   name: 'SECTOR 1 — TRANSIT',
+  backgroundKey: 'sector1_bg',
   briefing: 'Find the keycard, override the blast door',
   boxes: [
     { x1: 300, y1: 20, x2: 340, y2: 260 },
@@ -92,6 +96,7 @@ const SECTOR_1: SectorDef = {
 const SECTOR_2: SectorDef = {
   id: 2,
   name: 'SECTOR 2 — BIO-LAB',
+  backgroundKey: 'sector2_bg',
   briefing: 'Disable the lockdown sequence at the lab terminal',
   boxes: [
     { x1: 200, y1: 20, x2: 224, y2: 300 },
@@ -133,6 +138,7 @@ const SECTOR_2: SectorDef = {
 const SECTOR_3: SectorDef = {
   id: 3,
   name: 'SECTOR 3 — HELIPAD',
+  backgroundKey: 'sector3_bg',
   briefing: 'Call evac on the radio, then hold the pad until the chopper lands',
   boxes: [
     { x1: 260, y1: 140, x2: 340, y2: 220 },

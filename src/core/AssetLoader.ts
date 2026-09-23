@@ -14,7 +14,10 @@ export type AssetKey =
   | 'muzzle_flash'
   | 'blood_splatter'
   | 'acoustic_ripple'
-  | 'reticle_crosshair';
+  | 'reticle_crosshair'
+  | 'sector1_bg'
+  | 'sector2_bg'
+  | 'sector3_bg';
 
 // Prefixed with Vite's BASE_URL (not a hardcoded leading slash) so these
 // still resolve once built under a subpath, e.g. GitHub Pages' /Hushfire/ —
@@ -37,7 +40,10 @@ const ASSET_PATHS: Record<AssetKey, string> = {
   muzzle_flash: `${base}assets/fx/muzzle_flash.png`,
   blood_splatter: `${base}assets/fx/blood_splatter.png`,
   acoustic_ripple: `${base}assets/fx/acoustic_ripple.png`,
-  reticle_crosshair: `${base}assets/fx/reticle_crosshair.png`
+  reticle_crosshair: `${base}assets/fx/reticle_crosshair.png`,
+  sector1_bg: `${base}assets/backgrounds/sector1_bg.jpg`,
+  sector2_bg: `${base}assets/backgrounds/sector2_bg.jpg`,
+  sector3_bg: `${base}assets/backgrounds/sector3_bg.jpg`
 };
 
 /**
@@ -78,6 +84,14 @@ export class AssetLoader {
     const img = this.images.get(key);
     if (!img) return false;
     ctx.drawImage(img, -size / 2, -size / 2, size, size);
+    return true;
+  }
+
+  /** Draws a sprite stretched into an arbitrary rect, e.g. a sector background. False if the asset is missing. */
+  drawStretched(ctx: CanvasRenderingContext2D, key: AssetKey, x: number, y: number, w: number, h: number): boolean {
+    const img = this.images.get(key);
+    if (!img) return false;
+    ctx.drawImage(img, x, y, w, h);
     return true;
   }
 
