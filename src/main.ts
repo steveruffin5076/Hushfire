@@ -1,5 +1,6 @@
 import { Game } from './core/Game';
 import { AssetLoader } from './core/AssetLoader';
+import { MainMenu } from './ui/MainMenu';
 import { ArmoryMenu, GameMode } from './ui/ArmoryMenu';
 import { ExtractionModal, RunStats } from './ui/ExtractionModal';
 import { PauseMenu } from './ui/PauseMenu';
@@ -16,6 +17,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   const assets = new AssetLoader();
   await assets.loadAll();
 
+  const mainMenu = new MainMenu(overlay);
   const armory = new ArmoryMenu(overlay);
   const extractionModal = new ExtractionModal(overlay);
   const pauseMenu = new PauseMenu(overlay);
@@ -57,6 +59,6 @@ window.addEventListener('DOMContentLoaded', async () => {
     activeGame.start();
   };
 
-  openArmory();
+  mainMenu.open(() => openArmory());
   console.log('HUSHFIRE Game Engine Initialized Successfully.');
 });
