@@ -10,7 +10,9 @@ import {
   WALK_NOISE_RADIUS,
   SPRINT_NOISE_RADIUS,
   DOWNED_CRAWL_SPEED,
-  REVIVE_TIME_SEC
+  REVIVE_TIME_SEC,
+  FLASHLIGHT_BATTERY_MAX,
+  FLASHLIGHT_DRAIN_PER_SEC
 } from '../config/constants';
 
 export type MovementState = 'sneak' | 'walk' | 'sprint';
@@ -47,6 +49,7 @@ export class Player extends Entity {
   public lastShotTime = 0;
   public muzzleFlashTimer = 0;
   public flashlightOn = true;
+  public flashlightBattery = FLASHLIGHT_BATTERY_MAX;
 
   public isDowned = false;
   public reviveProgress = 0;
@@ -112,7 +115,15 @@ export class Player extends Entity {
       else if (input.isSwitchingWeapon) this.activeSlot = this.activeSlot === 'primary' ? 'secondary' : 'primary';
     }
     if (input.isTogglingFlashlight && !this.isDowned) {
-      this.flashlightOn = !this.flashlightOn;
+      // Toggling off is always allowed; toggling on needs charge left, so an
+      // empty battery can't just be switched back on with no cost.
+      if (this.flashlightOn) this.flashlightOn = false;
+      else if (this.flashlightBattery > 0) this.flashlightOn = true;
+    }
+
+    if (this.flashlightOn && !this.isDowned) {
+      this.flashlightBattery = Math.max(0, this.flashlightBattery - FLASHLIGHT_DRAIN_PER_SEC * dt);
+      if (this.flashlightBattery <= 0) this.flashlightOn = false;
     }
 
     if (this.isDowned) {

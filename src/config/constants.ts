@@ -14,6 +14,15 @@ export const DARKNESS_COLOR = 'rgba(5, 5, 8, 0.96)';
 export const P1_LIGHT_COLOR = '#EBF4FA'; // Arc White
 export const P2_LIGHT_COLOR = '#FF9E1B'; // Warm Amber
 
+// Flashlight Battery — drains only while lit, forces off at empty. 300s of
+// continuous on-time per full charge is comfortably enough to clear a sector
+// without a pickup if you're reasonably economical about going dark to sneak;
+// a battery pickup restores half a charge, mirroring the medkit's 50/100 HP.
+export const FLASHLIGHT_BATTERY_MAX = 100;
+export const FLASHLIGHT_FULL_CHARGE_SEC = 300;
+export const FLASHLIGHT_DRAIN_PER_SEC = FLASHLIGHT_BATTERY_MAX / FLASHLIGHT_FULL_CHARGE_SEC;
+export const BATTERY_PICKUP_CHARGE = 50;
+
 // Audio & Noise Constants
 // Difficulty-tuned up from 0.65: walls muffle sound more, so a stray footstep
 // or shot is less likely to blow a stealth run sector-wide.
