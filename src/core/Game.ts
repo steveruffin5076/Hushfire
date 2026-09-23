@@ -1,4 +1,4 @@
-import { CANVAS_WIDTH, CANVAS_HEIGHT, REVIVE_RANGE_PX } from '../config/constants';
+import { CANVAS_WIDTH, CANVAS_HEIGHT, REVIVE_RANGE_PX, FLASHLIGHT_BATTERY_MAX, BATTERY_PICKUP_CHARGE } from '../config/constants';
 import { InputManager, PlayerInputState } from './Input';
 import { Camera } from './Camera';
 import { SoundManager } from './SoundManager';
@@ -315,7 +315,7 @@ export class Game {
           player.hasKeycard = true;
           break;
         case 'battery':
-          player.flashlightOn = true;
+          player.flashlightBattery = Math.min(FLASHLIGHT_BATTERY_MAX, player.flashlightBattery + BATTERY_PICKUP_CHARGE);
           break;
       }
 

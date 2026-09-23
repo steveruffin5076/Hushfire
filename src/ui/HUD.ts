@@ -67,6 +67,15 @@ export class HUD {
     ctx.fillStyle = p.health > p.maxHealth * 0.3 ? '#00E676' : '#FF5252';
     ctx.fillRect(x, y + 50, 200 * (p.health / p.maxHealth), 8);
 
+    // Flashlight battery — only worth showing once it's on or actually low,
+    // so a fresh spawn's HUD isn't cluttered with an always-full bar.
+    if (p.flashlightOn || p.flashlightBattery < 30) {
+      ctx.strokeStyle = '#3A4252';
+      ctx.strokeRect(x, y + 63, 200, 5);
+      ctx.fillStyle = p.flashlightBattery > 30 ? '#00E5FF' : p.flashlightBattery > 0 ? '#FFC107' : '#FF5252';
+      ctx.fillRect(x, y + 63, 200 * (p.flashlightBattery / 100), 5);
+    }
+
     ctx.restore();
   }
 
