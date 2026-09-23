@@ -69,6 +69,42 @@ export class Game {
     if (e.code === 'Escape') this.togglePause();
   };
 
+  /**
+   * The keyboard shortcut (T) already toggles P1's flashlight via
+   * PlayerInputState — this handles the on-screen HUD button so it's
+   * discoverable without knowing the keybind. Only P1's button is wired up
+   * (see HUD.renderFlashlightButton's comment on why). stopPropagation keeps
+   * this same mousedown from also registering as a fire input in
+   * InputManager's window-level listener.
+   */
+  private readonly handleCanvasMouseDown = (e: MouseEvent) => {
+    const rect = this.canvas.getBoundingClientRect();
+    const scaleX = this.canvas.width / rect.width;
+    const scaleY = this.canvas.height / rect.height;
+    const cx = (e.clientX - rect.left) * scaleX;
+    const cy = (e.clientY - rect.top) * scaleY;
+
+    const btn = HUD.getFlashlightButtonRect(1);
+    if (cx >= btn.x && cx <= btn.x + btn.w && cy >= btn.y && cy <= btn.y + btn.h) {
+      this.p1.toggleFlashlight();
+      e.stopPropagation();
+      e.preventDefault();
+    }
+  };
+
+  /** Pointer-cursor affordance so the button reads as clickable while hovered. */
+  private readonly handleCanvasMouseMove = (e: MouseEvent) => {
+    const rect = this.canvas.getBoundingClientRect();
+    const scaleX = this.canvas.width / rect.width;
+    const scaleY = this.canvas.height / rect.height;
+    const cx = (e.clientX - rect.left) * scaleX;
+    const cy = (e.clientY - rect.top) * scaleY;
+
+    const btn = HUD.getFlashlightButtonRect(1);
+    const hovering = cx >= btn.x && cx <= btn.x + btn.w && cy >= btn.y && cy <= btn.y + btn.h;
+    this.canvas.style.cursor = hovering ? 'pointer' : 'default';
+  };
+
   private p1: Player;
   private p2: Player;
   private zombies: Zombie[] = [];
@@ -98,6 +134,8 @@ export class Game {
     canvas.addEventListener('mousedown', () => this.sound.resume(), { once: true });
     window.addEventListener('keydown', () => this.sound.resume(), { once: true });
     window.addEventListener('keydown', this.handleKeyDown);
+    canvas.addEventListener('mousedown', this.handleCanvasMouseDown);
+    canvas.addEventListener('mousemove', this.handleCanvasMouseMove);
 
     const spawns = this.map.sector.playerSpawns;
     this.p1 = new Player(1, spawns[0].x, spawns[0].y, 100, loadouts[0]);
@@ -141,6 +179,9 @@ export class Game {
   public stop() {
     this.running = false;
     window.removeEventListener('keydown', this.handleKeyDown);
+    this.canvas.removeEventListener('mousedown', this.handleCanvasMouseDown);
+    this.canvas.removeEventListener('mousemove', this.handleCanvasMouseMove);
+    this.canvas.style.cursor = 'default';
   }
 
   /** Public so the pause menu's own Resume button can drive the same toggle Esc does. */

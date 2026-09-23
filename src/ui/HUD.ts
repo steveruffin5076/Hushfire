@@ -6,11 +6,25 @@ import { AssetLoader } from '../core/AssetLoader';
 import { Point } from '../lighting/Raycaster';
 
 const PANEL_COLOR = '#EBF4FA';
+const FLASHLIGHT_BTN_W = 150;
+const FLASHLIGHT_BTN_H = 22;
+const FLASHLIGHT_BTN_Y_OFFSET = 76;
 
 export class HUD {
   private rippleClock = 0;
 
   constructor(private assets: AssetLoader) {}
+
+  /**
+   * Screen-space bounds of a player's clickable flashlight button, in the
+   * same coordinates renderScreenSpace draws their panel at. Shared with
+   * Game.ts's click hit-test so the drawn button and the clickable region
+   * never drift apart.
+   */
+  static getFlashlightButtonRect(playerNumber: 1 | 2): { x: number; y: number; w: number; h: number } {
+    const x = playerNumber === 1 ? 30 : CANVAS_WIDTH - 330;
+    return { x, y: 30 + FLASHLIGHT_BTN_Y_OFFSET, w: FLASHLIGHT_BTN_W, h: FLASHLIGHT_BTN_H };
+  }
 
   /**
    * World-space HUD elements (tied to player position) — call while the
@@ -76,7 +90,33 @@ export class HUD {
       ctx.fillRect(x, y + 63, 200 * (p.flashlightBattery / 100), 5);
     }
 
+    this.renderFlashlightButton(ctx, p);
+
     ctx.restore();
+  }
+
+  /** Only P1's button is actually clickable (see Game.ts's canvas click handler) — local
+   * co-op shares one mouse, and P2 already has their own dedicated key. Still drawn for
+   * both so P2 can read their state and keybind at a glance. */
+  private renderFlashlightButton(ctx: CanvasRenderingContext2D, p: Player) {
+    const rect = HUD.getFlashlightButtonRect(p.playerNumber);
+    const disabled = p.isDowned;
+    const key = p.playerNumber === 1 ? 'T' : "'";
+
+    ctx.strokeStyle = disabled ? '#2A2F3A' : p.flashlightOn ? '#00E5FF' : '#3A4252';
+    ctx.fillStyle = disabled ? 'rgba(20,22,28,0.6)' : p.flashlightOn ? 'rgba(0,229,255,0.15)' : 'rgba(20,22,28,0.6)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.roundRect(rect.x, rect.y, rect.w, rect.h, 4);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.font = '11px monospace';
+    ctx.fillStyle = disabled ? '#4A5468' : p.flashlightOn ? '#00E5FF' : '#8A94A6';
+    ctx.textBaseline = 'middle';
+    const label = `FLASHLIGHT ${p.flashlightOn ? 'ON' : 'OFF'} [${key}]`;
+    ctx.fillText(label, rect.x + 8, rect.y + rect.h / 2 + 1);
+    ctx.textBaseline = 'alphabetic';
   }
 
   private renderMissionStatus(ctx: CanvasRenderingContext2D, map: MapManager) {
