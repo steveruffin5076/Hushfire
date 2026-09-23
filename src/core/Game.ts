@@ -24,16 +24,46 @@ const ZOMBIE_CONTACT_RANGE_PAD = 4;
 const HORDE_SURGE_INTERVAL_SEC = 10;
 const HORDE_MAX_ZOMBIES = 18;
 
-// Draw sizes from docs/ART_SPECIFICATION.md (sprites are authored at 128x128).
+// Draw sizes, per docs/ART_SPECIFICATION.md §2-3. Sprites are authored at
+// 128x128, so these are all still *down*scales — 128 is the ceiling before the
+// art starts upscaling and going soft (index.html also sets
+// image-rendering: pixelated, which would make it crunchy rather than soft).
+// Sized up 1.35x from the previous 70/64/58/76/80; the archetype ordering from
+// the art spec (stalker smallest, brute largest) is preserved.
 const ZOMBIE_SPRITE_SIZE: Record<ZombieArchetype, number> = {
-  lurker: 64,
-  audio_stalker: 58,
-  bio_carrier: 76,
-  armored_brute: 80
+  lurker: 86,
+  audio_stalker: 78,
+  bio_carrier: 102,
+  armored_brute: 108
 };
-const PLAYER_SPRITE_SIZE = 70;
-/** Comfortably clears the 50px operative sprite so no part of them sits in the dark. */
-const CARRY_LIGHT_RADIUS = 62;
+const PLAYER_SPRITE_SIZE = 94;
+
+/**
+ * Light spill around each operative. The flashlight cone's apex is the
+ * operative's own centre, so without this their sprite measures as pitch black.
+ * Derived from the sprite size rather than hardcoded: the sprite's half-extent
+ * is PLAYER_SPRITE_SIZE / 2, so 0.9 clears it with room to spare and keeps
+ * clearing it if the sprite is resized again. (It was hardcoded to 62 against a
+ * 70px sprite, with a comment claiming a 50px one.)
+ */
+const CARRY_LIGHT_RADIUS = PLAYER_SPRITE_SIZE * 0.9;
+/** Downed operatives crawl and read as smaller, so their spill is tighter. */
+const CARRY_LIGHT_DOWNED_RADIUS = CARRY_LIGHT_RADIUS * 0.7;
+/** Muzzle flash offset along the aim vector — at the barrel, not the chest. */
+const MUZZLE_BARREL_OFFSET = PLAYER_SPRITE_SIZE * 0.37;
+/** Revive progress ring drawn around a downed operative. */
+const REVIVE_RING_RADIUS = PLAYER_SPRITE_SIZE * 0.31;
+
+// Zombie eye tell and health bar, as ratios of the archetype's draw size so all
+// four archetypes stay aligned with their own art. They were previously shared
+// absolute values (eyes at 11/±4 r2.4, bar 32px wide) tuned for the 64px lurker,
+// which left the 80px brute's eyes and bar misplaced.
+const ZOMBIE_EYE_X = 0.17;
+const ZOMBIE_EYE_Y = 0.06;
+const ZOMBIE_EYE_R = 0.0375;
+const ZOMBIE_HEALTH_BAR_W = 0.5;
+const ZOMBIE_HEALTH_BAR_GAP = 6;
+
 const PICKUP_SPRITE_SIZE = 30;
 
 export interface GameCallbacks {
@@ -92,7 +122,13 @@ export class Game {
     }
   };
 
-  /** Pointer-cursor affordance so the button reads as clickable while hovered. */
+  /**
+   * The OS cursor is hidden during gameplay — the aim reticle is drawn at the
+   * pointer's exact screen position instead (see HUD.renderReticles), so it acts
+   * as the cursor and never fights the art. Hovering the flashlight button still
+   * shows an arrow, since that's a screen-space control the reticle gives no
+   * affordance for.
+   */
   private readonly handleCanvasMouseMove = (e: MouseEvent) => {
     const rect = this.canvas.getBoundingClientRect();
     const scaleX = this.canvas.width / rect.width;
@@ -102,7 +138,7 @@ export class Game {
 
     const btn = HUD.getFlashlightButtonRect(1);
     const hovering = cx >= btn.x && cx <= btn.x + btn.w && cy >= btn.y && cy <= btn.y + btn.h;
-    this.canvas.style.cursor = hovering ? 'pointer' : 'default';
+    this.canvas.style.cursor = hovering ? 'pointer' : 'none';
   };
 
   private p1: Player;
@@ -136,6 +172,10 @@ export class Game {
     window.addEventListener('keydown', this.handleKeyDown);
     canvas.addEventListener('mousedown', this.handleCanvasMouseDown);
     canvas.addEventListener('mousemove', this.handleCanvasMouseMove);
+    // Hidden from the first frame, not just after the pointer happens to move —
+    // handleCanvasMouseMove only runs on mousemove, so without this the arrow
+    // would sit visible until the player twitched the mouse.
+    canvas.style.cursor = 'none';
 
     const spawns = this.map.sector.playerSpawns;
     this.p1 = new Player(1, spawns[0].x, spawns[0].y, 100, loadouts[0]);
@@ -181,6 +221,8 @@ export class Game {
     window.removeEventListener('keydown', this.handleKeyDown);
     this.canvas.removeEventListener('mousedown', this.handleCanvasMouseDown);
     this.canvas.removeEventListener('mousemove', this.handleCanvasMouseMove);
+    // Give the OS cursor back: gameplay hid it, but the armory/menus that follow
+    // are DOM overlays whose buttons rely on a visible pointer.
     this.canvas.style.cursor = 'default';
   }
 
@@ -566,16 +608,21 @@ export class Game {
     this.renderZombies(ctx);
     this.renderPlayers(ctx);
     this.renderMuzzleFlashes(ctx);
-    this.hud.renderWorldSpace(ctx, this.p1, this.p2, this.camera.screenToWorld(this.input.mousePos));
+    this.hud.renderWorldSpace(ctx, this.p1, this.p2);
 
     ctx.restore();
 
     this.renderLighting(ctx);
     this.hud.renderScreenSpace(ctx, this.p1, this.p2, this.map);
     this.renderDamageFlash(ctx);
+    // Reticle dead last: with the OS cursor hidden it *is* the player's pointer,
+    // so neither the darkness mask nor the damage vignette may dim it. Drawing
+    // it in world space before renderLighting used to bury it under ~96% opaque
+    // darkness whenever the pointer left the flashlight cone.
+    this.hud.renderReticles(ctx, this.p1, this.p2, this.input.mousePos, this.camera);
   }
 
-  /** Red vignette that pulses in on a hit and fades — screen-space, drawn last so nothing else dims it. */
+  /** Red vignette that pulses in on a hit and fades — screen-space, drawn after the lighting pass so the darkness mask doesn't dim it. Only the reticle draws later, since that's the player's pointer. */
   private renderDamageFlash(ctx: CanvasRenderingContext2D) {
     if (this.damageFlashAlpha <= 0) return;
     ctx.save();
@@ -720,6 +767,7 @@ export class Game {
       const aggro = z.state === 'ENRAGED';
       const key: AssetKey =
         z.archetype === 'lurker' && aggro ? 'zombie_lurker_aggro' : (`zombie_${z.archetype}` as AssetKey);
+      const size = ZOMBIE_SPRITE_SIZE[z.archetype];
 
       // Death: a quick squash-pop, then an eased shrink to nothing, rather than
       // just vanishing the instant health hits zero.
@@ -734,7 +782,7 @@ export class Game {
       ctx.rotate(z.angle);
       ctx.scale(scale, scale);
 
-      if (!this.assets.drawCentered(ctx, key, ZOMBIE_SPRITE_SIZE[z.archetype])) {
+      if (!this.assets.drawCentered(ctx, key, size)) {
         ctx.fillStyle = aggro ? '#7E9B6E' : z.state === 'SUSPICIOUS' ? '#6B7F58' : '#54654A';
         ctx.beginPath();
         ctx.arc(0, 0, z.radius, 0, Math.PI * 2);
@@ -743,10 +791,16 @@ export class Game {
 
       if (!z.isDying) {
         // Eye tell reads the sensory state, which the base sprite can't convey.
+        // Offsets are ratios of this archetype's draw size so the eyes sit on the
+        // face at every size — they used to be shared absolutes tuned for the
+        // 64px lurker, which left the 80px brute's eyes floating off its head.
+        const eyeX = size * ZOMBIE_EYE_X;
+        const eyeY = size * ZOMBIE_EYE_Y;
+        const eyeR = size * ZOMBIE_EYE_R;
         ctx.fillStyle = aggro ? '#E53935' : z.state === 'SUSPICIOUS' ? '#D4E157' : '#5A6B4F';
         ctx.beginPath();
-        ctx.arc(11, -4, 2.4, 0, Math.PI * 2);
-        ctx.arc(11, 4, 2.4, 0, Math.PI * 2);
+        ctx.arc(eyeX, -eyeY, eyeR, 0, Math.PI * 2);
+        ctx.arc(eyeX, eyeY, eyeR, 0, Math.PI * 2);
         ctx.fill();
       }
 
@@ -765,8 +819,12 @@ export class Game {
       if (!z.isDying) {
         const healthPct = z.health / z.maxHealth;
         if (healthPct < 1) {
+          // Sized and positioned off the archetype's draw size, not the shared
+          // 16px collision radius, so the bar grows with the sprite and still
+          // clears the top of it instead of landing across the chest.
+          const barW = size * ZOMBIE_HEALTH_BAR_W;
           ctx.fillStyle = '#FF5252';
-          ctx.fillRect(z.x - 16, z.y - z.radius - 12, 32 * healthPct, 3);
+          ctx.fillRect(z.x - barW / 2, z.y - size / 2 - ZOMBIE_HEALTH_BAR_GAP, barW * healthPct, 3);
         }
       }
     }
@@ -801,7 +859,7 @@ export class Game {
         ctx.strokeStyle = '#FF5252';
         ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.arc(p.x, p.y, 22, -Math.PI / 2, -Math.PI / 2 + (p.reviveProgress / 3) * Math.PI * 2);
+        ctx.arc(p.x, p.y, REVIVE_RING_RADIUS, -Math.PI / 2, -Math.PI / 2 + (p.reviveProgress / 3) * Math.PI * 2);
         ctx.stroke();
       }
     }
@@ -816,12 +874,13 @@ export class Game {
       const size = weapon.muzzleFlashRadiusPx * flashMult;
       if (size < 1) continue;
 
-      const barrel = 26;
+      // Offset scales with the operative's draw size so the flash stays at the
+      // muzzle; a hardcoded 26 was fine at a 70px sprite but lands mid-chest at 94px.
       this.assets.draw(
         ctx,
         'muzzle_flash',
-        p.x + Math.cos(p.angle) * barrel,
-        p.y + Math.sin(p.angle) * barrel,
+        p.x + Math.cos(p.angle) * MUZZLE_BARREL_OFFSET,
+        p.y + Math.sin(p.angle) * MUZZLE_BARREL_OFFSET,
         p.angle,
         size,
         0.9
@@ -851,7 +910,10 @@ export class Game {
     const carryLights: RadialLight[] = [];
     for (const p of [this.p1, this.p2]) {
       if (p.isEliminated) continue;
-      carryLights.push({ origin: { x: p.x, y: p.y }, radius: p.isDowned ? 44 : CARRY_LIGHT_RADIUS });
+      carryLights.push({
+        origin: { x: p.x, y: p.y },
+        radius: p.isDowned ? CARRY_LIGHT_DOWNED_RADIUS : CARRY_LIGHT_RADIUS
+      });
     }
 
     ShadowRenderer.render(
