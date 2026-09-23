@@ -3,12 +3,27 @@ import { WEAPON_REGISTRY } from '../config/weapons';
 import { MapManager } from '../systems/MapManager';
 import { CANVAS_WIDTH } from '../config/constants';
 import { AssetLoader } from '../core/AssetLoader';
+import { Camera } from '../core/Camera';
 import { Point } from '../lighting/Raycaster';
 
 const PANEL_COLOR = '#EBF4FA';
 const FLASHLIGHT_BTN_W = 150;
 const FLASHLIGHT_BTN_H = 22;
 const FLASHLIGHT_BTN_Y_OFFSET = 76;
+
+// Reticle — #FF1744 is the red ART_SPECIFICATION.md §4 already specifies for the
+// laser sight, so the aim reticle reads as the same system rather than a new
+// arbitrary color. Drawn procedurally (not from fx/reticle_crosshair.png) so the
+// stroke weight is constant in screen space: a raster scaled to the weapon's
+// spread thins to under 1px for non-shotgun weapons, which is why the old
+// crosshair read as faint.
+const RETICLE_COLOR = '#FF1744';
+/** Dark under-stroke, so the red still reads against bright sector floors, blood decals and the damage vignette. */
+const RETICLE_OUTLINE = 'rgba(0, 0, 0, 0.55)';
+const RETICLE_LINE_W = 3;
+const RETICLE_OUTLINE_W = 6;
+/** Where P2's reticle sits along their aim vector — they have no mouse to track. */
+const RETICLE_AIM_DIST = 46;
 
 export class HUD {
   private rippleClock = 0;
@@ -28,17 +43,47 @@ export class HUD {
 
   /**
    * World-space HUD elements (tied to player position) — call while the
-   * camera transform is active. `p1MouseWorld` is P1's actual mouse cursor
-   * converted to world space, so their reticle tracks the pointer exactly
-   * instead of just sitting a fixed distance out along the aim angle; P2
-   * has no physical mouse (keyboard aim or bot), so it keeps that fallback.
+   * camera transform is active, i.e. *before* the lighting pass. Only the
+   * acoustic ripple belongs here: it's a diegetic sound visual, so it should
+   * be dimmed by darkness exactly like the floor it ripples over.
+   *
+   * The reticle deliberately does not live here — see renderReticles.
    */
-  renderWorldSpace(ctx: CanvasRenderingContext2D, p1: Player, p2: Player, p1MouseWorld?: Point) {
+  renderWorldSpace(ctx: CanvasRenderingContext2D, p1: Player, p2: Player) {
     this.rippleClock += 1 / 60;
     this.renderDecibelRipple(ctx, p1);
     if (!p2.isEliminated) this.renderDecibelRipple(ctx, p2);
-    this.renderReticle(ctx, p1, p1MouseWorld);
-    if (!p2.isEliminated) this.renderReticle(ctx, p2);
+  }
+
+  /**
+   * Reticles, in screen space — call *after* the lighting pass.
+   *
+   * This used to be drawn in world space before renderLighting(), which meant
+   * ShadowRenderer's darkness mask (rgba(5,5,8,0.96) over everything outside a
+   * light cone) composited on top of it. Aiming anywhere unlit left the
+   * crosshair ~96% buried. That mattered little while the OS cursor was
+   * visible; it matters a lot now that gameplay hides it and the reticle is
+   * the player's only pointer.
+   *
+   * `mouseScreen` is P1's pointer in canvas pixels, so their reticle tracks it
+   * exactly with no world round-trip. P2 has no physical mouse (keyboard aim
+   * or bot), so theirs is projected RETICLE_AIM_DIST along their aim vector
+   * and converted back to screen space.
+   */
+  renderReticles(
+    ctx: CanvasRenderingContext2D,
+    p1: Player,
+    p2: Player,
+    mouseScreen: Point,
+    camera: Camera
+  ) {
+    this.renderReticle(ctx, p1, mouseScreen);
+    if (!p2.isEliminated) {
+      this.renderReticle(ctx, p2, camera.worldToScreen({
+        x: p2.x + Math.cos(p2.angle) * RETICLE_AIM_DIST,
+        y: p2.y + Math.sin(p2.angle) * RETICLE_AIM_DIST
+      }));
+    }
   }
 
   /**
@@ -166,30 +211,59 @@ export class HUD {
     ctx.restore();
   }
 
-  private renderReticle(ctx: CanvasRenderingContext2D, p: Player, mouseWorld?: Point) {
+  /**
+   * One reticle, drawn at a canvas-pixel position. Ring radius still tracks the
+   * weapon's spread so a shotgun reads visibly wider than an SMG, but the stroke
+   * weight is fixed in screen space rather than baked into a scaled raster.
+   */
+  private renderReticle(ctx: CanvasRenderingContext2D, p: Player, at: Point) {
     if (p.isDowned || p.isEliminated) return;
     const weapon = WEAPON_REGISTRY[p.activeWeaponId];
     const spread = weapon.pelletCount ? 22 : 12;
 
-    let rx: number;
-    let ry: number;
-    if (mouseWorld) {
-      rx = mouseWorld.x;
-      ry = mouseWorld.y;
-    } else {
-      const reticleDist = 46;
-      rx = p.x + Math.cos(p.angle) * reticleDist;
-      ry = p.y + Math.sin(p.angle) * reticleDist;
-    }
+    const ring = spread * 0.9;
+    const tickInner = ring + 4;
+    const tickOuter = ring + 11;
 
-    if (this.assets.draw(ctx, 'reticle_crosshair', rx, ry, 0, spread * 2.4, 0.75)) return;
+    // Ring plus four ticks as a single path, so both the outline and the colour
+    // pass cost one stroke each. moveTo before every tick keeps the arc from
+    // connecting to it with a stray line.
+    const trace = () => {
+      ctx.beginPath();
+      ctx.arc(at.x, at.y, ring, 0, Math.PI * 2);
+      ctx.moveTo(at.x + tickInner, at.y);
+      ctx.lineTo(at.x + tickOuter, at.y);
+      ctx.moveTo(at.x - tickInner, at.y);
+      ctx.lineTo(at.x - tickOuter, at.y);
+      ctx.moveTo(at.x, at.y + tickInner);
+      ctx.lineTo(at.x, at.y + tickOuter);
+      ctx.moveTo(at.x, at.y - tickInner);
+      ctx.lineTo(at.x, at.y - tickOuter);
+    };
 
     ctx.save();
-    ctx.strokeStyle = 'rgba(235, 244, 250, 0.5)';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.arc(rx, ry, spread, 0, Math.PI * 2);
+    ctx.lineCap = 'round';
+
+    ctx.strokeStyle = RETICLE_OUTLINE;
+    ctx.lineWidth = RETICLE_OUTLINE_W;
+    trace();
     ctx.stroke();
+
+    ctx.strokeStyle = RETICLE_COLOR;
+    ctx.lineWidth = RETICLE_LINE_W;
+    trace();
+    ctx.stroke();
+
+    // Centre pip, outlined for the same reason as the ring.
+    ctx.fillStyle = RETICLE_OUTLINE;
+    ctx.beginPath();
+    ctx.arc(at.x, at.y, 3.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = RETICLE_COLOR;
+    ctx.beginPath();
+    ctx.arc(at.x, at.y, 1.8, 0, Math.PI * 2);
+    ctx.fill();
+
     ctx.restore();
   }
 }

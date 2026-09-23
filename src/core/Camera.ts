@@ -107,4 +107,17 @@ export class Camera {
       y: this.y + (p.y - this.viewportHeight / 2 - this.shakeOffsetY) / this.zoom
     };
   }
+
+  /**
+   * Forward transform, exact inverse of screenToWorld(): world coordinates to
+   * canvas pixels. Lets HUD elements that are anchored to a world position be
+   * drawn in screen space instead — i.e. after the lighting pass, so the
+   * darkness mask can't bury them.
+   */
+  worldToScreen(p: Point): Point {
+    return {
+      x: (p.x - this.x) * this.zoom + this.viewportWidth / 2 + this.shakeOffsetX,
+      y: (p.y - this.y) * this.zoom + this.viewportHeight / 2 + this.shakeOffsetY
+    };
+  }
 }
