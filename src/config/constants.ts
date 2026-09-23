@@ -5,7 +5,12 @@ export const PHYSICS_TICK_RATE = 60;
 export const DT = 1 / PHYSICS_TICK_RATE;
 
 // Visual & Lighting Constants
-export const DARKNESS_COLOR = 'rgba(5, 5, 8, 0.88)';
+// Bumped from 0.88: with sector background art now drawn under this overlay
+// (see Game.ts's renderFloor), that opacity let a lighter/detailed floor
+// texture read as clearly visible outside the flashlight, breaking the
+// "screen is pitch black except where lit" mechanic. 0.96 keeps it dim
+// enough to reveal only silhouette-level detail without a light on it.
+export const DARKNESS_COLOR = 'rgba(5, 5, 8, 0.96)';
 export const P1_LIGHT_COLOR = '#EBF4FA'; // Arc White
 export const P2_LIGHT_COLOR = '#FF9E1B'; // Warm Amber
 
