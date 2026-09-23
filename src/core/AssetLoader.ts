@@ -1,0 +1,99 @@
+export type AssetKey =
+  | 'player_infiltrator'
+  | 'player_breacher'
+  | 'player_downed'
+  | 'zombie_lurker'
+  | 'zombie_lurker_aggro'
+  | 'zombie_audio_stalker'
+  | 'zombie_bio_carrier'
+  | 'zombie_armored_brute'
+  | 'pickup_ammo'
+  | 'pickup_medkit'
+  | 'pickup_battery'
+  | 'pickup_keycard'
+  | 'muzzle_flash'
+  | 'blood_splatter'
+  | 'acoustic_ripple'
+  | 'reticle_crosshair';
+
+const ASSET_PATHS: Record<AssetKey, string> = {
+  player_infiltrator: '/assets/sprites/player_infiltrator.png',
+  player_breacher: '/assets/sprites/player_breacher.png',
+  player_downed: '/assets/sprites/player_downed.png',
+  zombie_lurker: '/assets/sprites/zombie_lurker.png',
+  zombie_lurker_aggro: '/assets/sprites/zombie_lurker_aggro.png',
+  zombie_audio_stalker: '/assets/sprites/zombie_audio_stalker.png',
+  zombie_bio_carrier: '/assets/sprites/zombie_bio_carrier.png',
+  zombie_armored_brute: '/assets/sprites/zombie_armored_brute.png',
+  pickup_ammo: '/assets/items/pickup_ammo.png',
+  pickup_medkit: '/assets/items/pickup_medkit.png',
+  pickup_battery: '/assets/items/pickup_battery.png',
+  pickup_keycard: '/assets/items/pickup_keycard.png',
+  muzzle_flash: '/assets/fx/muzzle_flash.png',
+  blood_splatter: '/assets/fx/blood_splatter.png',
+  acoustic_ripple: '/assets/fx/acoustic_ripple.png',
+  reticle_crosshair: '/assets/fx/reticle_crosshair.png'
+};
+
+/**
+ * Loads the sprite atlas up front. Sprites are authored on a 128x128 canvas
+ * with a centered pivot and facing +x, so they drop straight into the
+ * translate/rotate the renderer already does per entity.
+ */
+export class AssetLoader {
+  private images = new Map<AssetKey, HTMLImageElement>();
+
+  async loadAll(): Promise<void> {
+    const entries = Object.entries(ASSET_PATHS) as [AssetKey, string][];
+    await Promise.all(
+      entries.map(
+        ([key, path]) =>
+          new Promise<void>(resolve => {
+            const img = new Image();
+            img.onload = () => {
+              this.images.set(key, img);
+              resolve();
+            };
+            img.onerror = () => {
+              console.warn(`[assets] failed to load ${path}`);
+              resolve();
+            };
+            img.src = path;
+          })
+      )
+    );
+  }
+
+  has(key: AssetKey): boolean {
+    return this.images.has(key);
+  }
+
+  /** Draws a sprite centered on the current transform origin. False if the asset is missing. */
+  drawCentered(ctx: CanvasRenderingContext2D, key: AssetKey, size: number): boolean {
+    const img = this.images.get(key);
+    if (!img) return false;
+    ctx.drawImage(img, -size / 2, -size / 2, size, size);
+    return true;
+  }
+
+  /** Draws a sprite at a world position with rotation, restoring transform afterwards. */
+  draw(
+    ctx: CanvasRenderingContext2D,
+    key: AssetKey,
+    x: number,
+    y: number,
+    angle: number,
+    size: number,
+    alpha = 1
+  ): boolean {
+    const img = this.images.get(key);
+    if (!img) return false;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(x, y);
+    if (angle !== 0) ctx.rotate(angle);
+    ctx.drawImage(img, -size / 2, -size / 2, size, size);
+    ctx.restore();
+    return true;
+  }
+}

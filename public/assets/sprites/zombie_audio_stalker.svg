@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+      <ellipse cx="64" cy="64" rx="14" ry="22" fill="#424750" stroke="#2B2F38" stroke-width="2"/>
+      <path d="M64 46 L102 56 L98 62 L62 52 Z" fill="#D2D7DF"/>
+      <path d="M64 82 L102 72 L98 66 L62 76 Z" fill="#D2D7DF"/>
+      <circle cx="65" cy="64" r="14" fill="#D2D7DF" stroke="#8C93A0" stroke-width="2"/>
+      <!-- Mutated Ears -->
+      <ellipse cx="67" cy="48" rx="5" ry="4" fill="#A84848" stroke="#732626" stroke-width="1.5"/>
+      <ellipse cx="67" cy="80" rx="5" ry="4" fill="#A84848" stroke="#732626" stroke-width="1.5"/>
+    </svg>

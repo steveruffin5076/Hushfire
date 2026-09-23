@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+      <defs>
+        <radialGradient id="infilLight" cx="46" cy="68" r="40" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stop-color="#EBF4FA" stop-opacity="0.6"/>
+          <stop offset="100%" stop-color="#EBF4FA" stop-opacity="0"/>
+        </radialGradient>
+      </defs>
+      <!-- Tactical Rig -->
+      <rect x="36" y="46" width="16" height="36" rx="6" fill="#16181E" stroke="#252932" stroke-width="2"/>
+      <!-- Shoulders -->
+      <ellipse cx="64" cy="64" rx="18" ry="28" fill="#1C1F26" stroke="#2F3542" stroke-width="3"/>
+      <!-- Arms -->
+      <path d="M68 40 L98 50 L94 58 L66 50 Z" fill="#232731"/>
+      <path d="M68 88 L96 76 L92 68 L66 78 Z" fill="#232731"/>
+      <!-- Suppressed Weapon -->
+      <rect x="82" y="60" width="28" height="8" fill="#111215" stroke="#3A3F4D" stroke-width="1.5"/>
+      <rect x="110" y="59" width="16" height="10" rx="2" fill="#2B303A" stroke="#4A5262" stroke-width="1"/>
+      <!-- Flashlight -->
+      <rect x="94" y="68" width="14" height="4" fill="#333742"/>
+      <circle cx="108" cy="70" r="2" fill="#EBF4FA"/>
+      <!-- Helmet -->
+      <circle cx="64" cy="64" r="14" fill="#0F1115" stroke="#373D4A" stroke-width="2"/>
+      <circle cx="72" cy="54" r="2" fill="#00E676"/>
+    </svg>
