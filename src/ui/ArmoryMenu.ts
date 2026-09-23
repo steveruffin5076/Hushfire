@@ -61,6 +61,7 @@ const AMMO_LABELS: Record<AmmoType, string> = {
  */
 export class ArmoryMenu {
   private root: HTMLDivElement;
+  private resizeHandler: (() => void) | null = null;
 
   constructor(private container: HTMLElement) {
     this.root = document.createElement('div');
@@ -77,9 +78,32 @@ export class ArmoryMenu {
     this.root.innerHTML = '';
     this.root.style.cssText = `
       position: absolute; inset: 0; background: rgba(5,6,9,0.97);
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      font-family: 'Segoe UI', monospace; color: ${TEXT}; overflow-y: auto; padding: 40px 20px;
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Segoe UI', monospace; color: ${TEXT}; overflow: hidden;
     `;
+
+    // Everything visible lives in `stage` so it can be scaled as one unit to
+    // always fit the viewport (see fitStage below) instead of relying on
+    // scroll, which used to clip the header/deploy button off-screen on
+    // short windows.
+    const stage = document.createElement('div');
+    stage.style.cssText = 'display: flex; flex-direction: column; align-items: center; padding: 24px 20px;';
+    this.root.appendChild(stage);
+
+    // Recomputes stage's scale so its natural (untransformed) size always
+    // fits inside the current viewport, live on every resize.
+    const fitStage = () => {
+      const availW = this.root.clientWidth - 24;
+      const availH = this.root.clientHeight - 24;
+      const naturalW = stage.offsetWidth;
+      const naturalH = stage.offsetHeight;
+      if (naturalW === 0 || naturalH === 0) return;
+      const scale = Math.min(1, availW / naturalW, availH / naturalH);
+      stage.style.transform = `scale(${scale})`;
+    };
+    if (this.resizeHandler) window.removeEventListener('resize', this.resizeHandler);
+    this.resizeHandler = fitStage;
+    window.addEventListener('resize', this.resizeHandler);
 
     const quitBtn = document.createElement('button');
     quitBtn.textContent = 'QUIT GAME ✕';
@@ -103,11 +127,11 @@ export class ArmoryMenu {
         Tactical Co-Op Extraction // Pre-Mission Armory
       </div>
     `;
-    this.root.appendChild(header);
+    stage.appendChild(header);
 
     const layout = document.createElement('div');
     layout.style.cssText = 'display: flex; gap: 28px; flex-wrap: wrap; justify-content: center; max-width: 900px;';
-    this.root.appendChild(layout);
+    stage.appendChild(layout);
 
     // ---- Card 1: deployment / game mode ----
     const deployCard = this.buildCard('[ 1. CO-OP DEPLOYMENT ]', CYAN);
@@ -317,6 +341,9 @@ export class ArmoryMenu {
       );
 
       loadoutBody.appendChild(this.buildStatsPanel(loadout));
+      // Loadout swaps can change this card's height (e.g. hidden vs. shown
+      // operative tabs), so re-fit on every re-render, not just on resize.
+      fitStage();
     };
 
     setMode('solo');
@@ -334,7 +361,8 @@ export class ArmoryMenu {
       this.close();
       onDeploy(mode, loadouts[0], loadouts[1]);
     };
-    this.root.appendChild(deployBtn);
+    stage.appendChild(deployBtn);
+    fitStage();
   }
 
   private buildCard(label: string, accent: string): { card: HTMLDivElement; body: HTMLDivElement } {
@@ -454,6 +482,10 @@ export class ArmoryMenu {
   }
 
   close() {
+    if (this.resizeHandler) {
+      window.removeEventListener('resize', this.resizeHandler);
+      this.resizeHandler = null;
+    }
     this.root.innerHTML = '';
     // Emptying the panel is not enough: the root itself carries `inset: 0` and a
     // near-opaque backdrop, so leaving the style behind veils the whole game in

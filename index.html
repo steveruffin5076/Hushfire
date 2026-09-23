@@ -31,6 +31,15 @@
       display: block;
       background: #0d0f14;
       image-rendering: pixelated;
+      /* Shrinks to fit the viewport in real time on resize, preserving the
+         1280x720 aspect ratio (from the canvas's width/height attributes)
+         with no stretching — this keeps rect.width/height in Input.ts's
+         mouse-aim math exactly equal to the drawn area, so aiming stays
+         accurate at any window size. */
+      max-width: 100vw;
+      max-height: 100vh;
+      width: auto;
+      height: auto;
     }
     #ui-overlay {
       position: absolute;
