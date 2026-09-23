@@ -26,12 +26,12 @@ const HORDE_MAX_ZOMBIES = 18;
 
 // Draw sizes from docs/ART_SPECIFICATION.md (sprites are authored at 128x128).
 const ZOMBIE_SPRITE_SIZE: Record<ZombieArchetype, number> = {
-  lurker: 46,
-  audio_stalker: 42,
-  bio_carrier: 54,
-  armored_brute: 58
+  lurker: 64,
+  audio_stalker: 58,
+  bio_carrier: 76,
+  armored_brute: 80
 };
-const PLAYER_SPRITE_SIZE = 50;
+const PLAYER_SPRITE_SIZE = 70;
 /** Comfortably clears the 50px operative sprite so no part of them sits in the dark. */
 const CARRY_LIGHT_RADIUS = 62;
 const PICKUP_SPRITE_SIZE = 30;
