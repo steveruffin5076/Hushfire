@@ -1,0 +1,15 @@
+# Dependencies — installed per-machine by `npm ci`; committed copies carry
+# another OS's native binaries (e.g. Windows rollup) and break fresh installs.
+node_modules/
+
+# Build output — GitHub Actions rebuilds this on every deploy.
+dist/
+
+# Local env / editor / OS noise
+.env
+.env.local
+*.log
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
