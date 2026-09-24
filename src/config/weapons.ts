@@ -14,6 +14,8 @@ export interface WeaponDef {
   muzzleFlashRadiusPx: number;
   pelletCount?: number;
   isSilentByDefault?: boolean;
+  /** Melee: never uses or reloads ammo. */
+  infiniteAmmo?: boolean;
   /** Overrides the default "4 spare mags" reserve when a weapon carries a different amount. */
   reserveAmmo?: number;
 }
@@ -93,7 +95,8 @@ export const WEAPON_REGISTRY: Record<string, WeaponDef> = {
     reloadTimeSec: 0,
     baseSoundRadiusPx: 15,
     muzzleFlashRadiusPx: 0,
-    isSilentByDefault: true
+    isSilentByDefault: true,
+    infiniteAmmo: true
   },
   glock17: {
     id: 'glock17',

@@ -397,7 +397,8 @@ export class Game {
           player.health = Math.min(player.maxHealth, player.health + 50);
           break;
         case 'ammo':
-          player.reserveAmmo += 60;
+          // Both guns already full: leave the crate for later (or for the partner).
+          if (!player.addAmmoPickup()) continue;
           break;
         case 'keycard':
           player.hasKeycard = true;
@@ -514,8 +515,10 @@ export class Game {
       this.sound.playSiren(this.p1.position, { x: zone.x, y: zone.y });
     }
 
+    zone.isOccupied = anyoneInZone;
     if (zone.isActive) {
-      zone.holdoutTimer -= dt;
+      // The clock only runs while someone holds the pad; the horde keeps coming either way.
+      if (anyoneInZone) zone.holdoutTimer -= dt;
       this.updateHordeSurge(dt);
       if (zone.holdoutTimer <= 0) {
         zone.holdoutTimer = 0;
@@ -551,8 +554,11 @@ export class Game {
     const exit = this.map.sector.exitZone;
     if (!exit || !this.map.objectiveComplete) return;
 
-    const atExit = (p: Player) => !p.isEliminated && !p.isDowned && Math.hypot(p.x - exit.x, p.y - exit.y) <= exit.radius;
-    if (atExit(this.p1) || atExit(this.p2)) this.advanceSector();
+    // Every operative still in the fight must be standing in the exit — a
+    // downed partner has to be revived first, not dragged along for free.
+    const atExit = (p: Player) => !p.isDowned && Math.hypot(p.x - exit.x, p.y - exit.y) <= exit.radius;
+    const team = [this.p1, this.p2].filter(p => !p.isEliminated);
+    if (team.length > 0 && team.every(atExit)) this.advanceSector();
   }
 
   private advanceSector() {
@@ -567,10 +573,6 @@ export class Game {
     for (const [index, player] of [this.p1, this.p2].entries()) {
       player.x = spawns[index].x;
       player.y = spawns[index].y;
-      if (player.isDowned) {
-        player.isDowned = false;
-        player.health = Math.round(player.maxHealth * 0.5);
-      }
       player.resetReviveProgress();
     }
   }

@@ -12,6 +12,8 @@ export interface ExtractionZone {
   holdoutTimer: number;
   isActive: boolean;
   isComplete: boolean;
+  /** Someone is on the pad right now — the holdout clock is paused otherwise. */
+  isOccupied: boolean;
 }
 
 export class MapManager {
@@ -35,7 +37,8 @@ export class MapManager {
       holdoutDurationSec: 120,
       holdoutTimer: 120,
       isActive: false,
-      isComplete: false
+      isComplete: false,
+      isOccupied: false
     };
     this.loadSector(0);
   }
@@ -72,7 +75,8 @@ export class MapManager {
       holdoutDurationSec: evac?.holdoutSec ?? 120,
       holdoutTimer: evac?.holdoutSec ?? 120,
       isActive: false,
-      isComplete: false
+      isComplete: false,
+      isOccupied: false
     };
 
     this.nav = new NavGrid(this.walls);

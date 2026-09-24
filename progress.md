@@ -26,6 +26,14 @@ Last checked: 2026-09-24, against `main` after PR #15.
 ### Armory
 - The armory remembers the last game mode and both operatives' loadouts in `localStorage` (`src/ui/LoadoutStorage.ts`). Saves from older builds are checked field by field: a weapon or attachment that no longer exists resets to the default, and the rest is kept.
 
+### Gameplay fixes (from the design review)
+- The knife backstab now triggers when you're actually behind the zombie (its rear 120°). It used to trigger face-to-face.
+- The brute's front-armour check no longer misfires near the ±π angle wrap (`Geometry.angleBetween`).
+- The knife never uses or reloads ammo (`infiniteAmmo`).
+- Ammo crates give +2 mags to each gun, capped at the starting reserve. The crate stays on the floor if both guns are full.
+- Every living operative must reach the exit, and a downed partner must be revived first. There's no free revive on sector change.
+- The evac holdout clock only runs while someone is on the pad.
+
 ### Gamepad
 - Standard-layout controllers work alongside the keyboard (`src/core/Gamepad.ts`, polled by `InputManager`). Left stick moves, right stick aims, RT fires, Start pauses and resumes. The full table is in `docs/COOP_SESSION_GUIDE.md` §5.
 - Who gets which pad: solo → P1; co-op with one pad → P2 (P1 keeps the mouse); two pads → one each. P1 switches between mouse and stick aim automatically, depending on which moved last.

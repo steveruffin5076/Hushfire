@@ -5,6 +5,7 @@ import { Point, Raycaster, Segment } from '../lighting/Raycaster';
 import { WEAPON_REGISTRY, MUZZLE_MODIFIERS, AMMO_MODIFIERS } from '../config/weapons';
 import { NoiseSystem } from './NoiseSystem';
 import { MapManager } from './MapManager';
+import { angleBetween } from './Geometry';
 
 export interface Decal {
   x: number;
@@ -27,6 +28,8 @@ export interface CombatEvents {
 const MELEE_RANGE = 46;
 const MELEE_ARC_RAD = (70 * Math.PI) / 180;
 const KNIFE_BACKSTAB_DAMAGE = 400;
+/** A backstab needs the attacker inside this rear cone of the zombie (120° wide, centered on its back). */
+const BACKSTAB_REAR_ARC_RAD = (120 * Math.PI) / 180;
 /** Cosmetic push on a non-lethal hit — decays in Zombie.updateJuice, never wall-checked. */
 const HIT_KNOCKBACK_PX_PER_SEC = 90;
 /** How long a hit's white flash lasts — exported so the renderer can fade it by the same duration. */
@@ -122,29 +125,30 @@ export class CombatSystem {
       if (dist > MELEE_RANGE) continue;
 
       const angleTo = Math.atan2(zombie.y - player.y, zombie.x - player.x);
-      let diff = Math.abs(angleTo - player.angle);
-      if (diff > Math.PI) diff = Math.PI * 2 - diff;
-      if (diff > MELEE_ARC_RAD / 2) continue;
+      if (angleBetween(angleTo, player.angle) > MELEE_ARC_RAD / 2) continue;
 
-      const isBackstab = this.isBehind(player.angle, zombie.angle);
+      const isBackstab = this.isBehind(player, zombie);
       this.applyDamage(zombie, angleTo, isBackstab ? KNIFE_BACKSTAB_DAMAGE : damage, player, armorPen);
       decals.push(bloodDecal(zombie.x, zombie.y, 6, '#5A0B0B'));
     }
   }
 
-  private isBehind(attackerFacing: number, targetFacing: number): boolean {
-    let diff = Math.abs(attackerFacing - (targetFacing + Math.PI));
-    if (diff > Math.PI) diff = Math.PI * 2 - diff;
-    return diff < Math.PI / 3;
+  /**
+   * True when the attacker stands in the zombie's rear cone — judged by where
+   * they are, not which way they face. The old version compared facings and
+   * was inverted: it granted the backstab when the two faced each other.
+   */
+  isBehind(attacker: Point, zombie: Zombie): boolean {
+    const zombieToAttacker = Math.atan2(attacker.y - zombie.y, attacker.x - zombie.x);
+    return angleBetween(zombieToAttacker, zombie.angle + Math.PI) < BACKSTAB_REAR_ARC_RAD / 2;
   }
 
   private applyDamage(zombie: Zombie, hitAngle: number, rawDamage: number, attacker: Player, armorPen: number) {
     let damage = rawDamage;
 
     if (zombie.def.isArmoredFront) {
-      let diff = Math.abs(hitAngle - (zombie.angle + Math.PI));
-      if (diff > Math.PI) diff = Math.PI * 2 - diff;
-      const isFrontalHit = diff < Math.PI / 2;
+      // hitAngle is the direction the shot travels, so a frontal hit travels against the zombie's facing.
+      const isFrontalHit = angleBetween(hitAngle, zombie.angle + Math.PI) < Math.PI / 2;
       if (isFrontalHit) {
         const penetration = Math.max(0, armorPen);
         damage *= 0.25 + penetration * 0.75;

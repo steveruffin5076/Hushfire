@@ -1,5 +1,5 @@
 import { Entity } from './Entity';
-import { MuzzleType, RailType, AmmoType, WEAPON_REGISTRY } from '../config/weapons';
+import { MuzzleType, RailType, AmmoType, WeaponDef, WEAPON_REGISTRY } from '../config/weapons';
 import { PlayerInputState } from '../core/Input';
 import { MapManager } from '../systems/MapManager';
 import {
@@ -31,6 +31,9 @@ export interface WeaponLoadout {
 }
 
 const PLAYER_RADIUS = 16;
+
+/** Most weapons carry 4 spare mags; a few (the pistols) specify their own historically-accurate reserve. */
+const startingReserve = (weapon: WeaponDef) => weapon.reserveAmmo ?? weapon.magSize * 4;
 
 export class Player extends Entity {
   public readonly playerNumber: 1 | 2;
@@ -65,12 +68,31 @@ export class Player extends Entity {
     this.loadout = loadout;
     const primary = WEAPON_REGISTRY[loadout.primaryWeapon];
     const secondary = WEAPON_REGISTRY[loadout.secondaryWeapon];
-    // Most weapons carry 4 spare mags by default; a few (the pistols) specify
-    // their own historically-accurate reserve instead of following that formula.
     this.ammoBySlot = {
-      primary: { mag: primary.magSize, reserve: primary.reserveAmmo ?? primary.magSize * 4 },
-      secondary: { mag: secondary.magSize, reserve: secondary.reserveAmmo ?? secondary.magSize * 4 }
+      primary: { mag: primary.magSize, reserve: startingReserve(primary) },
+      secondary: { mag: secondary.magSize, reserve: startingReserve(secondary) }
     };
+  }
+
+  /**
+   * An ammo crate: +2 magazines for each gun carried, capped at that gun's
+   * starting reserve, so it's worth the same to an MPX (60 rounds) as to a
+   * crossbow (2 bolts). Melee weapons are skipped. Returns false if both
+   * guns were already full, so the crate can be left for later.
+   */
+  addAmmoPickup(): boolean {
+    let added = false;
+    for (const slot of ['primary', 'secondary'] as const) {
+      const weapon = WEAPON_REGISTRY[slot === 'primary' ? this.loadout.primaryWeapon : this.loadout.secondaryWeapon];
+      if (weapon.infiniteAmmo) continue;
+      const ammo = this.ammoBySlot[slot];
+      const next = Math.min(startingReserve(weapon), ammo.reserve + weapon.magSize * 2);
+      if (next > ammo.reserve) {
+        ammo.reserve = next;
+        added = true;
+      }
+    }
+    return added;
   }
 
   get activeWeaponId(): string {
@@ -208,6 +230,7 @@ export class Player extends Entity {
   startReload() {
     if (this.isReloading || this.isDowned) return;
     const weapon = WEAPON_REGISTRY[this.activeWeaponId];
+    if (weapon.infiniteAmmo) return;
     if (this.currentMag >= weapon.magSize || this.reserveAmmo <= 0) return;
     this.isReloading = true;
     this.reloadTimer = weapon.reloadTimeSec;
@@ -225,14 +248,15 @@ export class Player extends Entity {
   canFire(): boolean {
     const weapon = WEAPON_REGISTRY[this.activeWeaponId];
     const minInterval = 60000 / weapon.fireRateRPM;
-    return !this.isDowned && !this.isReloading && this.currentMag > 0 && performance.now() - this.lastShotTime > minInterval;
+    const hasAmmo = weapon.infiniteAmmo || this.currentMag > 0;
+    return !this.isDowned && !this.isReloading && hasAmmo && performance.now() - this.lastShotTime > minInterval;
   }
 
   consumeShot() {
-    this.currentMag = Math.max(0, this.currentMag - 1);
+    const weapon = WEAPON_REGISTRY[this.activeWeaponId];
+    if (!weapon.infiniteAmmo) this.currentMag = Math.max(0, this.currentMag - 1);
     this.lastShotTime = performance.now();
     this.shotsFired++;
-    const weapon = WEAPON_REGISTRY[this.activeWeaponId];
     this.muzzleFlashTimer = Math.max(0.04, 320 / weapon.fireRateRPM / 1000);
   }
 }

@@ -97,7 +97,7 @@ export class HUD {
   renderScreenSpace(ctx: CanvasRenderingContext2D, p1: Player, p2: Player, map: MapManager) {
     this.renderPlayerPanel(ctx, p1, 30, 30);
     if (!p2.isEliminated) this.renderPlayerPanel(ctx, p2, CANVAS_WIDTH - 330, 30);
-    this.renderMissionStatus(ctx, map);
+    this.renderMissionStatus(ctx, map, !p2.isEliminated);
   }
 
   private renderPlayerPanel(ctx: CanvasRenderingContext2D, p: Player, x: number, y: number) {
@@ -111,7 +111,7 @@ export class HUD {
     if (!p.isDowned) {
       const weapon = WEAPON_REGISTRY[p.activeWeaponId];
       ctx.fillStyle = '#00E5FF';
-      const ammoLabel = p.isReloading ? 'RELOADING...' : `${p.currentMag}/${p.reserveAmmo}`;
+      const ammoLabel = weapon.infiniteAmmo ? 'MELEE' : p.isReloading ? 'RELOADING...' : `${p.currentMag}/${p.reserveAmmo}`;
       ctx.fillText(`${weapon.name} [${p.activeMuzzle.toUpperCase()}] — ${ammoLabel}`, x, y + 20);
 
       ctx.fillStyle = p.noiseRadius > 150 ? '#FF5252' : p.noiseRadius > 40 ? '#FFC107' : '#00E676';
@@ -166,7 +166,7 @@ export class HUD {
     ctx.textBaseline = 'alphabetic';
   }
 
-  private renderMissionStatus(ctx: CanvasRenderingContext2D, map: MapManager) {
+  private renderMissionStatus(ctx: CanvasRenderingContext2D, map: MapManager, coop: boolean) {
     const zone = map.extractionZone;
     const centered = (text: string, y: number) => {
       ctx.fillText(text, CANVAS_WIDTH / 2 - ctx.measureText(text).width / 2, y);
@@ -183,10 +183,22 @@ export class HUD {
       centered('EXTRACTION COMPLETE', 52);
     } else if (zone.isActive) {
       ctx.fillStyle = '#FF5252';
-      centered(`HOLDOUT — ${Math.ceil(zone.holdoutTimer)}s UNTIL EVAC`, 52);
+      centered(
+        zone.isOccupied
+          ? `HOLDOUT — ${Math.ceil(zone.holdoutTimer)}s UNTIL EVAC`
+          : `HOLDOUT PAUSED (${Math.ceil(zone.holdoutTimer)}s) — GET BACK ON THE PAD`,
+        52
+      );
     } else if (map.objectiveComplete) {
       ctx.fillStyle = '#00E676';
-      centered(zone.radius > 0 ? 'OBJECTIVE DONE — BOARD THE EVAC PAD' : 'OBJECTIVE DONE — MOVE TO EXIT', 52);
+      centered(
+        zone.radius > 0
+          ? 'OBJECTIVE DONE — BOARD THE EVAC PAD'
+          : coop
+            ? 'OBJECTIVE DONE — BOTH OPERATIVES TO THE EXIT'
+            : 'OBJECTIVE DONE — MOVE TO EXIT',
+        52
+      );
     } else {
       ctx.fillStyle = '#FF9E1B';
       centered(map.sector.briefing, 52);
