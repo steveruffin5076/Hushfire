@@ -164,7 +164,7 @@ export class Game {
     this.ctx = canvas.getContext('2d')!;
     this.assets = assets;
     this.hud = new HUD(assets);
-    this.input = new InputManager(canvas);
+    this.input = new InputManager(canvas, solo);
     this.camera = new Camera(CANVAS_WIDTH, CANVAS_HEIGHT, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
     canvas.addEventListener('mousedown', () => this.sound.resume(), { once: true });
@@ -247,6 +247,9 @@ export class Game {
     if (!this.running) return;
     const frameDt = Math.min((timestamp - this.lastTime) / 1000, 0.25);
     this.lastTime = timestamp;
+
+    // Polled before the pause check so a pad's Start can resume as well as pause.
+    if (this.input.pollGamepads()) this.togglePause();
 
     if (this.paused) {
       this.render();
@@ -619,7 +622,7 @@ export class Game {
     // so neither the darkness mask nor the damage vignette may dim it. Drawing
     // it in world space before renderLighting used to bury it under ~96% opaque
     // darkness whenever the pointer left the flashlight cone.
-    this.hud.renderReticles(ctx, this.p1, this.p2, this.input.mousePos, this.camera);
+    this.hud.renderReticles(ctx, this.p1, this.p2, this.input.p1AimSource === 'mouse' ? this.input.mousePos : null, this.camera);
   }
 
   /** Red vignette that pulses in on a hit and fades — screen-space, drawn after the lighting pass so the darkness mask doesn't dim it. Only the reticle draws later, since that's the player's pointer. */
