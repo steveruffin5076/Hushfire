@@ -148,7 +148,14 @@ Any controller the browser reports with the standard layout (Xbox, PlayStation, 
 | **Flashlight On/Off** | B (PlayStation: Circle) |
 | **Pause / Resume** | Start / Options |
 
-Menus (title screen, armory, pause menu) still need a mouse or a tap.
+**In menus** (title screen, armory, pause menu, run summary), any connected pad works:
+
+| Action | Gamepad |
+| :--- | :--- |
+| **Move highlight** | D-pad or left stick |
+| **Press button** | A (PlayStation: Cross) |
+| **Change a dropdown** (weapon, attachment, ammo) | D-pad Left / Right on it, or A for the next option |
+| **Back / Resume** (pause menu) | B (PlayStation: Circle) |
 
 ### Touch (phones & tablets)
 

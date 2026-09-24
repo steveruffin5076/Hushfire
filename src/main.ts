@@ -5,6 +5,7 @@ import { ArmoryMenu, GameMode } from './ui/ArmoryMenu';
 import { ExtractionModal, RunStats } from './ui/ExtractionModal';
 import { PauseMenu } from './ui/PauseMenu';
 import { WeaponLoadout } from './entities/Player';
+import { MenuGamepadNav } from './ui/MenuGamepadNav';
 
 window.addEventListener('DOMContentLoaded', async () => {
   const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
@@ -59,6 +60,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     activeGame.start();
   };
 
+  new MenuGamepadNav(overlay).start();
   mainMenu.open(() => openArmory());
   console.log('HUSHFIRE Game Engine Initialized Successfully.');
 });

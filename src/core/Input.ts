@@ -237,6 +237,21 @@ export class InputManager {
   }
 
   /** Clears one-shot "just pressed" edge state. Call once per frame after both players' inputs are read. */
+  /**
+   * Drops all pending one-shot presses and treats every pad button that's
+   * currently held as already seen. Called on pause/resume: the menus are
+   * driven by the same pads (see MenuGamepadNav), so pressing B or A to
+   * resume must not also land in gameplay as a flashlight toggle or similar.
+   */
+  resetEdges() {
+    this.endFrame();
+    const raw: readonly (PadSnapshot | null)[] =
+      typeof navigator !== 'undefined' && navigator.getGamepads ? navigator.getGamepads() : [];
+    for (const pad of raw) {
+      if (pad?.connected) this.padPrevPressed.set(pad.index, readPad(pad).pressed);
+    }
+  }
+
   /** Removes the canvas touch listeners so a finished Game doesn't keep reacting to touches. */
   dispose() {
     this.detachTouch();

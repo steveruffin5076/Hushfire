@@ -39,6 +39,9 @@ export class PauseMenu {
     card.appendChild(buttons);
 
     const resumeBtn = this.buildButton('RESUME', CYAN);
+    // Gamepad: highlighted first, and B (back) resumes — see MenuGamepadNav.
+    resumeBtn.dataset.padDefault = '';
+    resumeBtn.dataset.padBack = '';
     resumeBtn.onclick = () => actions.onResume();
     buttons.appendChild(resumeBtn);
 

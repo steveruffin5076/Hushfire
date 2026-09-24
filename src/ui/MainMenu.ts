@@ -51,6 +51,7 @@ export class MainMenu {
     `;
     startBtn.onmouseenter = () => { startBtn.style.transform = 'scale(1.05)'; };
     startBtn.onmouseleave = () => { startBtn.style.transform = 'scale(1)'; };
+    startBtn.dataset.padDefault = '';
     startBtn.onclick = () => {
       this.close();
       onStart();
