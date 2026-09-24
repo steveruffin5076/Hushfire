@@ -451,7 +451,7 @@ export class ArmoryMenu {
       return (
         row('EFFECTIVE DAMAGE', `${damage} DMG / shot`, TEXT) +
         row('ACOUSTIC SOUND RADIUS', `${soundRadius} px (${stealthy ? 'STEALTH READY' : 'WILL ALERT SECTOR'})`, stealthy ? GREEN : RED) +
-        row('MAGAZINE CAPACITY', `${weapon.magSize} ROUNDS (${weapon.fireRateRPM} RPM)`, CYAN)
+        row('MAGAZINE CAPACITY', weapon.infiniteAmmo ? `MELEE — NO AMMO (${weapon.fireRateRPM} SWINGS/MIN)` : `${weapon.magSize} ROUNDS (${weapon.fireRateRPM} RPM)`, CYAN)
       );
     };
 
