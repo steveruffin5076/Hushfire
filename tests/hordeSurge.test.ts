@@ -1,7 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { surgeInterval, surgeSize, pickSurgeArchetype, SURGE_START_INTERVAL_SEC, SURGE_MIN_INTERVAL_SEC } from '../src/systems/HordeSurge';
+import { surgeInterval, surgeSize, pickSurgeArchetype, rawSurgeSpawnPoint, SURGE_START_INTERVAL_SEC, SURGE_MIN_INTERVAL_SEC } from '../src/systems/HordeSurge';
+import { MapManager } from '../src/systems/MapManager';
 import { SECTORS } from '../src/config/sectors';
 import { ZOMBIE_REGISTRY } from '../src/config/zombies';
+
+const ENTITY_RADIUS = 16;
 
 describe('horde surge pacing', () => {
   it('starts at 10s and tightens to 4s by the end of the 120s holdout', () => {
@@ -44,6 +47,30 @@ describe('surge mix', () => {
   it('handles the edges of the roll', () => {
     expect(pickSurgeArchetype(0)).toBe('lurker');
     expect(pickSurgeArchetype(0.999999)).toBe('armored_brute');
+  });
+});
+
+describe('surge spawn safety', () => {
+  it('raw edge rolls can land inside Sector 3 off-roof blockers', () => {
+    const map = new MapManager();
+    map.loadSector(2);
+    let trapped = 0;
+    for (let i = 0; i < 500; i++) {
+      const p = rawSurgeSpawnPoint(() => i / 500);
+      if (map.sector.boxes.some(box => map.isInsideBox(p, box))) trapped++;
+    }
+    expect(trapped).toBeGreaterThan(0);
+  });
+
+  it('rollSurgeSpawn always returns a walkable point on Sector 3', () => {
+    const map = new MapManager();
+    map.loadSector(2);
+    const goal = map.extractionZone;
+    for (let i = 0; i < 300; i++) {
+      const spawn = map.rollSurgeSpawn(() => (i * 37) % 997 / 997);
+      expect(map.isFreePosition(spawn, ENTITY_RADIUS), `spawn ${spawn.x},${spawn.y}`).toBe(true);
+      expect(map.nav.findPath(spawn, goal).length, `no path from ${spawn.x},${spawn.y}`).toBeGreaterThan(0);
+    }
   });
 });
 

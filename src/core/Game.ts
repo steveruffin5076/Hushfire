@@ -562,13 +562,7 @@ export class Game {
 
     const waveSize = surgeSize(!this.p2.isEliminated);
     for (let i = 0; i < waveSize && this.zombies.length < HORDE_MAX_ZOMBIES; i++) {
-      const edge = Math.floor(Math.random() * 4);
-      const spawn =
-        edge === 0 ? { x: 60, y: 60 + Math.random() * 600 }
-        : edge === 1 ? { x: 1220, y: 60 + Math.random() * 600 }
-        : edge === 2 ? { x: 60 + Math.random() * 1160, y: 60 }
-        : { x: 60 + Math.random() * 1160, y: 660 };
-
+      const spawn = this.map.rollSurgeSpawn(Math.random);
       const zombie = new Zombie(spawn.x, spawn.y, 0, pickSurgeArchetype(Math.random()), this.difficultyDef.zombieHpMult);
       zombie.alert('ENRAGED', { x: zone.x, y: zone.y });
       // Arrives already enraged by the siren — not something the team gave away.
