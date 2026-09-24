@@ -1,6 +1,7 @@
 import { Point, Segment } from '../lighting/Raycaster';
 import { Pickup, PickupType } from '../entities/Pickup';
 import { SECTORS, SectorDef } from '../config/sectors';
+import { SectorLayout, rollSectorLayout } from '../config/sectorLayout';
 import { NavGrid } from './NavGrid';
 import { closestPointOnSegment, lineOfSight, countWallsCrossed } from './Geometry';
 
@@ -26,6 +27,8 @@ export class MapManager {
   public objectiveComplete = false;
   public objectiveProgress = 0;
   public nav!: NavGrid;
+  /** This run's rolled zombie and pickup positions for the current sector. */
+  public layout!: SectorLayout;
   private doorWalls: Segment[] = [];
 
   constructor() {
@@ -47,7 +50,8 @@ export class MapManager {
     return this.sectorIndex >= SECTORS.length - 1;
   }
 
-  loadSector(index: number) {
+  /** `rand` picks this visit's zombie/pickup spots — injectable so tests can pin a layout. */
+  loadSector(index: number, rand: () => number = Math.random) {
     const sector = SECTORS[Math.min(index, SECTORS.length - 1)];
     this.sectorIndex = index;
     this.sector = sector;
@@ -65,7 +69,8 @@ export class MapManager {
     this.doorWalls = sector.doorWalls.map(w => ({ p1: { ...w.p1 }, p2: { ...w.p2 } }));
     this.walls.push(...this.doorWalls);
 
-    this.pickups = sector.pickups.map(p => new Pickup(p.x, p.y, p.type));
+    this.layout = rollSectorLayout(sector, rand);
+    this.pickups = this.layout.pickups.map(p => new Pickup(p.x, p.y, p.type));
 
     const evac = sector.evacZone;
     this.extractionZone = {
