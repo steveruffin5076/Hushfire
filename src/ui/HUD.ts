@@ -1,7 +1,7 @@
 import { Player } from '../entities/Player';
 import { WEAPON_REGISTRY } from '../config/weapons';
 import { MapManager } from '../systems/MapManager';
-import { CANVAS_WIDTH } from '../config/constants';
+import { CANVAS_WIDTH, FLASHLIGHT_BATTERY_MAX } from '../config/constants';
 import { AssetLoader } from '../core/AssetLoader';
 import { Camera } from '../core/Camera';
 import { Point } from '../lighting/Raycaster';
@@ -128,11 +128,12 @@ export class HUD {
 
     // Flashlight battery — only worth showing once it's on or actually low,
     // so a fresh spawn's HUD isn't cluttered with an always-full bar.
-    if (p.flashlightOn || p.flashlightBattery < 30) {
+    const charge = p.flashlightBattery / FLASHLIGHT_BATTERY_MAX;
+    if (p.flashlightOn || charge < 0.3) {
       ctx.strokeStyle = '#3A4252';
       ctx.strokeRect(x, y + 63, 200, 5);
-      ctx.fillStyle = p.flashlightBattery > 30 ? '#00E5FF' : p.flashlightBattery > 0 ? '#FFC107' : '#FF5252';
-      ctx.fillRect(x, y + 63, 200 * (p.flashlightBattery / 100), 5);
+      ctx.fillStyle = charge > 0.3 ? '#00E5FF' : charge > 0 ? '#FFC107' : '#FF5252';
+      ctx.fillRect(x, y + 63, 200 * charge, 5);
     }
 
     this.renderFlashlightButton(ctx, p);
