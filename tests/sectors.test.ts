@@ -80,6 +80,32 @@ SECTORS.forEach((sector, index) => {
   });
 });
 
+describe('Sector 3 rooftop edge', () => {
+  // Walk from a spot on the roof straight toward the sky / lower buildings in
+  // sector3_bg.jpg, the way a player holding a direction would, resolving
+  // wall collision every step. Nobody should get off the roof.
+  const walks: { from: Point; to: Point; offRoof: (p: Point) => boolean }[] = [
+    { from: { x: 120, y: 260 }, to: { x: 80, y: 60 }, offRoof: p => p.x < 183 && p.y < 200 },
+    { from: { x: 120, y: 440 }, to: { x: 80, y: 660 }, offRoof: p => p.x < 183 && p.y > 500 },
+    { from: { x: 1160, y: 200 }, to: { x: 1180, y: 40 }, offRoof: p => p.x > 1098 && p.y < 150 },
+    { from: { x: 1160, y: 360 }, to: { x: 1255, y: 360 }, offRoof: p => p.x > 1220 },
+    { from: { x: 1160, y: 500 }, to: { x: 1180, y: 690 }, offRoof: p => p.x > 1098 && p.y > 560 }
+  ];
+
+  it.each(walks)('walking from $from toward $to stays on the roof', ({ from, to, offRoof }) => {
+    const map = new MapManager();
+    map.loadSector(2);
+    let p = { ...from };
+    for (let i = 0; i < 200; i++) {
+      const d = Math.hypot(to.x - p.x, to.y - p.y);
+      if (d < 1) break;
+      const step = Math.min(4, d);
+      p = map.resolveCircleCollision({ x: p.x + ((to.x - p.x) / d) * step, y: p.y + ((to.y - p.y) / d) * step }, ENTITY_RADIUS);
+      expect(offRoof(p), `reached ${Math.round(p.x)},${Math.round(p.y)}`).toBe(false);
+    }
+  });
+});
+
 describe('per-run layout shuffle', () => {
   const sector = SECTORS[0];
 

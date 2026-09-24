@@ -156,7 +156,17 @@ const SECTOR_3: SectorDef = {
     { x1: 500, y1: 70, x2: 580, y2: 150 },
     { x1: 500, y1: 570, x2: 580, y2: 650 },
     { x1: 1075, y1: 195, x2: 1145, y2: 265 },
-    { x1: 990, y1: 460, x2: 1075, y2: 545 }
+    { x1: 990, y1: 460, x2: 1075, y2: 545 },
+    // Off-roof blockers. The art's walkable area is the main roof
+    // (x183-1098), the spawn walkway on the left (y200-500) and the annex
+    // on the right (x1098-1220, y150-560); everything else inside the
+    // 20-1260 map bounds is open sky or lower buildings, which players and
+    // zombies used to be able to walk out over.
+    { x1: 20, y1: 20, x2: 183, y2: 200 },
+    { x1: 20, y1: 500, x2: 183, y2: 700 },
+    { x1: 1098, y1: 20, x2: 1260, y2: 150 },
+    { x1: 1220, y1: 150, x2: 1260, y2: 560 },
+    { x1: 1098, y1: 560, x2: 1260, y2: 700 }
   ],
   doorWalls: [],
   playerSpawns: [
