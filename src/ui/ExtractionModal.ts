@@ -10,6 +10,8 @@ export interface RunStats {
   zombiesAlerted: number;
   /** Kills on zombies that hadn't noticed anyone. */
   silentKills: number;
+  /** Difficulty label the run was played on. */
+  difficulty: string;
 }
 
 /** DOM-based win/loss run summary shown at the end of a mission. */
@@ -42,6 +44,7 @@ export class ExtractionModal {
       this.root.appendChild(row);
     };
 
+    stat('DIFFICULTY', stats.difficulty);
     stat('FURTHEST SECTOR', stats.sectorReached);
     stat('TIME SURVIVED', `${Math.round(stats.timeSurvivedSec)}s`);
     stat('ZOMBIES ELIMINATED', `${stats.totalKills}`);

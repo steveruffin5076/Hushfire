@@ -6,6 +6,7 @@ import { ExtractionModal, RunStats } from './ui/ExtractionModal';
 import { PauseMenu } from './ui/PauseMenu';
 import { WeaponLoadout } from './entities/Player';
 import { MenuGamepadNav } from './ui/MenuGamepadNav';
+import { Difficulty } from './config/difficulty';
 
 window.addEventListener('DOMContentLoaded', async () => {
   const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
@@ -25,10 +26,10 @@ window.addEventListener('DOMContentLoaded', async () => {
   let activeGame: Game | null = null;
 
   const openArmory = () => {
-    armory.open((mode: GameMode, p1: WeaponLoadout, p2: WeaponLoadout) => deploy(mode, p1, p2));
+    armory.open((mode: GameMode, difficulty: Difficulty, p1: WeaponLoadout, p2: WeaponLoadout) => deploy(mode, difficulty, p1, p2));
   };
 
-  const deploy = (mode: GameMode, p1Loadout: WeaponLoadout, p2Loadout: WeaponLoadout) => {
+  const deploy = (mode: GameMode, difficulty: Difficulty, p1Loadout: WeaponLoadout, p2Loadout: WeaponLoadout) => {
     activeGame?.stop();
     activeGame = new Game(
       canvas,
@@ -55,7 +56,8 @@ window.addEventListener('DOMContentLoaded', async () => {
           }
         }
       },
-      mode === 'solo'
+      mode === 'solo',
+      difficulty
     );
     activeGame.start();
   };

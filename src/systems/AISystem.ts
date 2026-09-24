@@ -18,6 +18,9 @@ const TARGET_DRIFT_PX = 70;
 export class AISystem {
   private suspicionTimers = new Map<number, number>();
 
+  /** `noticeMult` scales the close-range notice radii for the run's difficulty. */
+  constructor(private noticeMult = 1) {}
+
   update(dt: number, zombies: Zombie[], players: Player[], map: MapManager) {
     const livingPlayers = players.filter(p => p.alive && !p.isDowned);
 
@@ -95,7 +98,7 @@ export class AISystem {
    * at this range they feel the footsteps.
    */
   private senseNearby(zombie: Zombie, players: Player[], map: MapManager) {
-    const radius = zombie.state === 'SUSPICIOUS' ? SUSPICIOUS_NOTICE_RADIUS : DORMANT_NOTICE_RADIUS;
+    const radius = (zombie.state === 'SUSPICIOUS' ? SUSPICIOUS_NOTICE_RADIUS : DORMANT_NOTICE_RADIUS) * this.noticeMult;
     for (const player of players) {
       if (player.noiseRadius <= SNEAK_NOISE_RADIUS) continue;
       if (Math.hypot(player.x - zombie.x, player.y - zombie.y) > radius) continue;

@@ -3,6 +3,7 @@ import { WeaponLoadout } from '../entities/Player';
 import { CYAN, ORANGE, TEXT, MUTED, GREEN, RED, PANEL_BG, PANEL_BORDER, FIELD_BG } from './theme';
 import { showQuitScreen } from './QuitScreen';
 import { GameMode, loadArmoryState, saveArmoryState } from './LoadoutStorage';
+import { Difficulty, DIFFICULTIES, DIFFICULTY_ORDER } from '../config/difficulty';
 
 export type { GameMode };
 
@@ -46,13 +47,14 @@ export class ArmoryMenu {
     this.container.appendChild(this.root);
   }
 
-  open(onDeploy: (mode: GameMode, p1: WeaponLoadout, p2: WeaponLoadout) => void) {
+  open(onDeploy: (mode: GameMode, difficulty: Difficulty, p1: WeaponLoadout, p2: WeaponLoadout) => void) {
     this.container.style.pointerEvents = 'auto';
 
     // Reopens on whatever mode and loadouts were last picked (see LoadoutStorage).
     const saved = loadArmoryState();
     const loadouts: [WeaponLoadout, WeaponLoadout] = saved.loadouts;
     let mode: GameMode = saved.mode;
+    let difficulty: Difficulty = saved.difficulty;
     let editingOperative: 0 | 1 = 0;
 
     this.root.innerHTML = '';
@@ -134,6 +136,34 @@ export class ArmoryMenu {
     const coopBtn = this.buildModeButton('2-PLAYER LOCAL');
     modeRow.appendChild(soloBtn);
     modeRow.appendChild(coopBtn);
+
+    // Difficulty: three buttons plus a one-line summary of the selected level.
+    const diffLabel = document.createElement('div');
+    diffLabel.textContent = 'DIFFICULTY:';
+    diffLabel.style.cssText = `font-size: 12px; letter-spacing: 1px; color: ${MUTED}; margin-bottom: 8px;`;
+    deployCard.body.appendChild(diffLabel);
+
+    const diffRow = document.createElement('div');
+    diffRow.style.cssText = 'display: flex; gap: 8px; margin-bottom: 6px;';
+    deployCard.body.appendChild(diffRow);
+    const diffBlurb = document.createElement('div');
+    diffBlurb.style.cssText = `font-size: 11.5px; color: ${MUTED}; margin-bottom: 18px; min-height: 16px;`;
+    deployCard.body.appendChild(diffBlurb);
+
+    const diffButtons = DIFFICULTY_ORDER.map(level => {
+      const btn = this.buildModeButton(DIFFICULTIES[level].label);
+      btn.onclick = () => setDifficulty(level);
+      diffRow.appendChild(btn);
+      return { level, btn };
+    });
+    const setDifficulty = (next: Difficulty) => {
+      difficulty = next;
+      const active = `background: ${ORANGE}; color: #05050A; border-color: ${ORANGE}; font-weight: bold;`;
+      const inactive = `background: ${FIELD_BG}; color: ${MUTED}; border-color: ${PANEL_BORDER}; font-weight: normal;`;
+      for (const { level, btn } of diffButtons) btn.style.cssText = modeButtonBase + (level === difficulty ? active : inactive);
+      diffBlurb.textContent = DIFFICULTIES[difficulty].blurb;
+      saveArmoryState({ mode, difficulty, loadouts });
+    };
 
     const operativeTabs = document.createElement('div');
     operativeTabs.style.cssText = 'display: none; gap: 8px; margin-bottom: 14px;';
@@ -322,12 +352,13 @@ export class ArmoryMenu {
 
       loadoutBody.appendChild(this.buildStatsPanel(loadout));
       // Every loadout or mode change ends up here, so this is the one place to persist.
-      saveArmoryState({ mode, loadouts });
+      saveArmoryState({ mode, difficulty, loadouts });
       // Loadout swaps can change this card's height (e.g. hidden vs. shown
       // operative tabs), so re-fit on every re-render, not just on resize.
       fitStage();
     };
 
+    setDifficulty(difficulty);
     setMode(mode);
     setOperative(0);
 
@@ -342,7 +373,7 @@ export class ArmoryMenu {
     deployBtn.dataset.padDefault = '';
     deployBtn.onclick = () => {
       this.close();
-      onDeploy(mode, loadouts[0], loadouts[1]);
+      onDeploy(mode, difficulty, loadouts[0], loadouts[1]);
     };
     stage.appendChild(deployBtn);
     fitStage();

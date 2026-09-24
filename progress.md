@@ -51,6 +51,8 @@ Last checked: 2026-09-24, against `main` after PR #15.
 ### Replayability
 - Per-run layout shuffle: every zombie and pickup has 2 alternative spots in `sectors.ts` (`alts`), and each run picks one per entry (`src/config/sectorLayout.ts`). Types and counts never change, so each sector's zombie HP and pickup mix stay as tuned. Tests check every possible spot: inside the map, not in a wall, zombies at least 200 px from spawn, and every pickup and objective reachable before any door opens.
 
+- Difficulty levels (`src/config/difficulty.ts`), picked in the armory and remembered with the loadout. EASY / NORMAL / HARD scale zombie HP (×0.8/1/1.25), contact damage (11/15/22 per s), close-range notice distance (×0.75/1/1.4), evac hold (90/120/150 s) and the fastest horde wave (6/4/3 s). NORMAL is the game as previously tuned. The end screen shows the level played.
+
 ### Gamepad
 - Standard-layout controllers work alongside the keyboard (`src/core/Gamepad.ts`, polled by `InputManager`). Left stick moves, right stick aims, RT fires, Start pauses and resumes. The full table is in `docs/COOP_SESSION_GUIDE.md` §5.
 - Who gets which pad: solo → P1; co-op with one pad → P2 (P1 keeps the mouse); two pads → one each. P1 switches between mouse and stick aim automatically, depending on which moved last.
