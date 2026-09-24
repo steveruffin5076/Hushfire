@@ -1,24 +1,39 @@
 # HUSHFIRE — Progress
 
-Last checked: 2026-09-23. Branch `claude/wonderful-gates-b4sus4` (mirrors `main`), working tree clean, 2 commits.
+Last checked: 2026-09-24, against `main` after PR #15.
 
 ## Done
 
+### Core game (Phases 1–6)
 - All planned modules from `docs/PLAN_AND_PHASES.md` exist under `src/`: `lighting/` (Raycaster, Flashlight, ShadowRenderer), `entities/` (Entity, Player, Zombie, Projectile, Pickup), `systems/` (NoiseSystem, CombatSystem, AISystem, MapManager), `ui/` (HUD, ArmoryMenu), `config/` (constants, weapons, zombies).
-- Extras beyond the original plan: `src/systems/NavGrid.ts` and `src/systems/Geometry.ts` (pathfinding/geometry helpers), `src/net/SessionManager.ts` (partial Phase 7 client-side networking stub), `src/config/sectors.ts`, `src/core/AssetLoader.ts`, `src/ui/theme.ts`, `src/ui/QuitScreen.ts`, `src/ui/PauseMenu.ts`, `src/ui/ExtractionModal.ts`.
-- `Game.ts` (824 lines) is the central orchestrator — largest file in the codebase. `ArmoryMenu.ts` (464 lines) is the next largest.
-- `npm run typecheck` passes clean — no TypeScript errors.
-- Full asset manifest present and matching `docs/ART_SPECIFICATION.md`: sprites, weapons/attachments, fx, item icons (both `.png` and `.svg`) under `public/assets/`, plus `generate_assets.py` used to produce them.
-- A built bundle already exists in `dist/` (checked into git) from a prior successful build.
+- Extras beyond the original plan: `systems/NavGrid.ts` and `systems/Geometry.ts` (pathfinding/geometry), `config/sectors.ts`, `core/AssetLoader.ts`, `ui/MainMenu.ts`, `ui/PauseMenu.ts`, `ui/QuitScreen.ts`, `ui/ExtractionModal.ts`, `ui/theme.ts`.
+- 3 sectors (Transit → Bio-Lab → Helipad), each with its own background art. Interior walls are lined up with the structures drawn in the art. Players and zombies share the same wall collision (`MapManager.resolveCircleCollision`).
+- Flow: title screen (key art) → armory → sectors → extraction.
+- `npm run typecheck` and `npm run build` pass from a fresh clone.
 
-## Pending / Broken
+### Art
+- P1 Infiltrator, P2, and all zombie archetypes (including the lurker aggro variant) use the uploaded top-down art. It is processed into 128×128 transparent sprites facing +X, centered on the pivot.
+- Character sprites are drawn larger than their collision radius. Draw size is purely cosmetic (`PLAYER_SPRITE_SIZE` / `ZOMBIE_SPRITE_SIZE` in `Game.ts`).
+- Darkness mask raised to `rgba(5,5,8,0.96)`, so the new background art stays hidden outside flashlight cones.
+- Bold red reticle drawn above the lighting pass. The OS cursor is hidden during gameplay.
 
-- **`npm run build` and `npm run dev` cannot work from a fresh clone on Linux or macOS.** Root cause is *not* the missing execute bits on `node_modules/.bin/*` (that was a symptom, and meaningless on Windows where the tree was committed). The real problem: `node_modules/` is tracked in git because there is no `.gitignore`, and the committed tree contains **only Windows platform binaries** — `git ls-files node_modules/@esbuild node_modules/@rollup` returns exactly `@esbuild/win32-x64`, `@rollup/rollup-win32-x64-gnu` and `@rollup/rollup-win32-x64-msvc`. On Linux, vite dies with `Cannot find module @rollup/rollup-linux-x64-gnu` (the known npm optional-dependency bug, npm/cli#4828), and esbuild's binary is the wrong platform too.
-  - CI is unaffected only because `npm ci` deletes `node_modules/` and reinstalls the correct linux optional deps from the lockfile.
-  - Real fix: add `.gitignore`, `git rm -r --cached node_modules dist`, and have each contributor run `npm install` locally. The vendored tree is ~47 MB of binaries that are useless to CI and to every non-Windows contributor.
-  - Workaround for working in this sandbox without touching the repo: install the two linux packages outside the tree and point node at them — `NODE_PATH=<dir>/node_modules ESBUILD_BINARY_PATH=<dir>/node_modules/@esbuild/linux-x64/bin/esbuild node ./node_modules/vite/bin/vite.js`. Verified: dev server serves 200 and `vite build` succeeds (34 modules) with `GITHUB_ACTIONS=true`, emitting the correct `/Hushfire/` subpath.
-  - Side effect worth knowing: because `node_modules/` is tracked, simply *running* the dev server dirties the repo (`node_modules/.vite/deps/_metadata.json`), so commits must be staged by explicit path until the `.gitignore` fix lands.
-- No test suite anywhere in the repo.
-- Phase 7 (multiplayer networking) is incomplete: no `Protocol.ts` (packet schemas) and no actual WebSocket/PartyKit server — `SessionManager.ts` is a client-side-only stub, not full host/client sync per `CLAUDE.md`'s Multiplayer Synchronization guidance.
-- Not yet verified in-browser: no manual playtest done this session (`npm run dev` was not launched) to confirm lighting, movement, combat, and AI actually work together at runtime — typecheck passing only confirms types, not gameplay behavior.
-- No `package.json` lint script or config for enforcing the `strict: true` / no-`any` convention beyond what `tsc` itself catches.
+### Flashlight battery
+- The battery drains only while the flashlight is on: 100 charge lasts 300 s. At 0 the light forces off and can't be turned back on.
+- A battery pickup restores +50 charge (capped at 100).
+- HUD battery bar is shown while the light is on or the charge is below 30%, and scales to `FLASHLIGHT_BATTERY_MAX`.
+- Clickable "FLASHLIGHT ON/OFF" HUD button for P1 (keys: P1 `T`, P2 `'`).
+
+### Infrastructure
+- GitHub Pages deploy via `.github/workflows/deploy.yml` (`npm ci` + `npm run build` on every push to `main`).
+- Asset URLs are built from `import.meta.env.BASE_URL`, so they load under the `/Hushfire/` subpath. This is a permanent guardrail in `CLAUDE.md` §4.
+- `.gitignore` added; `node_modules/` and `dist/` are no longer tracked. After pulling, run `npm install` once locally.
+
+## Pending
+
+- **No test suite.** Only typecheck and manual Playwright runs catch regressions.
+- **Phase 7 online co-op** isn't built yet. `docs/PHASE7_ONLINE_LOBBY_PLAN.md` has the plan, but there is no `Protocol.ts`, no server, and no host/client sync. `net/SessionManager.ts` is a client-side stub only.
+- **No gamepad support**, even though `CLAUDE.md` lists it for `Input.ts`.
+- **No touch/mobile controls.**
+- **Nothing is saved between sessions**: the armory loadout and settings reset on reload.
+- The flashlight HUD button only accepts clicks for P1. Local co-op shares one mouse, so this only matters once online play exists.
+- No lint script or config beyond what `tsc` enforces.
