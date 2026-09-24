@@ -48,6 +48,9 @@ Last checked: 2026-09-24, against `main` after PR #15.
 - A flashing "HORDE INCOMING" banner shows for 2 s before each evac wave.
 - The end screen shows silent kills, zombies alerted, and a stealth rating (GHOST 0 / SHADOW ≤3 / OPERATOR ≤8 / LOUD) (`src/ui/StealthRating.ts`).
 
+### Replayability
+- Per-run layout shuffle: every zombie and pickup has 2 alternative spots in `sectors.ts` (`alts`), and each run picks one per entry (`src/config/sectorLayout.ts`). Types and counts never change, so each sector's zombie HP and pickup mix stay as tuned. Tests check every possible spot: inside the map, not in a wall, zombies at least 200 px from spawn, and every pickup and objective reachable before any door opens.
+
 ### Gamepad
 - Standard-layout controllers work alongside the keyboard (`src/core/Gamepad.ts`, polled by `InputManager`). Left stick moves, right stick aims, RT fires, Start pauses and resumes. The full table is in `docs/COOP_SESSION_GUIDE.md` §5.
 - Who gets which pad: solo → P1; co-op with one pad → P2 (P1 keeps the mouse); two pads → one each. P1 switches between mouse and stick aim automatically, depending on which moved last.
@@ -66,5 +69,6 @@ Last checked: 2026-09-24, against `main` after PR #15.
 ## Pending
 
 - **Phase 7 online co-op** isn't built yet. `docs/PHASE7_ONLINE_LOBBY_PLAN.md` has the plan, but there is no `Protocol.ts`, no server, and no host/client sync. `net/SessionManager.ts` is a client-side stub only.
+- Sector 3's walls don't follow the rooftop edge drawn in `sector3_bg.jpg`, so players can likely walk out over the sky on the right and bottom. It needs boundary walls matched to the art.
 - Touch controls only drive P1. Two players sharing one phone isn't supported.
 - The flashlight HUD button only accepts clicks for P1. Local co-op shares one mouse, so this only matters once online play exists.

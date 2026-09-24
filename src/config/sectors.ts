@@ -17,12 +17,16 @@ export interface ZombieSpawnDef {
   y: number;
   angle: number;
   archetype: ZombieArchetype;
+  /** Other spots this zombie may spawn at instead — one of {x,y} or these is picked per run (see sectorLayout.ts). */
+  alts?: Point[];
 }
 
 export interface PickupDef {
   x: number;
   y: number;
   type: PickupType;
+  /** Other spots this pickup may appear at instead, picked per run. */
+  alts?: Point[];
 }
 
 export interface ObjectiveDef {
@@ -80,18 +84,18 @@ const SECTOR_1: SectorDef = {
     { x: 110, y: 400 }
   ],
   zombies: [
-    { x: 420, y: 120, angle: Math.PI / 2, archetype: 'lurker' },
-    { x: 450, y: 580, angle: -Math.PI / 2, archetype: 'lurker' },
-    { x: 700, y: 360, angle: Math.PI, archetype: 'audio_stalker' },
-    { x: 920, y: 240, angle: 0, archetype: 'bio_carrier' },
-    { x: 960, y: 520, angle: Math.PI, archetype: 'armored_brute' }
+    { x: 420, y: 120, angle: Math.PI / 2, archetype: 'lurker', alts: [{ x: 560, y: 200 }, { x: 700, y: 120 }] },
+    { x: 450, y: 580, angle: -Math.PI / 2, archetype: 'lurker', alts: [{ x: 600, y: 520 }, { x: 720, y: 640 }] },
+    { x: 700, y: 360, angle: Math.PI, archetype: 'audio_stalker', alts: [{ x: 560, y: 360 }, { x: 620, y: 260 }] },
+    { x: 920, y: 240, angle: 0, archetype: 'bio_carrier', alts: [{ x: 980, y: 380 }, { x: 900, y: 420 }] },
+    { x: 960, y: 520, angle: Math.PI, archetype: 'armored_brute', alts: [{ x: 900, y: 560 }, { x: 1000, y: 620 }] }
   ],
   pickups: [
-    { x: 220, y: 250, type: 'ammo' },
-    { x: 430, y: 620, type: 'medkit' },
-    { x: 680, y: 360, type: 'battery' },
-    { x: 920, y: 620, type: 'keycard' },
-    { x: 950, y: 160, type: 'ammo' }
+    { x: 220, y: 250, type: 'ammo', alts: [{ x: 240, y: 560 }, { x: 100, y: 150 }] },
+    { x: 430, y: 620, type: 'medkit', alts: [{ x: 600, y: 640 }, { x: 760, y: 120 }] },
+    { x: 680, y: 360, type: 'battery', alts: [{ x: 500, y: 440 }, { x: 760, y: 560 }] },
+    { x: 920, y: 620, type: 'keycard', alts: [{ x: 990, y: 120 }, { x: 880, y: 300 }] },
+    { x: 950, y: 160, type: 'ammo', alts: [{ x: 1000, y: 440 }, { x: 880, y: 120 }] }
   ],
   objective: { kind: 'keycard_door', x: 1030, y: 360, radius: 44, label: 'BLAST DOOR PANEL', holdSec: 0 },
   exitZone: { x: 1180, y: 360, radius: 60 }
@@ -118,20 +122,20 @@ const SECTOR_2: SectorDef = {
     { x: 110, y: 410 }
   ],
   zombies: [
-    { x: 320, y: 120, angle: Math.PI / 2, archetype: 'bio_carrier' },
-    { x: 330, y: 600, angle: -Math.PI / 2, archetype: 'lurker' },
-    { x: 530, y: 100, angle: Math.PI, archetype: 'audio_stalker' },
-    { x: 540, y: 640, angle: Math.PI, archetype: 'bio_carrier' },
-    { x: 740, y: 320, angle: Math.PI, archetype: 'armored_brute' },
-    { x: 760, y: 600, angle: 0, archetype: 'lurker' },
-    { x: 950, y: 460, angle: Math.PI, archetype: 'audio_stalker' }
+    { x: 320, y: 120, angle: Math.PI / 2, archetype: 'bio_carrier', alts: [{ x: 450, y: 200 }, { x: 200, y: 120 }] },
+    { x: 330, y: 600, angle: -Math.PI / 2, archetype: 'lurker', alts: [{ x: 460, y: 500 }, { x: 220, y: 620 }] },
+    { x: 530, y: 100, angle: Math.PI, archetype: 'audio_stalker', alts: [{ x: 640, y: 200 }, { x: 420, y: 60 }] },
+    { x: 540, y: 640, angle: Math.PI, archetype: 'bio_carrier', alts: [{ x: 640, y: 560 }, { x: 440, y: 660 }] },
+    { x: 740, y: 320, angle: Math.PI, archetype: 'armored_brute', alts: [{ x: 700, y: 440 }, { x: 800, y: 220 }] },
+    { x: 760, y: 600, angle: 0, archetype: 'lurker', alts: [{ x: 860, y: 640 }, { x: 820, y: 480 }] },
+    { x: 950, y: 460, angle: Math.PI, archetype: 'audio_stalker', alts: [{ x: 960, y: 540 }, { x: 1080, y: 560 }] }
   ],
   pickups: [
-    { x: 300, y: 460, type: 'ammo' },
-    { x: 520, y: 380, type: 'medkit' },
-    { x: 720, y: 120, type: 'battery' },
-    { x: 940, y: 620, type: 'ammo' },
-    { x: 960, y: 140, type: 'medkit' }
+    { x: 300, y: 460, type: 'ammo', alts: [{ x: 200, y: 560 }, { x: 460, y: 320 }] },
+    { x: 520, y: 380, type: 'medkit', alts: [{ x: 620, y: 300 }, { x: 560, y: 480 }] },
+    { x: 720, y: 120, type: 'battery', alts: [{ x: 840, y: 80 }, { x: 620, y: 640 }] },
+    { x: 940, y: 620, type: 'ammo', alts: [{ x: 1100, y: 640 }, { x: 780, y: 420 }] },
+    { x: 960, y: 140, type: 'medkit', alts: [{ x: 1120, y: 140 }, { x: 820, y: 120 }] }
   ],
   objective: { kind: 'lockdown_terminal', x: 940, y: 240, radius: 44, label: 'LOCKDOWN TERMINAL', holdSec: 3.5 },
   exitZone: { x: 1170, y: 380, radius: 60 }
@@ -160,23 +164,23 @@ const SECTOR_3: SectorDef = {
     { x: 120, y: 410 }
   ],
   zombies: [
-    { x: 420, y: 200, angle: Math.PI / 2, archetype: 'lurker' },
-    { x: 440, y: 520, angle: -Math.PI / 2, archetype: 'lurker' },
-    { x: 700, y: 180, angle: Math.PI, archetype: 'audio_stalker' },
-    { x: 720, y: 540, angle: Math.PI, archetype: 'bio_carrier' },
-    { x: 1000, y: 360, angle: Math.PI, archetype: 'armored_brute' },
-    { x: 860, y: 620, angle: Math.PI, archetype: 'lurker' },
+    { x: 420, y: 200, angle: Math.PI / 2, archetype: 'lurker', alts: [{ x: 400, y: 300 }, { x: 640, y: 240 }] },
+    { x: 440, y: 520, angle: -Math.PI / 2, archetype: 'lurker', alts: [{ x: 420, y: 430 }, { x: 640, y: 470 }] },
+    { x: 700, y: 180, angle: Math.PI, archetype: 'audio_stalker', alts: [{ x: 760, y: 100 }, { x: 620, y: 120 }] },
+    { x: 720, y: 540, angle: Math.PI, archetype: 'bio_carrier', alts: [{ x: 780, y: 620 }, { x: 660, y: 600 }] },
+    { x: 1000, y: 360, angle: Math.PI, archetype: 'armored_brute', alts: [{ x: 1150, y: 360 }, { x: 1170, y: 500 }] },
+    { x: 860, y: 620, angle: Math.PI, archetype: 'lurker', alts: [{ x: 1000, y: 640 }, { x: 940, y: 560 }] },
     // Pad guards, so the final sector opens harder than Sector 2 instead of
     // easier (498 total zombie HP vs Sector 2's 466; it was 398).
-    { x: 880, y: 250, angle: Math.PI / 2, archetype: 'lurker' },
-    { x: 900, y: 480, angle: -Math.PI / 2, archetype: 'audio_stalker' }
+    { x: 880, y: 250, angle: Math.PI / 2, archetype: 'lurker', alts: [{ x: 960, y: 160 }, { x: 820, y: 300 }] },
+    { x: 900, y: 480, angle: -Math.PI / 2, archetype: 'audio_stalker', alts: [{ x: 780, y: 420 }, { x: 1150, y: 450 }] }
   ],
   pickups: [
-    { x: 240, y: 360, type: 'ammo' },
-    { x: 620, y: 360, type: 'medkit' },
-    { x: 820, y: 200, type: 'ammo' },
-    { x: 820, y: 520, type: 'battery' },
-    { x: 960, y: 620, type: 'medkit' }
+    { x: 240, y: 360, type: 'ammo', alts: [{ x: 180, y: 250 }, { x: 200, y: 470 }] },
+    { x: 620, y: 360, type: 'medkit', alts: [{ x: 660, y: 240 }, { x: 560, y: 460 }] },
+    { x: 820, y: 200, type: 'ammo', alts: [{ x: 1180, y: 320 }, { x: 700, y: 80 }] },
+    { x: 820, y: 520, type: 'battery', alts: [{ x: 940, y: 110 }, { x: 660, y: 640 }] },
+    { x: 960, y: 620, type: 'medkit', alts: [{ x: 1200, y: 480 }, { x: 440, y: 640 }] }
   ],
   objective: { kind: 'evac_radio', x: 300, y: 360, radius: 44, label: 'EMERGENCY RADIO', holdSec: 2.5 },
   evacZone: { x: 900, y: 360, radius: 90, holdoutSec: 120 }

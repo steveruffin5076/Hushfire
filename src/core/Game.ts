@@ -202,7 +202,7 @@ export class Game {
   }
 
   private spawnZombies() {
-    this.zombies = this.map.sector.zombies.map(s => new Zombie(s.x, s.y, s.angle, s.archetype));
+    this.zombies = this.map.layout.zombies.map(s => new Zombie(s.x, s.y, s.angle, s.archetype));
   }
 
   private onZombieKilled(zombie: Zombie, _killer: Player) {
