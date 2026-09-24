@@ -35,9 +35,10 @@ Last checked: 2026-09-24, against `main` after PR #15.
 - Phones/tablets get on-screen twin-stick controls for P1 after the first touch (`src/core/TouchControls.ts`). Floating move and aim sticks; pushing the aim stick past a threshold fires. SPRINT/SNEAK toggles, RELOAD/USE/SWAP/LIGHT buttons, and a pause button. Upright touch devices get a "rotate to landscape" prompt.
 
 ### Infrastructure
-- GitHub Pages deploy via `.github/workflows/deploy-pages.yml` (`npm ci` + `npm test` + `npm run build` on every push to `main`).
+- GitHub Pages deploy via `.github/workflows/deploy-pages.yml` (`npm ci` + `npm run lint` + `npm test` + `npm run build` on every push to `main`).
 - Asset URLs are built from `import.meta.env.BASE_URL`, so they load under the `/Hushfire/` subpath. This is a permanent guardrail in `CLAUDE.md` §4.
 - Vitest unit tests in `tests/` (`npm test`, also run by the deploy workflow before building): geometry, wall collision, noise and wall muffling, flashlight battery, and a per-sector check that every spawn, pickup and goal is inside the map, not inside a wall, and reachable.
+- ESLint (`npm run lint`, `eslint.config.js`): `@eslint/js` + `typescript-eslint` recommended rules, with `no-explicit-any` as an error. Also run by the deploy workflow.
 - `.gitignore` added; `node_modules/` and `dist/` are no longer tracked. After pulling, run `npm install` once locally.
 
 ## Pending
@@ -45,4 +46,3 @@ Last checked: 2026-09-24, against `main` after PR #15.
 - **Phase 7 online co-op** isn't built yet. `docs/PHASE7_ONLINE_LOBBY_PLAN.md` has the plan, but there is no `Protocol.ts`, no server, and no host/client sync. `net/SessionManager.ts` is a client-side stub only.
 - Touch controls only drive P1. Two players sharing one phone isn't supported.
 - The flashlight HUD button only accepts clicks for P1. Local co-op shares one mouse, so this only matters once online play exists.
-- No lint script or config beyond what `tsc` enforces.

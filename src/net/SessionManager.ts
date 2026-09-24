@@ -9,7 +9,8 @@ export type SessionRole = 'HOST' | 'GUEST' | 'LOCAL';
 export interface NetworkMessage {
   type: 'HANDSHAKE' | 'READY' | 'INPUT' | 'SNAPSHOT' | 'CHAT' | 'REVIVE';
   senderId: number;
-  payload: any;
+  /** Arrives from another machine, so it's untrusted until narrowed per message `type` (Phase 7 will add typed schemas). */
+  payload: unknown;
 }
 
 export class SessionManager {

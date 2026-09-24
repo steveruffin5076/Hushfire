@@ -28,6 +28,9 @@ npm run typecheck
 # Run unit tests (Vitest, tests/*.test.ts)
 npm test
 
+# Lint (ESLint + typescript-eslint; enforces no-`any`)
+npm run lint
+
 # Build production bundle to dist/
 npm run build
 
