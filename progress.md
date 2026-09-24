@@ -24,13 +24,13 @@ Last checked: 2026-09-24, against `main` after PR #15.
 - Clickable "FLASHLIGHT ON/OFF" HUD button for P1 (keys: P1 `T`, P2 `'`).
 
 ### Infrastructure
-- GitHub Pages deploy via `.github/workflows/deploy.yml` (`npm ci` + `npm run build` on every push to `main`).
+- GitHub Pages deploy via `.github/workflows/deploy-pages.yml` (`npm ci` + `npm test` + `npm run build` on every push to `main`).
 - Asset URLs are built from `import.meta.env.BASE_URL`, so they load under the `/Hushfire/` subpath. This is a permanent guardrail in `CLAUDE.md` §4.
+- Vitest unit tests in `tests/` (`npm test`, also run by the deploy workflow before building): geometry, wall collision, noise and wall muffling, flashlight battery, and a per-sector check that every spawn, pickup and goal is inside the map, not inside a wall, and reachable.
 - `.gitignore` added; `node_modules/` and `dist/` are no longer tracked. After pulling, run `npm install` once locally.
 
 ## Pending
 
-- **No test suite.** Only typecheck and manual Playwright runs catch regressions.
 - **Phase 7 online co-op** isn't built yet. `docs/PHASE7_ONLINE_LOBBY_PLAN.md` has the plan, but there is no `Protocol.ts`, no server, and no host/client sync. `net/SessionManager.ts` is a client-side stub only.
 - **No gamepad support**, even though `CLAUDE.md` lists it for `Input.ts`.
 - **No touch/mobile controls.**
