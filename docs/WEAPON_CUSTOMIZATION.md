@@ -16,7 +16,7 @@ $$\text{Alert Radius } (R) = R_{\text{base}} \times M_{\text{muzzle}} \times M_{
 
 Where:
 * $R_{\text{base}}$ = Base weapon sound radius (m)
-* $M_{\text{muzzle}}$ = Muzzle attachment multiplier (e.g., Suppressor: $0.15$, Muzzle Brake: $1.15$)
+* $M_{\text{muzzle}}$ = Muzzle attachment multiplier (e.g., Suppressor: $0.35$, Muzzle Brake: $1.0$)
 * $M_{\text{ammo}}$ = Ammo multiplier (e.g., Subsonic: $0.80$, High-Velocity: $1.20$)
 * $D_{\text{wall}}$ = Wall attenuation dampening factor ($0.65$ for solid concrete, $0.35$ for drywall/glass)
 
@@ -61,7 +61,7 @@ Where:
 ### Attachment Stats Matrix
 | Attachment | Sound Multiplier ($M_{\text{muzzle}}$) | Muzzle Flash Multiplier | Damage Modifier | Recoil Reduction | Bullet Velocity | Primary Tactical Use |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Titanium Suppressor** | **0.15** (-85%) | **0.30** (-70%) | -10% | +5% Kick | -15% | **Stealth Ghost Run:** Room clearing without waking adjacent chambers. |
+| **Titanium Suppressor** | **0.35** (-65%) | **0.30** (-70%) | -10% | +5% Kick | -15% | **Stealth Ghost Run:** Room clearing without waking adjacent chambers. |
 | **Quad-Port Muzzle Brake**| **1.15** (+15%) | **1.25** (+25%) | 0% | **-40% Vertical** | +5% | **Full Assault:** High sustained DPS on armored brutes and swarms. |
 | **Linear Compensator** | **1.10** (+10%) | 1.00 (Normal) | 0% | **-50% Horizontal**| 0% | **Crowd Spray:** Tight burst grouping for rapid automatic fire. |
 | **Vortex Flash Hider** | 1.00 (Normal) | **0.05** (-95%) | 0% | -10% | 0% | **Shadow Ambush:** Preserves night vision; no flash alert in pitch black. |

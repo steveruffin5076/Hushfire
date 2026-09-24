@@ -117,7 +117,11 @@ export const WEAPON_REGISTRY: Record<string, WeaponDef> = {
 // their own as real tradeoffs rather than leaning on a stat nothing reads.
 export const MUZZLE_MODIFIERS: Record<MuzzleType, { soundMult: number; flashMult: number; recoilMult: number; dmgMult: number }> = {
   none: { soundMult: 1.0, flashMult: 1.0, recoilMult: 1.0, dmgMult: 1.0 },
-  suppressor: { soundMult: 0.15, flashMult: 0.30, recoilMult: 1.05, dmgMult: 0.90 },
+  // Was 0.15: that made any gun near-silent for only -10% damage (a suppressed
+  // hollow-point M4 was ~102px and still one-shot lurkers), leaving the
+  // crossbow's silence pointless. At 0.35 the light guns stay stealthy
+  // (MPX 133px, Glock 140px) but the M4 (227px) and the big guns don't.
+  suppressor: { soundMult: 0.35, flashMult: 0.30, recoilMult: 1.05, dmgMult: 0.90 },
   muzzle_brake: { soundMult: 1.0, flashMult: 1.25, recoilMult: 0.60, dmgMult: 1.08 },
   compensator: { soundMult: 1.0, flashMult: 1.0, recoilMult: 0.75, dmgMult: 1.03 },
   flash_hider: { soundMult: 1.0, flashMult: 0.05, recoilMult: 0.90, dmgMult: 1.0 }

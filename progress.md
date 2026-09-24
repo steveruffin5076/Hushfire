@@ -36,6 +36,7 @@ Last checked: 2026-09-24, against `main` after PR #15.
 
 ### Stealth tuning (from the design review)
 - Zombies now notice a player in plain view who is moving faster than a sneak: within 40 px while dormant, 100 px once suspicious (`DORMANT_NOTICE_RADIUS` / `SUSPICIOUS_NOTICE_RADIUS`). Sneaking or standing still stays hidden.
+- Suppressor sound multiplier raised from 0.15 to 0.35. The MPX (133 px) and Glock (140 px) stay "stealth ready"; the M4 (227 px), shotgun and revolver don't.
 - Gunshots enrage at intensity 0.55 instead of 0.8 (`GUNSHOT_ENRAGE_THRESHOLD`). An unsuppressed shotgun now enrages out to about 382 px instead of 170 px, while suppressed shots barely change.
 
 ### Gamepad
