@@ -10,6 +10,7 @@ import { Projectile } from '../entities/Projectile';
 import { MapManager } from '../systems/MapManager';
 import { NoiseSystem } from '../systems/NoiseSystem';
 import { AISystem } from '../systems/AISystem';
+import { BIO_CARRIER_BLAST_RADIUS } from '../systems/CombatSystem';
 import { SURGE_START_INTERVAL_SEC, surgeInterval, surgeSize, pickSurgeArchetype } from '../systems/HordeSurge';
 import { CombatSystem, Decal, bloodDecal, HIT_FLASH_SEC } from '../systems/CombatSystem';
 import { HUD } from '../ui/HUD';
@@ -23,6 +24,10 @@ const FIXED_DT = 1 / 60;
 const ZOMBIE_CONTACT_DPS = 15;
 const ZOMBIE_CONTACT_RANGE_PAD = 4;
 const HORDE_MAX_ZOMBIES = 18;
+/** How long the Bio-Carrier blast ring takes to expand and fade. */
+const BLAST_RING_SEC = 0.7;
+/** "HORDE INCOMING" shows for this long before each evac wave. */
+const SURGE_WARNING_SEC = 2;
 
 // Draw sizes, per docs/ART_SPECIFICATION.md §2-3. Sprites are authored at
 // 128x128, so these are all still *down*scales — 128 is the ceiling before the
@@ -147,6 +152,10 @@ export class Game {
   private projectiles: Projectile[] = [];
   private decals: Decal[] = [];
   private hordeSpawnTimer = SURGE_START_INTERVAL_SEC;
+  /** Run-wide stealth stat: zombies that went ENRAGED while alive. */
+  private zombiesAlerted = 0;
+  /** Bio-Carrier death bursts, drawn as expanding rings showing who heard them. */
+  private blasts: { x: number; y: number; age: number }[] = [];
   private dryFireCooldown = new Map<number, number>();
   private hitSoundCooldown = new Map<number, number>();
 
@@ -201,6 +210,7 @@ export class Game {
     this.decals.push(bloodDecal(zombie.x, zombie.y, 16, '#3A0808'));
     if (zombie.archetype === 'bio_carrier') {
       this.decals.push({ x: zombie.x, y: zombie.y, r: 40, color: 'rgba(120, 200, 40, 0.35)', kind: 'toxic', angle: 0 });
+      this.blasts.push({ x: zombie.x, y: zombie.y, age: 0 });
     }
 
     // The brute is the one kill worth a real punch; routine kills get a light
@@ -308,6 +318,9 @@ export class Game {
 
     this.ai.update(dt, this.zombies, [this.p1, this.p2], this.map);
     this.noise.propagate(this.zombies, this.map);
+    this.countNewAlerts();
+    for (const blast of this.blasts) blast.age += dt;
+    this.blasts = this.blasts.filter(b => b.age < BLAST_RING_SEC);
 
     this.handleZombieContact(dt, this.p1);
     this.handleZombieContact(dt, this.p2);
@@ -545,7 +558,22 @@ export class Game {
 
       const zombie = new Zombie(spawn.x, spawn.y, 0, pickSurgeArchetype(Math.random()));
       zombie.alert('ENRAGED', { x: zone.x, y: zone.y });
+      // Arrives already enraged by the siren — not something the team gave away.
+      zombie.alertCounted = true;
       this.zombies.push(zombie);
+    }
+  }
+
+  /**
+   * Stealth stat: counts each zombie once, the first time it's ENRAGED while
+   * still alive. A silent one-hit kill also flips its target to ENRAGED on
+   * the way down, but it's dead by the time this runs, so it isn't counted.
+   */
+  private countNewAlerts() {
+    for (const z of this.zombies) {
+      if (z.alertCounted || !z.alive || z.state !== 'ENRAGED') continue;
+      z.alertCounted = true;
+      this.zombiesAlerted++;
     }
   }
 
@@ -566,6 +594,7 @@ export class Game {
     this.zombies = [];
     this.projectiles = [];
     this.decals = [];
+    this.blasts = [];
     this.hordeSpawnTimer = SURGE_START_INTERVAL_SEC;
     this.spawnZombies();
 
@@ -594,7 +623,9 @@ export class Game {
       timeSurvivedSec: this.missionTime,
       totalKills: this.p1.killCount + this.p2.killCount,
       totalShotsFired: this.p1.shotsFired + this.p2.shotsFired,
-      sectorReached: this.map.sector.name
+      sectorReached: this.map.sector.name,
+      zombiesAlerted: this.zombiesAlerted,
+      silentKills: this.p1.silentKills + this.p2.silentKills
     });
   }
 
@@ -621,6 +652,8 @@ export class Game {
 
     this.renderLighting(ctx);
     this.hud.renderScreenSpace(ctx, this.p1, this.p2, this.map);
+    this.renderBlasts(ctx);
+    this.renderSurgeWarning(ctx);
     this.renderDamageFlash(ctx);
     // Reticle dead last: with the OS cursor hidden it *is* the player's pointer,
     // so neither the darkness mask nor the damage vignette may dim it. Drawing
@@ -629,6 +662,40 @@ export class Game {
     this.hud.renderReticles(ctx, this.p1, this.p2, this.input.p1AimSource === 'mouse' ? this.input.mousePos : null, this.camera);
     // Touch controls sit on top of everything, reticle included — they're the player's hands.
     this.input.touch.render(ctx, this.p1.flashlightOn);
+  }
+
+  /**
+   * Bio-Carrier death burst: a green ring expanding to the blast's real alert
+   * radius. Drawn after the lighting pass (screen space) because the point is
+   * to show the player who just heard it, lit or not.
+   */
+  private renderBlasts(ctx: CanvasRenderingContext2D) {
+    for (const blast of this.blasts) {
+      const t = blast.age / BLAST_RING_SEC;
+      const c = this.camera.worldToScreen(blast);
+      const r = BIO_CARRIER_BLAST_RADIUS * this.camera.zoom * (1 - (1 - t) ** 3);
+      ctx.save();
+      ctx.strokeStyle = `rgba(140, 230, 60, ${(0.9 * (1 - t)).toFixed(3)})`;
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, r, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  /** Flashing banner for the last couple of seconds before each evac wave, so surges never arrive unannounced. */
+  private renderSurgeWarning(ctx: CanvasRenderingContext2D) {
+    const zone = this.map.extractionZone;
+    if (!zone.isActive || zone.isComplete || this.hordeSpawnTimer > SURGE_WARNING_SEC) return;
+    const blink = Math.floor(performance.now() / 180) % 2 === 0;
+    if (!blink) return;
+    const text = '⚠ HORDE INCOMING';
+    ctx.save();
+    ctx.font = 'bold 18px monospace';
+    ctx.fillStyle = '#FF5252';
+    ctx.fillText(text, CANVAS_WIDTH / 2 - ctx.measureText(text).width / 2, 84);
+    ctx.restore();
   }
 
   /** Red vignette that pulses in on a hit and fades — screen-space, drawn after the lighting pass so the darkness mask doesn't dim it. Only the reticle draws later, since that's the player's pointer. */
@@ -811,6 +878,17 @@ export class Game {
         ctx.arc(eyeX, -eyeY, eyeR, 0, Math.PI * 2);
         ctx.arc(eyeX, eyeY, eyeR, 0, Math.PI * 2);
         ctx.fill();
+
+        // Bio-Carrier tell: a slow toxic pulse, so players learn before the
+        // kill that this one bursts and wakes everything nearby.
+        if (z.archetype === 'bio_carrier') {
+          const pulse = (Math.sin(performance.now() / 260) + 1) / 2;
+          ctx.strokeStyle = `rgba(140, 230, 60, ${(0.35 + pulse * 0.45).toFixed(3)})`;
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.arc(0, 0, size * (0.5 + pulse * 0.08), 0, Math.PI * 2);
+          ctx.stroke();
+        }
       }
 
       if (z.hitFlashTimer > 0) {

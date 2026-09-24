@@ -60,6 +60,8 @@ export class Player extends Entity {
   public hasKeycard = false;
 
   public killCount = 0;
+  /** Kills on a zombie that hadn't noticed anyone yet — the stealth stat on the end screen. */
+  public silentKills = 0;
   public shotsFired = 0;
 
   constructor(playerNumber: 1 | 2, x: number, y: number, maxHealth: number, loadout: WeaponLoadout) {

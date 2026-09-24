@@ -1,9 +1,15 @@
+import { stealthRating, RATING_COLOR } from './StealthRating';
+
 export interface RunStats {
   victory: boolean;
   timeSurvivedSec: number;
   totalKills: number;
   totalShotsFired: number;
   sectorReached: string;
+  /** Zombies that went ENRAGED while alive (surge zombies excluded). */
+  zombiesAlerted: number;
+  /** Kills on zombies that hadn't noticed anyone. */
+  silentKills: number;
 }
 
 /** DOM-based win/loss run summary shown at the end of a mission. */
@@ -40,6 +46,14 @@ export class ExtractionModal {
     stat('TIME SURVIVED', `${Math.round(stats.timeSurvivedSec)}s`);
     stat('ZOMBIES ELIMINATED', `${stats.totalKills}`);
     stat('SHOTS FIRED', `${stats.totalShotsFired}`);
+    stat('SILENT KILLS', `${stats.silentKills}`);
+    stat('ZOMBIES ALERTED', `${stats.zombiesAlerted}`);
+
+    const rating = stealthRating(stats.zombiesAlerted);
+    const grade = document.createElement('div');
+    grade.style.cssText = 'margin-top: 14px; font-size: 13px; letter-spacing: 2px; color: #8A94A6;';
+    grade.innerHTML = `STEALTH RATING: <span style="font-size: 20px; font-weight: bold; letter-spacing: 4px; color: ${RATING_COLOR[rating]}">${rating}</span>`;
+    this.root.appendChild(grade);
 
     const restartBtn = document.createElement('button');
     restartBtn.textContent = 'RETURN TO ARMORY';
