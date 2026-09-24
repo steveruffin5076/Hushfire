@@ -79,7 +79,7 @@ describe('assignPads', () => {
 
 describe('InputManager with a gamepad', () => {
   let pads: (PadSnapshot | null)[] = [];
-  const canvas = { width: 1280, height: 720, getBoundingClientRect: () => ({ left: 0, top: 0, width: 1280, height: 720 }) } as unknown as HTMLCanvasElement;
+  const canvas = { width: 1280, height: 720, addEventListener: () => {}, removeEventListener: () => {}, getBoundingClientRect: () => ({ left: 0, top: 0, width: 1280, height: 720 }) } as unknown as HTMLCanvasElement;
   const at = { x: 100, y: 100 };
 
   beforeEach(() => {
@@ -92,33 +92,33 @@ describe('InputManager with a gamepad', () => {
   it('drives P1 in solo: stick move, stick aim, trigger fire', () => {
     const input = new InputManager(canvas, true);
     pads = [pad(0, { axes: [0, -1, -1, 0], down: [PAD_BUTTON.RT] })];
-    input.pollGamepads();
+    input.poll();
     const s = input.getPlayer1Input(at);
     expect(s.moveY).toBeCloseTo(-1);
     expect(s.aimAngle).toBeCloseTo(Math.PI);
     expect(s.isFiring).toBe(true);
-    expect(input.p1AimSource).toBe('pad');
+    expect(input.p1AimSource).toBe('stick');
   });
 
   it('keeps the last stick aim after the stick is released', () => {
     const input = new InputManager(canvas, true);
     pads = [pad(0, { axes: [0, 0, 0, 1] })];
-    input.pollGamepads();
+    input.poll();
     pads = [pad(0)];
-    input.pollGamepads();
+    input.poll();
     expect(input.getPlayer1Input(at).aimAngle).toBeCloseTo(Math.PI / 2);
   });
 
   it('fires one-shot actions once per press, not every frame held', () => {
     const input = new InputManager(canvas, true);
     pads = [pad(0, { down: [PAD_BUTTON.B, PAD_BUTTON.Y] })];
-    input.pollGamepads();
+    input.poll();
     const first = input.getPlayer1Input(at);
     expect(first.isTogglingFlashlight).toBe(true);
     expect(first.isSwitchingWeapon).toBe(true);
     input.endFrame();
 
-    input.pollGamepads(); // still held
+    input.poll(); // still held
     const held = input.getPlayer1Input(at);
     expect(held.isTogglingFlashlight).toBe(false);
     expect(held.isSwitchingWeapon).toBe(false);
@@ -127,23 +127,23 @@ describe('InputManager with a gamepad', () => {
   it('keeps a tap that lands between physics ticks until endFrame', () => {
     const input = new InputManager(canvas, true);
     pads = [pad(0, { down: [PAD_BUTTON.DPAD_RIGHT] })];
-    input.pollGamepads();
+    input.poll();
     pads = [pad(0)]; // released before the next poll
-    input.pollGamepads();
+    input.poll();
     expect(input.getPlayer1Input(at).selectSecondary).toBe(true);
   });
 
   it('reports Start as a pause edge', () => {
     const input = new InputManager(canvas, true);
     pads = [pad(0, { down: [PAD_BUTTON.START] })];
-    expect(input.pollGamepads()).toBe(true);
-    expect(input.pollGamepads()).toBe(false);
+    expect(input.poll()).toBe(true);
+    expect(input.poll()).toBe(false);
   });
 
   it('routes a single co-op pad to P2 and leaves P1 on keyboard/mouse', () => {
     const input = new InputManager(canvas, false);
     pads = [pad(0, { axes: [1, 0, 0, -1], down: [PAD_BUTTON.RT] })];
-    input.pollGamepads();
+    input.poll();
     const p1 = input.getPlayer1Input(at);
     const p2 = input.getPlayer2Input(at, { x: 0, y: 0 });
     expect(p1.moveX).toBe(0);
@@ -157,10 +157,10 @@ describe('InputManager with a gamepad', () => {
   it('falls back to the mouse when the pad is unplugged', () => {
     const input = new InputManager(canvas, true);
     pads = [pad(0, { axes: [0, 0, 1, 0] })];
-    input.pollGamepads();
-    expect(input.p1AimSource).toBe('pad');
+    input.poll();
+    expect(input.p1AimSource).toBe('stick');
     pads = [];
-    input.pollGamepads();
+    input.poll();
     expect(input.p1AimSource).toBe('mouse');
   });
 });
