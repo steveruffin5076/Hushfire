@@ -221,6 +221,7 @@ export class Game {
     window.removeEventListener('keydown', this.handleKeyDown);
     this.canvas.removeEventListener('mousedown', this.handleCanvasMouseDown);
     this.canvas.removeEventListener('mousemove', this.handleCanvasMouseMove);
+    this.input.dispose();
     // Give the OS cursor back: gameplay hid it, but the armory/menus that follow
     // are DOM overlays whose buttons rely on a visible pointer.
     this.canvas.style.cursor = 'default';
@@ -248,8 +249,8 @@ export class Game {
     const frameDt = Math.min((timestamp - this.lastTime) / 1000, 0.25);
     this.lastTime = timestamp;
 
-    // Polled before the pause check so a pad's Start can resume as well as pause.
-    if (this.input.pollGamepads()) this.togglePause();
+    // Polled before the pause check so a pad's Start (or the touch pause button) can resume as well as pause.
+    if (this.input.poll()) this.togglePause();
 
     if (this.paused) {
       this.render();
@@ -623,6 +624,8 @@ export class Game {
     // it in world space before renderLighting used to bury it under ~96% opaque
     // darkness whenever the pointer left the flashlight cone.
     this.hud.renderReticles(ctx, this.p1, this.p2, this.input.p1AimSource === 'mouse' ? this.input.mousePos : null, this.camera);
+    // Touch controls sit on top of everything, reticle included — they're the player's hands.
+    this.input.touch.render(ctx, this.p1.flashlightOn);
   }
 
   /** Red vignette that pulses in on a hit and fades — screen-space, drawn after the lighting pass so the darkness mask doesn't dim it. Only the reticle draws later, since that's the player's pointer. */

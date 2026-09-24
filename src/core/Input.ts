@@ -1,4 +1,5 @@
 import { PadSnapshot, PadState, PAD_BUTTON, readPad, assignPads } from './Gamepad';
+import { TouchControls } from './TouchControls';
 
 export interface PlayerInputState {
   moveX: number;
@@ -22,22 +23,27 @@ export class InputManager {
   public mousePos = { x: 0, y: 0 };
   public mouseButtons: Set<number> = new Set();
 
-  /** This frame's pad state per operative (null = no pad assigned), refreshed by pollGamepads(). */
+  /** This frame's pad state per operative (null = no pad assigned), refreshed by poll(). */
   private pads: [PadState | null, PadState | null] = [null, null];
   /** Buttons that went down since the last endFrame(), per operative — the pad equivalent of justPressed. */
   private padJustPressed: [Set<number>, Set<number>] = [new Set(), new Set()];
   /** Pressed state at the previous poll, keyed by pad index, for edge detection. */
   private padPrevPressed = new Map<number, boolean[]>();
-  /** Last right-stick aim per operative, held after the stick is released so the aim doesn't snap back. */
+  /** Last stick aim per operative (gamepad right stick, or P1's touch aim stick), held after release so the aim doesn't snap back. */
   private padAim: [number | null, number | null] = [null, null];
   /**
-   * Whether P1 is currently aiming with the mouse or the right stick —
-   * whichever moved last wins, so a player can switch mid-game. The HUD uses
-   * this to decide where to draw P1's reticle.
+   * Whether P1 is currently aiming with the mouse or a stick (gamepad or
+   * touch) — whichever moved last wins, so a player can switch mid-game. The
+   * HUD uses this to decide where to draw P1's reticle.
    */
-  public p1AimSource: 'mouse' | 'pad' = 'mouse';
+  public p1AimSource: 'mouse' | 'stick' = 'mouse';
+
+  /** On-screen controls for P1 on touch devices; invisible and inert until the first touch. */
+  public readonly touch = new TouchControls();
+  private detachTouch: () => void;
 
   constructor(private canvas: HTMLCanvasElement, private solo = false) {
+    this.detachTouch = this.touch.attach(canvas);
     window.addEventListener('keydown', (e) => {
       if (!this.keys.has(e.code)) this.justPressed.add(e.code);
       this.keys.add(e.code);
@@ -63,10 +69,11 @@ export class InputManager {
    * poll-only — there are no button events). Button edges accumulate until
    * endFrame(), same as keyboard justPressed, so a tap during hit-stop or
    * between physics ticks is never lost. Returns true if Start was just
-   * pressed on either operative's pad, for Game to toggle pause — polled
-   * even while paused so Start can also resume.
+   * pressed on either operative's pad (or the touch pause button tapped),
+   * for Game to toggle pause — polled even while paused so Start can also
+   * resume.
    */
-  pollGamepads(): boolean {
+  poll(): boolean {
     const raw: readonly (PadSnapshot | null)[] =
       typeof navigator !== 'undefined' && navigator.getGamepads ? navigator.getGamepads() : [];
     const assigned = assignPads(raw, this.solo);
@@ -74,10 +81,14 @@ export class InputManager {
 
     ([assigned.p1, assigned.p2] as const).forEach((pad, slot) => {
       if (!pad) {
-        // Unplugged (or never assigned): drop any held stick aim so P1 falls back to the mouse.
+        // Unplugged (or never assigned): drop any held stick aim so P1 falls
+        // back to the mouse — unless P1 is on touch, whose aim stick shares
+        // this held aim and has no mouse to fall back to.
         this.pads[slot] = null;
-        this.padAim[slot] = null;
-        if (slot === 0) this.p1AimSource = 'mouse';
+        if (slot === 1 || !this.touch.active) {
+          this.padAim[slot] = null;
+          if (slot === 0) this.p1AimSource = 'mouse';
+        }
         return;
       }
       const state = readPad(pad);
@@ -93,11 +104,17 @@ export class InputManager {
 
       if (state.aimAngle !== null) {
         this.padAim[slot] = state.aimAngle;
-        if (slot === 0) this.p1AimSource = 'pad';
+        if (slot === 0) this.p1AimSource = 'stick';
       }
     });
 
-    return startPressed;
+    const touchAim = this.touch.read().aimAngle;
+    if (touchAim !== null) {
+      this.padAim[0] = touchAim;
+      this.p1AimSource = 'stick';
+    }
+
+    return this.touch.consumePause() || startPressed;
   }
 
   /** Stick overrides keys while it's pushed; otherwise the keyboard direction stands. */
@@ -143,11 +160,11 @@ export class InputManager {
 
     const padAim = this.padAim[0];
     const aimAngle =
-      this.p1AimSource === 'pad' && padAim !== null
+      this.p1AimSource === 'stick' && padAim !== null
         ? padAim
         : Math.atan2(this.mousePos.y - playerWorldPos.y, this.mousePos.x - playerWorldPos.x);
 
-    return this.mergeButtons(0, {
+    return this.mergeTouch(this.mergeButtons(0, {
       ...this.mergeMove(0, moveX, moveY),
       aimAngle,
       isFiring: this.mouseButtons.has(0), // Left click
@@ -159,7 +176,26 @@ export class InputManager {
       selectPrimary: this.justPressed.has('Digit1'),
       selectSecondary: this.justPressed.has('Digit2'),
       isTogglingFlashlight: this.justPressed.has('KeyT')
-    });
+    }));
+  }
+
+  /** P1 only: the on-screen stick overrides movement while pushed, and touch buttons OR in. */
+  private mergeTouch(input: PlayerInputState): PlayerInputState {
+    if (!this.touch.active) return input;
+    const t = this.touch.read();
+    const touchMoving = t.moveX !== 0 || t.moveY !== 0;
+    return {
+      ...input,
+      moveX: touchMoving ? t.moveX : input.moveX,
+      moveY: touchMoving ? t.moveY : input.moveY,
+      isFiring: input.isFiring || t.fire,
+      isSprinting: input.isSprinting || t.sprint,
+      isSneaking: input.isSneaking || t.sneak,
+      isReloading: input.isReloading || t.reload,
+      isInteracting: input.isInteracting || t.interact,
+      isSwitchingWeapon: input.isSwitchingWeapon || t.justPressed.has('swap'),
+      isTogglingFlashlight: input.isTogglingFlashlight || t.justPressed.has('light')
+    };
   }
 
   getPlayer2Input(playerWorldPos: { x: number; y: number }, partnerWorldPos: { x: number; y: number }): PlayerInputState {
@@ -201,9 +237,15 @@ export class InputManager {
   }
 
   /** Clears one-shot "just pressed" edge state. Call once per frame after both players' inputs are read. */
+  /** Removes the canvas touch listeners so a finished Game doesn't keep reacting to touches. */
+  dispose() {
+    this.detachTouch();
+  }
+
   endFrame() {
     this.justPressed.clear();
     this.padJustPressed[0].clear();
     this.padJustPressed[1].clear();
+    this.touch.endFrame();
   }
 }

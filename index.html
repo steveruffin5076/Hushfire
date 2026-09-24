@@ -31,6 +31,9 @@
       display: block;
       background: #0d0f14;
       image-rendering: pixelated;
+      /* Touch play: drags drive the on-screen sticks, never page scroll/zoom. */
+      touch-action: none;
+      -webkit-touch-callout: none;
       /* Shrinks to fit the viewport in real time on resize, preserving the
          1280x720 aspect ratio (from the canvas's width/height attributes)
          with no stretching — this keeps rect.width/height in Input.ts's
@@ -40,6 +43,29 @@
       max-height: 100vh;
       width: auto;
       height: auto;
+    }
+    /* The game is a fixed 16:9 canvas — on a phone held upright it would
+       shrink to a thin strip, so touch devices in portrait get a prompt
+       instead. Desktop windows are never affected (pointer: coarse). */
+    #rotate-hint {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 10;
+      background: #050508;
+      color: #EBF4FA;
+      font-family: monospace;
+      letter-spacing: 2px;
+      text-align: center;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 14px;
+      padding: 24px;
+    }
+    #rotate-hint .icon { font-size: 48px; color: #FF9E1B; }
+    @media (orientation: portrait) and (pointer: coarse) {
+      #rotate-hint { display: flex; }
     }
     #ui-overlay {
       position: absolute;
@@ -56,6 +82,7 @@
     <canvas id="game-canvas"></canvas>
     <div id="ui-overlay"></div>
   </div>
+  <div id="rotate-hint"><div class="icon">&#x21bb;</div><div>ROTATE YOUR DEVICE</div><div style="font-size:12px;color:#8A94A6;">HUSHFIRE plays in landscape</div></div>
   <script type="module" src="/src/main.ts"></script>
 </body>
 </html>

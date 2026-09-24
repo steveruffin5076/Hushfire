@@ -148,7 +148,21 @@ Any controller the browser reports with the standard layout (Xbox, PlayStation, 
 | **Flashlight On/Off** | B (PlayStation: Circle) |
 | **Pause / Resume** | Start / Options |
 
-Menus (title screen, armory, pause menu) still need a mouse.
+Menus (title screen, armory, pause menu) still need a mouse or a tap.
+
+### Touch (phones & tablets)
+
+On-screen controls appear after the first touch and drive Player 1 (solo is the intended mode on a phone). The game asks you to rotate to landscape if the device is held upright.
+
+| Action | Touch |
+| :--- | :--- |
+| **Move** | Drag anywhere on the left half (the stick appears under your thumb) |
+| **Aim** | Drag anywhere on the right half |
+| **Primary Fire** | Push the aim stick past the red dashed ring; a light push aims without firing |
+| **Sprint / Sneak** | `SPRINT` / `SNEAK` buttons (left edge), tap to toggle on/off |
+| **Reload / Interact** | `RELOAD` / `USE` buttons (right edge), hold |
+| **Switch Weapon / Flashlight** | `SWAP` / `LIGHT` buttons (right edge) |
+| **Pause** | `II` button (top center) |
 
 ---
 
