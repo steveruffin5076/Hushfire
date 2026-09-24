@@ -1,7 +1,13 @@
 import { Point } from '../lighting/Raycaster';
 import { Zombie } from '../entities/Zombie';
 import { MapManager } from './MapManager';
-import { WALL_SOUND_DAMPENING, ZOMBIE_AWARENESS_THRESHOLD, ZOMBIE_ENRAGE_THRESHOLD, ZOMBIE_SCREAM_ALERT_RADIUS } from '../config/constants';
+import {
+  WALL_SOUND_DAMPENING,
+  ZOMBIE_AWARENESS_THRESHOLD,
+  ZOMBIE_ENRAGE_THRESHOLD,
+  GUNSHOT_ENRAGE_THRESHOLD,
+  ZOMBIE_SCREAM_ALERT_RADIUS
+} from '../config/constants';
 
 export type SoundType = 'gunshot' | 'footstep' | 'scream' | 'explosion';
 
@@ -42,7 +48,8 @@ export class NoiseSystem {
         const intensity = Math.max(0, 1 - dist / effectiveRadius);
         if (intensity <= 0) continue;
 
-        if (intensity >= ZOMBIE_ENRAGE_THRESHOLD || event.type === 'explosion') {
+        const enrageAt = event.type === 'gunshot' ? GUNSHOT_ENRAGE_THRESHOLD : ZOMBIE_ENRAGE_THRESHOLD;
+        if (intensity >= enrageAt || event.type === 'explosion') {
           zombie.alert('ENRAGED', origin);
         } else if (intensity >= ZOMBIE_AWARENESS_THRESHOLD) {
           zombie.alert('SUSPICIOUS', origin);

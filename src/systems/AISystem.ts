@@ -4,6 +4,7 @@ import { MapManager } from './MapManager';
 import { NoiseSystem } from './NoiseSystem';
 import { RAIL_MODIFIERS } from '../config/weapons';
 import { Point } from '../lighting/Raycaster';
+import { DORMANT_NOTICE_RADIUS, SUSPICIOUS_NOTICE_RADIUS, SNEAK_NOISE_RADIUS } from '../config/constants';
 
 const INVESTIGATE_SPEED_MULT = 0.6;
 const INVESTIGATE_GIVE_UP_RADIUS = 24;
@@ -28,6 +29,7 @@ export class AISystem {
       if (zombie.state !== 'ENRAGED' && !zombie.def.isBlindToLight) {
         this.senseLight(dt, zombie, players, map);
       }
+      if (zombie.state !== 'ENRAGED') this.senseNearby(zombie, livingPlayers, map);
 
       if (zombie.repathTimer > 0) zombie.repathTimer -= dt;
 
@@ -81,6 +83,25 @@ export class AISystem {
       }
     } else {
       zombie.lightExposureTimer = Math.max(0, zombie.lightExposureTimer - dt * 2);
+    }
+  }
+
+  /**
+   * Close-range detection that doesn't depend on light or a sound event:
+   * a player in plain view, moving faster than a sneak, within the notice
+   * radius for the zombie's state (tight while dormant, wider once
+   * suspicious). Sneaking or standing still slips past — the stealth
+   * option the knife backstab relies on. Works for blind zombies too:
+   * at this range they feel the footsteps.
+   */
+  private senseNearby(zombie: Zombie, players: Player[], map: MapManager) {
+    const radius = zombie.state === 'SUSPICIOUS' ? SUSPICIOUS_NOTICE_RADIUS : DORMANT_NOTICE_RADIUS;
+    for (const player of players) {
+      if (player.noiseRadius <= SNEAK_NOISE_RADIUS) continue;
+      if (Math.hypot(player.x - zombie.x, player.y - zombie.y) > radius) continue;
+      if (!map.hasLineOfSight(zombie.position, player.position)) continue;
+      zombie.alert('ENRAGED', player.position);
+      return;
     }
   }
 

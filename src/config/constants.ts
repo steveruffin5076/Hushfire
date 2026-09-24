@@ -46,3 +46,14 @@ export const REVIVE_TIME_SEC = 3.0;
 export const ZOMBIE_AWARENESS_THRESHOLD = 0.38;
 export const ZOMBIE_ENRAGE_THRESHOLD = 0.8;
 export const ZOMBIE_SCREAM_ALERT_RADIUS = 200; // ~7.5m, alerts nearby dormant zombies
+// Gunshots enrage at a lower intensity than other sounds, so going loud
+// actually draws the room: an unsuppressed shotgun (850px) now enrages out to
+// 850 * (1 - 0.55) ≈ 382px instead of 170px. Suppressed shots are so quiet
+// (e.g. MPX ≈ 57px) that this barely moves their enrage range (26px).
+export const GUNSHOT_ENRAGE_THRESHOLD = 0.55;
+
+// Close-range detection: a zombie notices a player it can see who is moving
+// faster than a sneak within this range. Sneaking or standing still stays
+// hidden, which is what makes creeping up for a backstab a real choice.
+export const DORMANT_NOTICE_RADIUS = 40; // px — a sleeping zombie only wakes if you all but walk into it
+export const SUSPICIOUS_NOTICE_RADIUS = 100; // px — an already-alert zombie is watching
