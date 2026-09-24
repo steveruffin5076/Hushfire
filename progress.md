@@ -43,6 +43,11 @@ Last checked: 2026-09-24, against `main` after PR #15.
 - Evac horde surges speed up as the holdout clock runs: every 10 s at the start, every 4 s by the end (`src/systems/HordeSurge.ts`). Co-op waves are 2 zombies, and the mix now includes a 10% brute chance.
 - Sector 3 has 2 extra zombies guarding the pad. Starting zombie HP now rises every sector: 358 → 466 → 498.
 
+### Readability (from the design review)
+- Bio-carriers have a pulsing green ring. When one dies, a green shockwave expands to its 400 px alert radius, drawn above the darkness.
+- A flashing "HORDE INCOMING" banner shows for 2 s before each evac wave.
+- The end screen shows silent kills, zombies alerted, and a stealth rating (GHOST 0 / SHADOW ≤3 / OPERATOR ≤8 / LOUD) (`src/ui/StealthRating.ts`).
+
 ### Gamepad
 - Standard-layout controllers work alongside the keyboard (`src/core/Gamepad.ts`, polled by `InputManager`). Left stick moves, right stick aims, RT fires, Start pauses and resumes. The full table is in `docs/COOP_SESSION_GUIDE.md` §5.
 - Who gets which pad: solo → P1; co-op with one pad → P2 (P1 keeps the mouse); two pads → one each. P1 switches between mouse and stick aim automatically, depending on which moved last.

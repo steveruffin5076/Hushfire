@@ -28,6 +28,8 @@ export interface CombatEvents {
 const MELEE_RANGE = 46;
 const MELEE_ARC_RAD = (70 * Math.PI) / 180;
 const KNIFE_BACKSTAB_DAMAGE = 400;
+/** A dying Bio-Carrier's burst: an 'explosion' sound that enrages every zombie that hears it. */
+export const BIO_CARRIER_BLAST_RADIUS = 400;
 /** A backstab needs the attacker inside this rear cone of the zombie (120° wide, centered on its back). */
 const BACKSTAB_REAR_ARC_RAD = (120 * Math.PI) / 180;
 /** Cosmetic push on a non-lethal hit — decays in Zombie.updateJuice, never wall-checked. */
@@ -155,15 +157,17 @@ export class CombatSystem {
       }
     }
 
+    const wasUnaware = zombie.state !== 'ENRAGED';
     zombie.takeDamage(damage);
     zombie.alert('ENRAGED', { x: attacker.x, y: attacker.y });
 
     if (!zombie.alive) {
       zombie.startDying();
       attacker.killCount++;
+      if (wasUnaware) attacker.silentKills++;
       if (zombie.archetype === 'bio_carrier' && !zombie.hasExploded) {
         zombie.hasExploded = true;
-        this.noise.emit({ x: zombie.x, y: zombie.y, radius: 400, type: 'explosion' });
+        this.noise.emit({ x: zombie.x, y: zombie.y, radius: BIO_CARRIER_BLAST_RADIUS, type: 'explosion' });
       }
       this.events.onZombieKilled?.(zombie, attacker);
     } else {

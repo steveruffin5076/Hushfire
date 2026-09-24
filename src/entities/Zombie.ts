@@ -14,6 +14,8 @@ export class Zombie extends Entity {
   public investigateTarget: Point | null = null;
   public screamCooldown = 0;
   public hasExploded = false;
+  /** Already counted toward the run's "zombies alerted" stealth stat (see Game.countNewAlerts). */
+  public alertCounted = false;
 
   private path: Point[] = [];
   private pathIndex = 0;
