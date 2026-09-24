@@ -10,6 +10,7 @@ import { Projectile } from '../entities/Projectile';
 import { MapManager } from '../systems/MapManager';
 import { NoiseSystem } from '../systems/NoiseSystem';
 import { AISystem } from '../systems/AISystem';
+import { Difficulty, DifficultyDef, DIFFICULTIES } from '../config/difficulty';
 import { BIO_CARRIER_BLAST_RADIUS } from '../systems/CombatSystem';
 import { SURGE_START_INTERVAL_SEC, surgeInterval, surgeSize, pickSurgeArchetype } from '../systems/HordeSurge';
 import { CombatSystem, Decal, bloodDecal, HIT_FLASH_SEC } from '../systems/CombatSystem';
@@ -19,9 +20,8 @@ import { AssetLoader, AssetKey } from './AssetLoader';
 import { WEAPON_REGISTRY, MUZZLE_MODIFIERS } from '../config/weapons';
 
 const FIXED_DT = 1 / 60;
-// Difficulty-tuned down from 22/6/26: less contact damage, rarer horde
-// reinforcement waves, and a lower reinforcement cap.
-const ZOMBIE_CONTACT_DPS = 15;
+// Contact damage now comes from the run's difficulty (config/difficulty.ts):
+// NORMAL keeps the tuned-down 15/s, HARD restores the original 22/s.
 const ZOMBIE_CONTACT_RANGE_PAD = 4;
 const HORDE_MAX_ZOMBIES = 18;
 /** How long the Bio-Carrier blast ring takes to expand and fade. */
@@ -88,7 +88,8 @@ export class Game {
 
   private map = new MapManager();
   private noise = new NoiseSystem();
-  private ai = new AISystem();
+  private ai: AISystem;
+  private readonly difficultyDef: DifficultyDef;
   private combat: CombatSystem;
 
   private lastTime = 0;
@@ -165,8 +166,12 @@ export class Game {
     assets: AssetLoader,
     private callbacks: GameCallbacks,
     /** True operative-of-one: Player 2 never spawns into play — no companion, human or AI. */
-    private solo = false
+    private solo = false,
+    difficulty: Difficulty = 'normal'
   ) {
+    this.difficultyDef = DIFFICULTIES[difficulty];
+    this.ai = new AISystem(this.difficultyDef.noticeMult);
+    this.applyDifficultyToSector();
     this.canvas = canvas;
     this.canvas.width = CANVAS_WIDTH;
     this.canvas.height = CANVAS_HEIGHT;
@@ -201,8 +206,16 @@ export class Game {
     this.spawnZombies();
   }
 
+  /** The evac holdout length is per difficulty, not per sector — overrides what MapManager loaded. */
+  private applyDifficultyToSector() {
+    const zone = this.map.extractionZone;
+    if (zone.radius <= 0) return;
+    zone.holdoutDurationSec = this.difficultyDef.holdoutSec;
+    zone.holdoutTimer = this.difficultyDef.holdoutSec;
+  }
+
   private spawnZombies() {
-    this.zombies = this.map.layout.zombies.map(s => new Zombie(s.x, s.y, s.angle, s.archetype));
+    this.zombies = this.map.layout.zombies.map(s => new Zombie(s.x, s.y, s.angle, s.archetype, this.difficultyDef.zombieHpMult));
   }
 
   private onZombieKilled(zombie: Zombie, _killer: Player) {
@@ -439,7 +452,7 @@ export class Game {
         player.eliminate();
         this.triggerPlayerHitJuice(true);
       } else {
-        player.takeDamage(ZOMBIE_CONTACT_DPS * dt);
+        player.takeDamage(this.difficultyDef.contactDps * dt);
         // Gate the shake/flash on the same cooldown as the hit sound — contact
         // damage ticks every physics frame, and pulsing per-tick would pin the
         // screen shake at max for the whole grapple instead of reading as hits.
@@ -545,7 +558,7 @@ export class Game {
     this.hordeSpawnTimer -= dt;
     if (this.hordeSpawnTimer > 0) return;
     const zone = this.map.extractionZone;
-    this.hordeSpawnTimer = surgeInterval(zone.holdoutDurationSec - zone.holdoutTimer);
+    this.hordeSpawnTimer = surgeInterval(zone.holdoutDurationSec - zone.holdoutTimer, this.difficultyDef.surgeMinIntervalSec);
 
     const waveSize = surgeSize(!this.p2.isEliminated);
     for (let i = 0; i < waveSize && this.zombies.length < HORDE_MAX_ZOMBIES; i++) {
@@ -556,7 +569,7 @@ export class Game {
         : edge === 2 ? { x: 60 + Math.random() * 1160, y: 60 }
         : { x: 60 + Math.random() * 1160, y: 660 };
 
-      const zombie = new Zombie(spawn.x, spawn.y, 0, pickSurgeArchetype(Math.random()));
+      const zombie = new Zombie(spawn.x, spawn.y, 0, pickSurgeArchetype(Math.random()), this.difficultyDef.zombieHpMult);
       zombie.alert('ENRAGED', { x: zone.x, y: zone.y });
       // Arrives already enraged by the siren — not something the team gave away.
       zombie.alertCounted = true;
@@ -591,6 +604,7 @@ export class Game {
 
   private advanceSector() {
     this.map.loadSector(this.map.sectorIndex + 1);
+    this.applyDifficultyToSector();
     this.zombies = [];
     this.projectiles = [];
     this.decals = [];
@@ -625,7 +639,8 @@ export class Game {
       totalShotsFired: this.p1.shotsFired + this.p2.shotsFired,
       sectorReached: this.map.sector.name,
       zombiesAlerted: this.zombiesAlerted,
-      silentKills: this.p1.silentKills + this.p2.silentKills
+      silentKills: this.p1.silentKills + this.p2.silentKills,
+      difficulty: this.difficultyDef.label
     });
   }
 

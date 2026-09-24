@@ -14,8 +14,8 @@ export const SURGE_MIN_INTERVAL_SEC = 4;
 const SURGE_RAMP_SEC_PER_SEC = 20;
 
 /** Seconds until the next wave, given how far into the holdout the team is. */
-export function surgeInterval(holdoutElapsedSec: number): number {
-  return Math.max(SURGE_MIN_INTERVAL_SEC, SURGE_START_INTERVAL_SEC - holdoutElapsedSec / SURGE_RAMP_SEC_PER_SEC);
+export function surgeInterval(holdoutElapsedSec: number, minIntervalSec = SURGE_MIN_INTERVAL_SEC): number {
+  return Math.max(minIntervalSec, SURGE_START_INTERVAL_SEC - holdoutElapsedSec / SURGE_RAMP_SEC_PER_SEC);
 }
 
 /** Zombies per wave — co-op has two guns on the pad, so it gets twice the pressure. */

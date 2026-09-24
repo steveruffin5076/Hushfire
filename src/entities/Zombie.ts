@@ -34,9 +34,10 @@ export class Zombie extends Entity {
   public deathTimer = 0;
   private static readonly DEATH_ANIM_SEC = 0.35;
 
-  constructor(x: number, y: number, angle: number, archetype: ZombieArchetype) {
+  /** `hpMult` scales max health for the run's difficulty (see config/difficulty.ts). */
+  constructor(x: number, y: number, angle: number, archetype: ZombieArchetype, hpMult = 1) {
     const def = ZOMBIE_REGISTRY[archetype];
-    super(x, y, ZOMBIE_RADIUS, def.maxHealth);
+    super(x, y, ZOMBIE_RADIUS, Math.round(def.maxHealth * hpMult));
     this.archetype = archetype;
     this.angle = angle;
   }

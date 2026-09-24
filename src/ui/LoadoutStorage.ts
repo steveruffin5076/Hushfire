@@ -1,10 +1,12 @@
 import { WEAPON_REGISTRY, MUZZLE_MODIFIERS, RAIL_MODIFIERS, AMMO_MODIFIERS } from '../config/weapons';
 import { WeaponLoadout } from '../entities/Player';
+import { Difficulty, DIFFICULTIES } from '../config/difficulty';
 
 export type GameMode = 'solo' | 'coop';
 
 export interface ArmoryState {
   mode: GameMode;
+  difficulty: Difficulty;
   loadouts: [WeaponLoadout, WeaponLoadout];
 }
 
@@ -70,7 +72,7 @@ const sanitizeLoadout = (raw: unknown, fallback: WeaponLoadout): WeaponLoadout =
   };
 };
 
-/** The last-used mode and loadouts, or the defaults when nothing valid is saved. Always returns fresh copies. */
+/** The last-used mode, difficulty and loadouts, or the defaults when nothing valid is saved. Always returns fresh copies. */
 export function loadArmoryState(storage: KeyValueStorage | null = defaultStorage()): ArmoryState {
   let parsed: Record<string, unknown> = {};
   try {
@@ -83,6 +85,7 @@ export function loadArmoryState(storage: KeyValueStorage | null = defaultStorage
   const loadouts = Array.isArray(parsed.loadouts) ? parsed.loadouts : [];
   return {
     mode: parsed.mode === 'coop' ? 'coop' : 'solo',
+    difficulty: pick(parsed.difficulty, DIFFICULTIES, 'normal'),
     loadouts: [sanitizeLoadout(loadouts[0], DEFAULT_LOADOUTS[0]), sanitizeLoadout(loadouts[1], DEFAULT_LOADOUTS[1])]
   };
 }
