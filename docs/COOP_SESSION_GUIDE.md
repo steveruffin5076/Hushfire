@@ -122,6 +122,33 @@ For instant testing on one computer (or playing locally on the couch):
 | **Sneak (Crouch-Walk)** | `Left Ctrl` or `Left Shift` | `Right Ctrl` |
 | **Reload** | `R` | `/` (Slash) |
 | **Interact / Revive Partner** | `F` or `E` | `.` (Period) |
+| **Switch Weapon** | `Q` (or `1` / `2` to pick directly) | `,` (Comma) (or `Numpad 1` / `Numpad 2`) |
+| **Flashlight On/Off** | `T` (or click the HUD button) | `'` (Quote) |
+| **Pause** | `Esc` | `Esc` |
+
+### Gamepad
+
+Any controller the browser reports with the standard layout (Xbox, PlayStation, most modern pads) works alongside the keyboard. Press a button once after plugging it in; browsers hide pads until then.
+
+* **Solo:** the first pad drives Player 1.
+* **Co-op, one pad:** it drives Player 2, and Player 1 keeps keyboard + mouse.
+* **Co-op, two pads:** the first pad is Player 1, the second is Player 2.
+
+| Action | Gamepad |
+| :--- | :--- |
+| **Move** | Left stick |
+| **Aim** | Right stick (holds its last direction when released) |
+| **Primary Fire** | Right Trigger (RT / R2) |
+| **Sprint** | Left Bumper (LB / L1) or click the left stick |
+| **Sneak** | Left Trigger (LT / L2) |
+| **Reload** | X (PlayStation: Square) |
+| **Interact / Revive Partner** | A (PlayStation: Cross) |
+| **Switch Weapon** | Y (PlayStation: Triangle) |
+| **Primary / Secondary** | D-pad Left / Right |
+| **Flashlight On/Off** | B (PlayStation: Circle) |
+| **Pause / Resume** | Start / Options |
+
+Menus (title screen, armory, pause menu) still need a mouse.
 
 ---
 

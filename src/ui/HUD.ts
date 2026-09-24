@@ -66,24 +66,25 @@ export class HUD {
    * the player's only pointer.
    *
    * `mouseScreen` is P1's pointer in canvas pixels, so their reticle tracks it
-   * exactly with no world round-trip. P2 has no physical mouse (keyboard aim
-   * or bot), so theirs is projected RETICLE_AIM_DIST along their aim vector
-   * and converted back to screen space.
+   * exactly with no world round-trip. It's null while P1 aims with a gamepad
+   * stick; then, like P2 (keyboard or stick aim, no physical mouse), the
+   * reticle is projected RETICLE_AIM_DIST along the aim vector and converted
+   * back to screen space.
    */
   renderReticles(
     ctx: CanvasRenderingContext2D,
     p1: Player,
     p2: Player,
-    mouseScreen: Point,
+    mouseScreen: Point | null,
     camera: Camera
   ) {
-    this.renderReticle(ctx, p1, mouseScreen);
-    if (!p2.isEliminated) {
-      this.renderReticle(ctx, p2, camera.worldToScreen({
-        x: p2.x + Math.cos(p2.angle) * RETICLE_AIM_DIST,
-        y: p2.y + Math.sin(p2.angle) * RETICLE_AIM_DIST
-      }));
-    }
+    const alongAim = (p: Player) =>
+      camera.worldToScreen({
+        x: p.x + Math.cos(p.angle) * RETICLE_AIM_DIST,
+        y: p.y + Math.sin(p.angle) * RETICLE_AIM_DIST
+      });
+    this.renderReticle(ctx, p1, mouseScreen ?? alongAim(p1));
+    if (!p2.isEliminated) this.renderReticle(ctx, p2, alongAim(p2));
   }
 
   /**

@@ -26,6 +26,10 @@ Last checked: 2026-09-24, against `main` after PR #15.
 ### Armory
 - The armory remembers the last game mode and both operatives' loadouts in `localStorage` (`src/ui/LoadoutStorage.ts`). Saves from older builds are checked field by field: a weapon or attachment that no longer exists resets to the default, and the rest is kept.
 
+### Gamepad
+- Standard-layout controllers work alongside the keyboard (`src/core/Gamepad.ts`, polled by `InputManager`). Left stick moves, right stick aims, RT fires, Start pauses and resumes. The full table is in `docs/COOP_SESSION_GUIDE.md` §5.
+- Who gets which pad: solo → P1; co-op with one pad → P2 (P1 keeps the mouse); two pads → one each. P1 switches between mouse and stick aim automatically, depending on which moved last.
+
 ### Infrastructure
 - GitHub Pages deploy via `.github/workflows/deploy-pages.yml` (`npm ci` + `npm test` + `npm run build` on every push to `main`).
 - Asset URLs are built from `import.meta.env.BASE_URL`, so they load under the `/Hushfire/` subpath. This is a permanent guardrail in `CLAUDE.md` §4.
@@ -35,7 +39,7 @@ Last checked: 2026-09-24, against `main` after PR #15.
 ## Pending
 
 - **Phase 7 online co-op** isn't built yet. `docs/PHASE7_ONLINE_LOBBY_PLAN.md` has the plan, but there is no `Protocol.ts`, no server, and no host/client sync. `net/SessionManager.ts` is a client-side stub only.
-- **No gamepad support**, even though `CLAUDE.md` lists it for `Input.ts`.
+- Menus (title, armory, pause) can't be driven with a gamepad yet; in-game play can.
 - **No touch/mobile controls.**
 - The flashlight HUD button only accepts clicks for P1. Local co-op shares one mouse, so this only matters once online play exists.
 - No lint script or config beyond what `tsc` enforces.
