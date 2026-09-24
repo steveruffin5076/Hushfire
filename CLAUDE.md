@@ -25,6 +25,9 @@ npm run dev
 # Type-check TypeScript code
 npm run typecheck
 
+# Run unit tests (Vitest, tests/*.test.ts)
+npm test
+
 # Build production bundle to dist/
 npm run build
 
