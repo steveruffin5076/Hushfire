@@ -51,6 +51,12 @@ Last checked: 2026-09-24, against `main` after PR #15.
 ### Sector 3 rooftop edge
 - Five off-roof blocker walls keep players and zombies on the roof, walkway and annex drawn in `sector3_bg.jpg`. Before this they could walk out over the sky. A test walks a player toward each sky area and checks they stop at the edge.
 
+### Cleanup (from the sector review)
+- Crossbow bolts can be picked back up. Walking over a stuck bolt with a crossbow in either slot returns it to reserve (`collectStuckBolts`).
+- Sector 3's radio moved from beside spawn (~180 px) into the annex by the satellite dish, so the team now crosses the roof before holding the pad.
+- Sector 2's floating blast door is removed. Nothing in the art anchored it and it could be walked around. The exit still only works after the terminal.
+- New sector tests: each objective is at least 500 px from spawn, and every door is anchored to a wall at both ends.
+
 ### Replayability
 - Per-run layout shuffle: every zombie and pickup has 2 alternative spots in `sectors.ts` (`alts`), and each run picks one per entry (`src/config/sectorLayout.ts`). Types and counts never change, so each sector's zombie HP and pickup mix stay as tuned. Tests check every possible spot: inside the map, not in a wall, zombies at least 200 px from spawn, and every pickup and objective reachable before any door opens.
 

@@ -34,6 +34,25 @@ export const BIO_CARRIER_BLAST_RADIUS = 400;
 const BACKSTAB_REAR_ARC_RAD = (120 * Math.PI) / 180;
 /** Cosmetic push on a non-lethal hit — decays in Zombie.updateJuice, never wall-checked. */
 const HIT_KNOCKBACK_PX_PER_SEC = 90;
+/** Walk within this distance of a stuck bolt to pick it back up. */
+export const BOLT_PICKUP_RADIUS = 26;
+
+/**
+ * Hands stuck bolts back to any active operative carrying a crossbow who
+ * walks over them. Returns the projectiles still in the world.
+ */
+export function collectStuckBolts(projectiles: Projectile[], players: Player[]): Projectile[] {
+  return projectiles.filter(bolt => {
+    if (!bolt.stuck) return true;
+    for (const p of players) {
+      if (p.isEliminated || p.isDowned) continue;
+      if (Math.hypot(p.x - bolt.x, p.y - bolt.y) > BOLT_PICKUP_RADIUS) continue;
+      if (p.retrieveBolt()) return false;
+    }
+    return true;
+  });
+}
+
 /** How long a hit's white flash lasts — exported so the renderer can fade it by the same duration. */
 export const HIT_FLASH_SEC = 0.08;
 

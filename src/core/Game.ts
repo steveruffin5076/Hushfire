@@ -11,9 +11,8 @@ import { MapManager } from '../systems/MapManager';
 import { NoiseSystem } from '../systems/NoiseSystem';
 import { AISystem } from '../systems/AISystem';
 import { Difficulty, DifficultyDef, DIFFICULTIES } from '../config/difficulty';
-import { BIO_CARRIER_BLAST_RADIUS } from '../systems/CombatSystem';
 import { SURGE_START_INTERVAL_SEC, surgeInterval, surgeSize, pickSurgeArchetype } from '../systems/HordeSurge';
-import { CombatSystem, Decal, bloodDecal, HIT_FLASH_SEC } from '../systems/CombatSystem';
+import { CombatSystem, Decal, bloodDecal, HIT_FLASH_SEC, BIO_CARRIER_BLAST_RADIUS, collectStuckBolts } from '../systems/CombatSystem';
 import { HUD } from '../ui/HUD';
 import { RunStats } from '../ui/ExtractionModal';
 import { AssetLoader, AssetKey } from './AssetLoader';
@@ -328,6 +327,7 @@ export class Game {
     this.handlePickups(this.p2, in2);
 
     this.combat.updateProjectiles(dt, this.projectiles, this.zombies, [this.p1, this.p2], this.decals);
+    this.projectiles = collectStuckBolts(this.projectiles, [this.p1, this.p2]);
 
     this.ai.update(dt, this.zombies, [this.p1, this.p2], this.map);
     this.noise.propagate(this.zombies, this.map);

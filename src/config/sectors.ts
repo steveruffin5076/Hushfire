@@ -114,9 +114,10 @@ const SECTOR_2: SectorDef = {
     { x1: 280, y1: 295, x2: 405, y2: 390 },
     { x1: 880, y1: 295, x2: 1005, y2: 390 }
   ],
-  doorWalls: [
-    { p1: { x: 1032, y: 300 }, p2: { x: 1032, y: 460 } }
-  ],
+  // No door: sector2_bg.jpg has nothing to anchor one to, and the old one
+  // floated in the open room where it could simply be walked around. The
+  // exit still only counts once the terminal is done (updateSectorExit).
+  doorWalls: [],
   playerSpawns: [
     { x: 110, y: 340 },
     { x: 110, y: 410 }
@@ -188,11 +189,14 @@ const SECTOR_3: SectorDef = {
   pickups: [
     { x: 240, y: 360, type: 'ammo', alts: [{ x: 180, y: 250 }, { x: 200, y: 470 }] },
     { x: 620, y: 360, type: 'medkit', alts: [{ x: 660, y: 240 }, { x: 560, y: 460 }] },
-    { x: 820, y: 200, type: 'ammo', alts: [{ x: 1180, y: 320 }, { x: 700, y: 80 }] },
+    { x: 820, y: 200, type: 'ammo', alts: [{ x: 1180, y: 420 }, { x: 700, y: 80 }] },
     { x: 820, y: 520, type: 'battery', alts: [{ x: 940, y: 110 }, { x: 660, y: 640 }] },
     { x: 960, y: 620, type: 'medkit', alts: [{ x: 1200, y: 480 }, { x: 440, y: 640 }] }
   ],
-  objective: { kind: 'evac_radio', x: 300, y: 360, radius: 44, label: 'EMERGENCY RADIO', holdSec: 2.5 },
+  // In the annex beside the satellite dish. It was ~180px from spawn, which made
+  // the objective free; now the team crosses the whole roof, past the pad and
+  // its guards, then comes back to hold the pad.
+  objective: { kind: 'evac_radio', x: 1165, y: 305, radius: 44, label: 'EMERGENCY RADIO', holdSec: 2.5 },
   evacZone: { x: 900, y: 360, radius: 90, holdoutSec: 120 }
 };
 
