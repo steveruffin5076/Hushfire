@@ -2,31 +2,9 @@ import { WEAPON_REGISTRY, MUZZLE_MODIFIERS, RAIL_MODIFIERS, AMMO_MODIFIERS, Muzz
 import { WeaponLoadout } from '../entities/Player';
 import { CYAN, ORANGE, TEXT, MUTED, GREEN, RED, PANEL_BG, PANEL_BORDER, FIELD_BG } from './theme';
 import { showQuitScreen } from './QuitScreen';
+import { GameMode, loadArmoryState, saveArmoryState } from './LoadoutStorage';
 
-export type GameMode = 'solo' | 'coop';
-
-const DEFAULT_LOADOUTS: [WeaponLoadout, WeaponLoadout] = [
-  {
-    primaryWeapon: 'mpx',
-    secondaryWeapon: 'glock17',
-    primaryMuzzle: 'suppressor',
-    secondaryMuzzle: 'suppressor',
-    primaryRail: 'spotlight',
-    secondaryRail: 'spotlight',
-    primaryAmmoType: 'standard',
-    secondaryAmmoType: 'standard'
-  },
-  {
-    primaryWeapon: 'shotgun',
-    secondaryWeapon: 'revolver',
-    primaryMuzzle: 'muzzle_brake',
-    secondaryMuzzle: 'muzzle_brake',
-    primaryRail: 'flood_light',
-    secondaryRail: 'flood_light',
-    primaryAmmoType: 'standard',
-    secondaryAmmoType: 'standard'
-  }
-];
+export type { GameMode };
 
 /** Below this a suppressed weapon's sound radius counts as stealthy relative to this game's ~280-1000px unsuppressed range. */
 const STEALTH_SOUND_THRESHOLD_PX = 150;
@@ -71,8 +49,10 @@ export class ArmoryMenu {
   open(onDeploy: (mode: GameMode, p1: WeaponLoadout, p2: WeaponLoadout) => void) {
     this.container.style.pointerEvents = 'auto';
 
-    const loadouts: [WeaponLoadout, WeaponLoadout] = [{ ...DEFAULT_LOADOUTS[0] }, { ...DEFAULT_LOADOUTS[1] }];
-    let mode: GameMode = 'solo';
+    // Reopens on whatever mode and loadouts were last picked (see LoadoutStorage).
+    const saved = loadArmoryState();
+    const loadouts: [WeaponLoadout, WeaponLoadout] = saved.loadouts;
+    let mode: GameMode = saved.mode;
     let editingOperative: 0 | 1 = 0;
 
     this.root.innerHTML = '';
@@ -341,12 +321,14 @@ export class ArmoryMenu {
       );
 
       loadoutBody.appendChild(this.buildStatsPanel(loadout));
+      // Every loadout or mode change ends up here, so this is the one place to persist.
+      saveArmoryState({ mode, loadouts });
       // Loadout swaps can change this card's height (e.g. hidden vs. shown
       // operative tabs), so re-fit on every re-render, not just on resize.
       fitStage();
     };
 
-    setMode('solo');
+    setMode(mode);
     setOperative(0);
 
     // ---- Deploy ----
