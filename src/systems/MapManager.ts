@@ -1,6 +1,7 @@
 import { Point, Segment } from '../lighting/Raycaster';
 import { Pickup, PickupType } from '../entities/Pickup';
-import { SECTORS, SectorDef } from '../config/sectors';
+import { SECTORS, SectorDef, BoxDef } from '../config/sectors';
+import { rawSurgeSpawnPoint } from './HordeSurge';
 import { SectorLayout, rollSectorLayout } from '../config/sectorLayout';
 import { NavGrid } from './NavGrid';
 import { closestPointOnSegment, lineOfSight, countWallsCrossed } from './Geometry';
@@ -109,10 +110,47 @@ export class MapManager {
     );
   }
 
+  /** True when a point sits strictly inside a solid obstacle box. */
+  isInsideBox(p: Point, box: BoxDef): boolean {
+    return p.x > box.x1 && p.x < box.x2 && p.y > box.y1 && p.y < box.y2;
+  }
+
+  /** True when an entity circle can rest here without overlapping walls or sitting inside a box. */
+  isFreePosition(pos: Point, radius: number): boolean {
+    for (const box of this.sector.boxes) {
+      if (this.isInsideBox(pos, box)) return false;
+    }
+    const resolved = this.resolveCircleCollision(pos, radius);
+    return Math.hypot(resolved.x - pos.x, resolved.y - pos.y) < 0.01;
+  }
+
+  /**
+   * Picks a walkable edge spawn for evac horde waves. Retries random edge
+   * points, then falls back near the player spawn so a zombie never appears
+   * trapped inside off-roof blockers.
+   */
+  rollSurgeSpawn(rand: () => number, radius = 16): Point {
+    for (let attempt = 0; attempt < 64; attempt++) {
+      const candidate = rawSurgeSpawnPoint(rand);
+      if (this.isFreePosition(candidate, radius)) return candidate;
+    }
+
+    const base = this.sector.playerSpawns[0];
+    const goal = this.extractionZone.radius > 0 ? this.extractionZone : base;
+    for (let attempt = 0; attempt < 32; attempt++) {
+      const angle = rand() * Math.PI * 2;
+      const dist = 80 + rand() * 160;
+      const candidate = { x: base.x + Math.cos(angle) * dist, y: base.y + Math.sin(angle) * dist };
+      if (!this.isFreePosition(candidate, radius)) continue;
+      if (this.nav.findPath(candidate, goal).length > 0) return candidate;
+    }
+
+    return base;
+  }
+
   /** Pushes a moving circle out of any wall it is penetrating. Returns the resolved position. */
   resolveCircleCollision(pos: Point, radius: number): Point {
-    let x = pos.x;
-    let y = pos.y;
+    let { x, y } = this.ejectFromBoxes(pos, radius);
 
     for (let pass = 0; pass < 3; pass++) {
       for (const seg of this.walls) {
@@ -120,15 +158,45 @@ export class MapManager {
         const dx = x - closest.x;
         const dy = y - closest.y;
         const distSq = dx * dx + dy * dy;
-        if (distSq < radius * radius && distSq > 0.0001) {
-          const dist = Math.sqrt(distSq);
-          const overlap = radius - dist;
-          x += (dx / dist) * overlap;
-          y += (dy / dist) * overlap;
+        if (distSq >= radius * radius) continue;
+
+        if (distSq <= 0.0001) {
+          const segDx = seg.p2.x - seg.p1.x;
+          const segDy = seg.p2.y - seg.p1.y;
+          const len = Math.hypot(segDx, segDy) || 1;
+          const nx = -segDy / len;
+          const ny = segDx / len;
+          x += nx * radius;
+          y += ny * radius;
+          continue;
         }
+
+        const dist = Math.sqrt(distSq);
+        const overlap = radius - dist;
+        x += (dx / dist) * overlap;
+        y += (dy / dist) * overlap;
       }
     }
 
+    return { x, y };
+  }
+
+  /** Shoves a center that landed inside a solid box out to the nearest exterior face. */
+  private ejectFromBoxes(pos: Point, radius: number): Point {
+    let { x, y } = pos;
+    for (const box of this.sector.boxes) {
+      if (x <= box.x1 || x >= box.x2 || y <= box.y1 || y >= box.y2) continue;
+
+      const dLeft = x - box.x1;
+      const dRight = box.x2 - x;
+      const dTop = y - box.y1;
+      const dBottom = box.y2 - y;
+      const min = Math.min(dLeft, dRight, dTop, dBottom);
+      if (min === dLeft) x = box.x1 - radius;
+      else if (min === dRight) x = box.x2 + radius;
+      else if (min === dTop) y = box.y1 - radius;
+      else y = box.y2 + radius;
+    }
     return { x, y };
   }
 

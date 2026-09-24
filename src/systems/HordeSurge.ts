@@ -1,3 +1,4 @@
+import { Point } from '../lighting/Raycaster';
 import { ZombieArchetype } from '../entities/Zombie';
 
 /**
@@ -30,6 +31,18 @@ const SURGE_MIX: readonly [ZombieArchetype, number][] = [
   ['bio_carrier', 0.25],
   ['armored_brute', 0.1]
 ];
+
+/** Random point on one of the four map edges — may land inside a wall box; validate before spawning. */
+export function rawSurgeSpawnPoint(rand: () => number): Point {
+  const edge = Math.floor(rand() * 4);
+  return edge === 0
+    ? { x: 60, y: 60 + rand() * 600 }
+    : edge === 1
+      ? { x: 1220, y: 60 + rand() * 600 }
+      : edge === 2
+        ? { x: 60 + rand() * 1160, y: 60 }
+        : { x: 60 + rand() * 1160, y: 660 };
+}
 
 /** Picks an archetype from a uniform roll in [0, 1). */
 export function pickSurgeArchetype(roll: number): ZombieArchetype {

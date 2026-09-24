@@ -29,6 +29,17 @@ describe('MapManager.resolveCircleCollision', () => {
     expect(out.x).toBeCloseTo(310 - RADIUS, 5);
   });
 
+  it('ejects a circle trapped inside a solid box interior', () => {
+    const sector3 = new MapManager();
+    sector3.loadSector(2);
+    const inside = { x: 60, y: 100 };
+    expect(sector3.isInsideBox(inside, sector3.sector.boxes[6])).toBe(true);
+
+    const out = sector3.resolveCircleCollision(inside, RADIUS);
+    expect(sector3.sector.boxes.some(box => sector3.isInsideBox(out, box))).toBe(false);
+    expect(out.y).toBeLessThanOrEqual(200 - RADIUS + 1e-3);
+  });
+
   it('keeps a circle out of the blast door until the objective completes', () => {
     const door = SECTORS[0].doorWalls[0];
     const nearDoor = { x: door.p1.x - 8, y: (door.p1.y + door.p2.y) / 2 };
