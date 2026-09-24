@@ -1,6 +1,6 @@
 # HUSHFIRE — Progress & Handoff
 
-Last updated: 2026-09-24, against `main` after PR #31. Written as a handoff for another developer or AI assistant, e.g. Cursor. Read this first, then `CLAUDE.md`.
+Last updated: 2026-09-24, against `main` after PR #33. Written as a handoff for another developer or AI assistant, e.g. Cursor. Read this first, then `CLAUDE.md`.
 
 **Status in one line:** the full single-machine game is playable and deployed. Title → armory → 3 sectors → evac, solo or 2-player local co-op, on keyboard/mouse, gamepad or touch. **Online co-op (Phase 7) is the main thing not built yet.**
 
@@ -16,7 +16,7 @@ npm install        # after any pull that touched package.json
 npm run dev        # http://localhost:3000
 npm run typecheck  # tsc --noEmit (covers src/ and tests/)
 npm run lint       # ESLint + typescript-eslint; `any` is an error
-npm test           # Vitest, 254 tests in tests/
+npm test           # Vitest, 257 tests in tests/
 npm run build      # tsc && vite build → dist/
 ```
 
@@ -61,10 +61,10 @@ src/
     AISystem.ts           Zombie senses (light, close-range notice) + movement/pathing
     NoiseSystem.ts        Sound events → SUSPICIOUS/ENRAGED, wall dampening
     CombatSystem.ts       Firing, hitscan, melee/backstab, armour, bolts (collectStuckBolts)
-    MapManager.ts         Walls, collision, pickups, doors, extraction zone, NavGrid
+    MapManager.ts         Walls, collision, pickups, doors, extraction zone, NavGrid, surge spawn validation
     NavGrid.ts            A* grid pathfinding
     Geometry.ts           Segment math, angleBetween
-    HordeSurge.ts         Evac wave pacing + mix
+    HordeSurge.ts         Evac wave pacing, mix, raw edge spawn points (validated by MapManager)
   ui/                     HUD, ArmoryMenu, MainMenu, PauseMenu, ExtractionModal (end screen), QuitScreen,
                           LoadoutStorage (localStorage), MenuGamepadNav, StealthRating, theme
   net/SessionManager.ts   Phase 7 stub only — not wired to anything
@@ -116,7 +116,7 @@ images/                   Raw art uploads from the owner (source material, not l
   | HARD | ×1.25 | 22/s | ×1.4 | 150 s | 3 s |
 
 - **Layout shuffle:** every zombie and pickup has 2 alternative spots (`alts`), and one is picked per run. Types and counts never change, so sector HP stays 358 → 466 → 498.
-- **Evac horde waves:** every 10 s down to the difficulty minimum. Co-op waves are 2 zombies. Mix: lurker 40 / stalker 25 / bio 25 / brute 10%. Capped at 18 zombies.
+- **Evac horde waves:** every 10 s down to the difficulty minimum. Co-op waves are 2 zombies. Mix: lurker 40 / stalker 25 / bio 25 / brute 10%. Capped at 18 zombies. Spawns are validated so they never land inside Sector 3's off-roof blocker boxes (`MapManager.rollSurgeSpawn`).
 - **Warnings:** "HORDE INCOMING" banner 2 s before each wave.
 - **End screen:** difficulty, sector reached, time, kills, shots, silent kills, zombies alerted, stealth rating (GHOST 0 / SHADOW ≤3 / OPERATOR ≤8 / LOUD).
 
@@ -135,7 +135,7 @@ images/                   Raw art uploads from the owner (source material, not l
 ### Art
 - P1, P2 and all zombie archetypes, including the lurker aggro variant, use the owner's uploaded top-down art.
 - Each sector has a background image.
-- **Sector 3:** off-roof blocker walls stop anyone walking over the sky.
+- **Sector 3:** off-roof blocker walls stop anyone walking over the sky. Horde surge spawns use the same box set — raw map-edge rolls can land inside a blocker, so `rollSurgeSpawn` rejects them and `resolveCircleCollision` ejects any circle trapped in a box interior.
 - **Sector 2:** no door, because nothing in the art anchors one.
 
 ---
@@ -150,6 +150,7 @@ images/                   Raw art uploads from the owner (source material, not l
 - **Touch is P1 only:** two players on one phone isn't supported.
 - **`recoilMult` is unused:** it's defined on muzzles, but nothing reads it (there's no spread model). The muzzle brake, compensator and flash hider are weak as a result.
 - **Not playtested for feel:** the balance numbers (notice radii, suppressor 0.35, wave pacing, EASY/HARD) are reasoned from the code and unit-tested, but haven't been played by a human. The owner should playtest before more tuning.
+- **Zombies can still grind corners:** when A* returns no path, `AISystem` falls back to walking straight at the target. That's visible "stuck against a wall" behaviour, not trapped inside geometry — a separate issue from the horde spawn fix in PR #33.
 
 ---
 
@@ -165,6 +166,7 @@ images/                   Raw art uploads from the owner (source material, not l
   - Simulated gamepads via an init script that overrides `navigator.getGamepads`.
   - Phone emulation (`hasTouch`, 844×390) with CDP `Input.dispatchTouchEvent` for multi-touch.
 - **Art alignment:** plot every spot (spawns, zombie/pickup alts, boxes) over the sector's background image with PIL and look at it. This caught spots in the sky that the tests couldn't.
+- **Surge spawn safety** (`tests/hordeSurge.test.ts`): Monte-Carlo `rollSurgeSpawn` on Sector 3 — every point must be `isFreePosition` and have a nav path to the evac pad. `tests/collision.test.ts` also checks `ejectFromBoxes` for a point deep inside a blocker.
 
 ---
 
@@ -195,4 +197,4 @@ images/                   Raw art uploads from the owner (source material, not l
 
 ## 8. History
 
-All work landed through PRs #1–#31 on `main`: deploy pipeline, art pipeline, asset-path fix, title screen, sprite and background replacements, wall alignment, lighting, flashlight battery, `.gitignore`, test suite, lint, loadout saving, gamepad, touch, gamepad menus, design-review bug fixes and tuning, layout shuffle, difficulty levels, Sector 3 roof edge, bolts/radio/door cleanup. See `git log --merges` for details.
+All work landed through PRs #1–#33 on `main`: deploy pipeline, art pipeline, asset-path fix, title screen, sprite and background replacements, wall alignment, lighting, flashlight battery, `.gitignore`, test suite, lint, loadout saving, gamepad, touch, gamepad menus, design-review bug fixes and tuning, layout shuffle, difficulty levels, Sector 3 roof edge, bolts/radio/door cleanup, progress handoff rewrite (PR #32), horde surge spawn-in-wall fix (PR #33). See `git log --merges` for details.
