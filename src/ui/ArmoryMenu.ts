@@ -339,6 +339,7 @@ export class ArmoryMenu {
       background: linear-gradient(180deg, #FFB23E, ${ORANGE}); color: #1A0D00; border: none; border-radius: 4px;
       cursor: pointer; font-family: inherit; box-shadow: 0 0 24px rgba(255,158,27,0.45);
     `;
+    deployBtn.dataset.padDefault = '';
     deployBtn.onclick = () => {
       this.close();
       onDeploy(mode, loadouts[0], loadouts[1]);

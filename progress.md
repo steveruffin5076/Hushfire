@@ -29,6 +29,7 @@ Last checked: 2026-09-24, against `main` after PR #15.
 ### Gamepad
 - Standard-layout controllers work alongside the keyboard (`src/core/Gamepad.ts`, polled by `InputManager`). Left stick moves, right stick aims, RT fires, Start pauses and resumes. The full table is in `docs/COOP_SESSION_GUIDE.md` §5.
 - Who gets which pad: solo → P1; co-op with one pad → P2 (P1 keeps the mouse); two pads → one each. P1 switches between mouse and stick aim automatically, depending on which moved last.
+- Menus are pad-navigable too (`src/ui/MenuGamepadNav.ts`). A cyan highlight moves between buttons and dropdowns spatially, A presses, D-pad ←/→ changes dropdowns, and B resumes from pause. Pausing and resuming reset pad button state, so a menu press never leaks into gameplay.
 
 ### Touch
 - Phones/tablets get on-screen twin-stick controls for P1 after the first touch (`src/core/TouchControls.ts`). Floating move and aim sticks; pushing the aim stick past a threshold fires. SPRINT/SNEAK toggles, RELOAD/USE/SWAP/LIGHT buttons, and a pause button. Upright touch devices get a "rotate to landscape" prompt.
@@ -42,7 +43,6 @@ Last checked: 2026-09-24, against `main` after PR #15.
 ## Pending
 
 - **Phase 7 online co-op** isn't built yet. `docs/PHASE7_ONLINE_LOBBY_PLAN.md` has the plan, but there is no `Protocol.ts`, no server, and no host/client sync. `net/SessionManager.ts` is a client-side stub only.
-- Menus (title, armory, pause) can't be driven with a gamepad yet (touch and mouse work).
 - Touch controls only drive P1. Two players sharing one phone isn't supported.
 - The flashlight HUD button only accepts clicks for P1. Local co-op shares one mouse, so this only matters once online play exists.
 - No lint script or config beyond what `tsc` enforces.

@@ -231,11 +231,10 @@ export class Game {
   public togglePause() {
     if (!this.running) return;
     this.paused = !this.paused;
-    if (this.paused) {
-      // Nothing consumed this frame's key edges (justPressed) while frozen —
-      // drop them so a queued reload/switch doesn't fire the instant we resume.
-      this.input.endFrame();
-    }
+    // Both ways: nothing consumes key edges while frozen, so a queued
+    // reload/switch mustn't fire on resume — and a pad button used to press
+    // Resume in the pause menu mustn't also count as a gameplay press.
+    this.input.resetEdges();
     this.callbacks.onPauseChange?.(this.paused);
   }
 
@@ -253,6 +252,8 @@ export class Game {
     if (this.input.poll()) this.togglePause();
 
     if (this.paused) {
+      // Presses made while frozen belong to the pause menu, not the operative.
+      this.input.endFrame();
       this.render();
       requestAnimationFrame(t => this.tick(t));
       return;

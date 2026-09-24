@@ -9,6 +9,8 @@
  *   X           reload          Y            switch weapon
  *   B           flashlight      D-pad ← / →  primary / secondary
  *   Start       pause
+ *
+ * Menus have their own mapping — see src/ui/MenuGamepadNav.ts.
  */
 
 /** Just the fields of the DOM Gamepad this reads, so tests can pass plain objects. */
@@ -31,6 +33,8 @@ export const PAD_BUTTON = {
   RT: 7,
   START: 9,
   L3: 10,
+  DPAD_UP: 12,
+  DPAD_DOWN: 13,
   DPAD_LEFT: 14,
   DPAD_RIGHT: 15
 } as const;

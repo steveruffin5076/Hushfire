@@ -47,6 +47,7 @@ export class ExtractionModal {
       margin-top: 26px; padding: 12px 40px; font-size: 14px; letter-spacing: 2px;
       background: #00E5FF; color: #05050A; border: none; cursor: pointer; font-weight: bold;
     `;
+    restartBtn.dataset.padDefault = '';
     restartBtn.onclick = () => {
       this.hide();
       onRestart();
