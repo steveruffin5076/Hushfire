@@ -34,6 +34,10 @@ Last checked: 2026-09-24, against `main` after PR #15.
 - Every living operative must reach the exit, and a downed partner must be revived first. There's no free revive on sector change.
 - The evac holdout clock only runs while someone is on the pad.
 
+### Stealth tuning (from the design review)
+- Zombies now notice a player in plain view who is moving faster than a sneak: within 40 px while dormant, 100 px once suspicious (`DORMANT_NOTICE_RADIUS` / `SUSPICIOUS_NOTICE_RADIUS`). Sneaking or standing still stays hidden.
+- Gunshots enrage at intensity 0.55 instead of 0.8 (`GUNSHOT_ENRAGE_THRESHOLD`). An unsuppressed shotgun now enrages out to about 382 px instead of 170 px, while suppressed shots barely change.
+
 ### Gamepad
 - Standard-layout controllers work alongside the keyboard (`src/core/Gamepad.ts`, polled by `InputManager`). Left stick moves, right stick aims, RT fires, Start pauses and resumes. The full table is in `docs/COOP_SESSION_GUIDE.md` §5.
 - Who gets which pad: solo → P1; co-op with one pad → P2 (P1 keeps the mouse); two pads → one each. P1 switches between mouse and stick aim automatically, depending on which moved last.
