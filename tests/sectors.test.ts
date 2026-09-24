@@ -68,6 +68,21 @@ SECTORS.forEach((sector, index) => {
       }
     });
 
+    it('puts the objective a real trip away from spawn (at least 500px)', () => {
+      for (const spawn of sector.playerSpawns) {
+        expect(Math.hypot(sector.objective.x - spawn.x, sector.objective.y - spawn.y)).toBeGreaterThanOrEqual(500);
+      }
+    });
+
+    it('anchors every door to a wall at both ends, so it cannot be walked around', () => {
+      const onBoxEdge = (p: Point) =>
+        sector.boxes.some(b => p.x >= b.x1 && p.x <= b.x2 && p.y >= b.y1 && p.y <= b.y2 && (p.x === b.x1 || p.x === b.x2 || p.y === b.y1 || p.y === b.y2));
+      const onMapEdge = (p: Point) => p.x === MAP_MIN || p.x === MAP_MAX_X || p.y === MAP_MIN || p.y === MAP_MAX_Y;
+      for (const door of sector.doorWalls) {
+        for (const end of [door.p1, door.p2]) expect(onBoxEdge(end) || onMapEdge(end), `door end ${end.x},${end.y}`).toBe(true);
+      }
+    });
+
     it('lets players reach the exit once the objective is done', () => {
       const map = new MapManager();
       map.loadSector(index);

@@ -77,6 +77,23 @@ export class Player extends Entity {
   }
 
   /**
+   * Picks a spent crossbow bolt back up: +1 to whichever slot holds the
+   * crossbow. Returns false (bolt stays on the floor) if this operative
+   * isn't carrying one. No cap — every bolt on the floor was fired by
+   * someone, so retrieving them can't mint ammo.
+   */
+  retrieveBolt(): boolean {
+    for (const slot of ['primary', 'secondary'] as const) {
+      const id = slot === 'primary' ? this.loadout.primaryWeapon : this.loadout.secondaryWeapon;
+      if (id === 'crossbow') {
+        this.ammoBySlot[slot].reserve++;
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
    * An ammo crate: +2 magazines for each gun carried, capped at that gun's
    * starting reserve, so it's worth the same to an MPX (60 rounds) as to a
    * crossbow (2 bolts). Melee weapons are skipped. Returns false if both
