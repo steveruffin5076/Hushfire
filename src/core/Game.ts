@@ -10,6 +10,7 @@ import { Projectile } from '../entities/Projectile';
 import { MapManager } from '../systems/MapManager';
 import { NoiseSystem } from '../systems/NoiseSystem';
 import { AISystem } from '../systems/AISystem';
+import { SURGE_START_INTERVAL_SEC, surgeInterval, surgeSize, pickSurgeArchetype } from '../systems/HordeSurge';
 import { CombatSystem, Decal, bloodDecal, HIT_FLASH_SEC } from '../systems/CombatSystem';
 import { HUD } from '../ui/HUD';
 import { RunStats } from '../ui/ExtractionModal';
@@ -21,7 +22,6 @@ const FIXED_DT = 1 / 60;
 // reinforcement waves, and a lower reinforcement cap.
 const ZOMBIE_CONTACT_DPS = 15;
 const ZOMBIE_CONTACT_RANGE_PAD = 4;
-const HORDE_SURGE_INTERVAL_SEC = 10;
 const HORDE_MAX_ZOMBIES = 18;
 
 // Draw sizes, per docs/ART_SPECIFICATION.md §2-3. Sprites are authored at
@@ -146,7 +146,7 @@ export class Game {
   private zombies: Zombie[] = [];
   private projectiles: Projectile[] = [];
   private decals: Decal[] = [];
-  private hordeSpawnTimer = HORDE_SURGE_INTERVAL_SEC;
+  private hordeSpawnTimer = SURGE_START_INTERVAL_SEC;
   private dryFireCooldown = new Map<number, number>();
   private hitSoundCooldown = new Map<number, number>();
 
@@ -527,26 +527,26 @@ export class Game {
     }
   }
 
-  /** Holdout climax: the siren draws a rolling horde at the pad. */
+  /** Holdout climax: the siren draws a rolling horde at the pad, arriving faster as the clock runs down (see HordeSurge.ts). */
   private updateHordeSurge(dt: number) {
     this.hordeSpawnTimer -= dt;
     if (this.hordeSpawnTimer > 0) return;
-    this.hordeSpawnTimer = HORDE_SURGE_INTERVAL_SEC;
+    const zone = this.map.extractionZone;
+    this.hordeSpawnTimer = surgeInterval(zone.holdoutDurationSec - zone.holdoutTimer);
 
-    if (this.zombies.length >= HORDE_MAX_ZOMBIES) return;
+    const waveSize = surgeSize(!this.p2.isEliminated);
+    for (let i = 0; i < waveSize && this.zombies.length < HORDE_MAX_ZOMBIES; i++) {
+      const edge = Math.floor(Math.random() * 4);
+      const spawn =
+        edge === 0 ? { x: 60, y: 60 + Math.random() * 600 }
+        : edge === 1 ? { x: 1220, y: 60 + Math.random() * 600 }
+        : edge === 2 ? { x: 60 + Math.random() * 1160, y: 60 }
+        : { x: 60 + Math.random() * 1160, y: 660 };
 
-    const edge = Math.floor(Math.random() * 4);
-    const spawn =
-      edge === 0 ? { x: 60, y: 60 + Math.random() * 600 }
-      : edge === 1 ? { x: 1220, y: 60 + Math.random() * 600 }
-      : edge === 2 ? { x: 60 + Math.random() * 1160, y: 60 }
-      : { x: 60 + Math.random() * 1160, y: 660 };
-
-    const archetypes: ZombieArchetype[] = ['lurker', 'lurker', 'audio_stalker', 'bio_carrier'];
-    const archetype = archetypes[Math.floor(Math.random() * archetypes.length)];
-    const zombie = new Zombie(spawn.x, spawn.y, 0, archetype);
-    zombie.alert('ENRAGED', { x: this.map.extractionZone.x, y: this.map.extractionZone.y });
-    this.zombies.push(zombie);
+      const zombie = new Zombie(spawn.x, spawn.y, 0, pickSurgeArchetype(Math.random()));
+      zombie.alert('ENRAGED', { x: zone.x, y: zone.y });
+      this.zombies.push(zombie);
+    }
   }
 
   /** Walking into the exit zone after finishing the objective advances to the next sector. */
@@ -566,7 +566,7 @@ export class Game {
     this.zombies = [];
     this.projectiles = [];
     this.decals = [];
-    this.hordeSpawnTimer = HORDE_SURGE_INTERVAL_SEC;
+    this.hordeSpawnTimer = SURGE_START_INTERVAL_SEC;
     this.spawnZombies();
 
     const spawns = this.map.sector.playerSpawns;

@@ -165,7 +165,11 @@ const SECTOR_3: SectorDef = {
     { x: 700, y: 180, angle: Math.PI, archetype: 'audio_stalker' },
     { x: 720, y: 540, angle: Math.PI, archetype: 'bio_carrier' },
     { x: 1000, y: 360, angle: Math.PI, archetype: 'armored_brute' },
-    { x: 860, y: 620, angle: Math.PI, archetype: 'lurker' }
+    { x: 860, y: 620, angle: Math.PI, archetype: 'lurker' },
+    // Pad guards, so the final sector opens harder than Sector 2 instead of
+    // easier (498 total zombie HP vs Sector 2's 466; it was 398).
+    { x: 880, y: 250, angle: Math.PI / 2, archetype: 'lurker' },
+    { x: 900, y: 480, angle: -Math.PI / 2, archetype: 'audio_stalker' }
   ],
   pickups: [
     { x: 240, y: 360, type: 'ammo' },

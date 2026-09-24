@@ -39,6 +39,10 @@ Last checked: 2026-09-24, against `main` after PR #15.
 - Suppressor sound multiplier raised from 0.15 to 0.35. The MPX (133 px) and Glock (140 px) stay "stealth ready"; the M4 (227 px), shotgun and revolver don't.
 - Gunshots enrage at intensity 0.55 instead of 0.8 (`GUNSHOT_ENRAGE_THRESHOLD`). An unsuppressed shotgun now enrages out to about 382 px instead of 170 px, while suppressed shots barely change.
 
+### Finale tuning (from the design review)
+- Evac horde surges speed up as the holdout clock runs: every 10 s at the start, every 4 s by the end (`src/systems/HordeSurge.ts`). Co-op waves are 2 zombies, and the mix now includes a 10% brute chance.
+- Sector 3 has 2 extra zombies guarding the pad. Starting zombie HP now rises every sector: 358 → 466 → 498.
+
 ### Gamepad
 - Standard-layout controllers work alongside the keyboard (`src/core/Gamepad.ts`, polled by `InputManager`). Left stick moves, right stick aims, RT fires, Start pauses and resumes. The full table is in `docs/COOP_SESSION_GUIDE.md` §5.
 - Who gets which pad: solo → P1; co-op with one pad → P2 (P1 keeps the mouse); two pads → one each. P1 switches between mouse and stick aim automatically, depending on which moved last.
