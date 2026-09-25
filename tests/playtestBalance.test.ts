@@ -46,4 +46,10 @@ describe('playtest balance review', () => {
     const holds = DIFFICULTY_ORDER.map(d => DIFFICULTIES[d].holdoutSec);
     expect(new Set(holds).size).toBe(3);
   });
+
+  it('NORMAL offers the longest comfortable window before HARD overtakes contact threat', () => {
+    const normalGrapple = 100 / DIFFICULTIES.normal.contactDps;
+    const hardGrapple = 100 / DIFFICULTIES.hard.contactDps;
+    expect(normalGrapple - hardGrapple).toBeGreaterThanOrEqual(2);
+  });
 });

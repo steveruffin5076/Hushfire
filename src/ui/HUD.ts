@@ -2,6 +2,7 @@ import { Player } from '../entities/Player';
 import { WEAPON_REGISTRY } from '../config/weapons';
 import { MapManager } from '../systems/MapManager';
 import { CANVAS_WIDTH, FLASHLIGHT_BATTERY_MAX } from '../config/constants';
+import { SectorModifierId, getSectorModifier } from '../config/sectorModifiers';
 import { AssetLoader } from '../core/AssetLoader';
 import { Camera } from '../core/Camera';
 import { Point } from '../lighting/Raycaster';
@@ -94,10 +95,10 @@ export class HUD {
    * or genuinely dead in co-op, where a stale "HP: 0/120" panel would just
    * be confusing.
    */
-  renderScreenSpace(ctx: CanvasRenderingContext2D, p1: Player, p2: Player, map: MapManager) {
+  renderScreenSpace(ctx: CanvasRenderingContext2D, p1: Player, p2: Player, map: MapManager, runModifier: SectorModifierId) {
     this.renderPlayerPanel(ctx, p1, 30, 30);
     if (!p2.isEliminated) this.renderPlayerPanel(ctx, p2, CANVAS_WIDTH - 330, 30);
-    this.renderMissionStatus(ctx, map, !p2.isEliminated);
+    this.renderMissionStatus(ctx, map, !p2.isEliminated, runModifier);
   }
 
   private renderPlayerPanel(ctx: CanvasRenderingContext2D, p: Player, x: number, y: number) {
@@ -166,7 +167,8 @@ export class HUD {
     ctx.textBaseline = 'alphabetic';
   }
 
-  private renderMissionStatus(ctx: CanvasRenderingContext2D, map: MapManager, coop: boolean) {
+  private renderMissionStatus(ctx: CanvasRenderingContext2D, map: MapManager, coop: boolean, runModifier: SectorModifierId) {
+    const mod = getSectorModifier(runModifier);
     const zone = map.extractionZone;
     const centered = (text: string, y: number) => {
       ctx.fillText(text, CANVAS_WIDTH / 2 - ctx.measureText(text).width / 2, y);
@@ -176,18 +178,21 @@ export class HUD {
     ctx.font = '14px monospace';
     ctx.fillStyle = '#8A94A6';
     centered(map.sector.name, 30);
+    ctx.font = '11px monospace';
+    ctx.fillStyle = '#FF9E1B';
+    centered(`${mod.name} — ${mod.blurb}`, 46);
 
     ctx.font = '13px monospace';
     if (zone.isComplete) {
       ctx.fillStyle = '#00E676';
-      centered('EXTRACTION COMPLETE', 52);
+      centered('EXTRACTION COMPLETE', 62);
     } else if (zone.isActive) {
       ctx.fillStyle = '#FF5252';
       centered(
         zone.isOccupied
           ? `HOLDOUT — ${Math.ceil(zone.holdoutTimer)}s UNTIL EVAC`
           : `HOLDOUT PAUSED (${Math.ceil(zone.holdoutTimer)}s) — GET BACK ON THE PAD`,
-        52
+        62
       );
     } else if (map.objectiveComplete) {
       ctx.fillStyle = '#00E676';
@@ -197,11 +202,11 @@ export class HUD {
           : coop
             ? 'OBJECTIVE DONE — BOTH OPERATIVES TO THE EXIT'
             : 'OBJECTIVE DONE — MOVE TO EXIT',
-        52
+        62
       );
     } else {
       ctx.fillStyle = '#FF9E1B';
-      centered(map.sector.briefing, 52);
+      centered(map.sector.briefing, 62);
     }
     ctx.restore();
   }

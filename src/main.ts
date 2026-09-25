@@ -8,6 +8,7 @@ import { SectorRewardMenu } from './ui/SectorRewardMenu';
 import { WeaponLoadout } from './entities/Player';
 import { MenuGamepadNav } from './ui/MenuGamepadNav';
 import { Difficulty } from './config/difficulty';
+import { SectorModifierId } from './config/sectorModifiers';
 import { SessionManager } from './net/SessionManager';
 
 window.addEventListener('DOMContentLoaded', async () => {
@@ -29,7 +30,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   const sectorRewardMenu = new SectorRewardMenu(overlay);
   let activeGame: Game | null = null;
 
-  const deploy = (mode: GameMode, difficulty: Difficulty, p1Loadout: WeaponLoadout, p2Loadout: WeaponLoadout) => {
+  const deploy = (mode: GameMode, difficulty: Difficulty, p1Loadout: WeaponLoadout, p2Loadout: WeaponLoadout, runModifier: SectorModifierId) => {
     activeGame?.stop();
     const solo = mode === 'solo';
     activeGame = new Game(
@@ -65,13 +66,14 @@ window.addEventListener('DOMContentLoaded', async () => {
         }
       },
       solo,
-      difficulty
+      difficulty,
+      runModifier
     );
     activeGame.start();
   };
 
   const openArmory = (opts: { online?: boolean; host?: boolean; joinCode?: string } = {}) => {
-    armory.open((mode, difficulty, p1, p2) => deploy(mode, difficulty, p1, p2), {
+    armory.open((mode, difficulty, p1, p2, runModifier) => deploy(mode, difficulty, p1, p2, runModifier), {
       session,
       startOnline: opts.online ?? session.role !== 'LOCAL',
       createHost: opts.host,

@@ -17,6 +17,7 @@ import { HUD } from '../ui/HUD';
 import { RunStats } from '../ui/ExtractionModal';
 import type { SectorReward } from '../ui/SectorRewardMenu';
 import { SECTORS } from '../config/sectors';
+import { SectorModifierId, getSectorModifier } from '../config/sectorModifiers';
 import { AssetLoader, AssetKey } from './AssetLoader';
 import { WEAPON_REGISTRY, MUZZLE_MODIFIERS } from '../config/weapons';
 
@@ -172,6 +173,8 @@ export class Game {
   private blasts: { x: number; y: number; age: number }[] = [];
   private dryFireCooldown = new Map<number, number>();
   private hitSoundCooldown = new Map<number, number>();
+  private readonly runModifier: SectorModifierId;
+  private readonly layoutRand: () => number;
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -180,8 +183,12 @@ export class Game {
     private callbacks: GameCallbacks,
     /** True operative-of-one: Player 2 never spawns into play — no companion, human or AI. */
     private solo = false,
-    difficulty: Difficulty = 'normal'
+    difficulty: Difficulty = 'normal',
+    runModifier: SectorModifierId = 'scavenger',
+    layoutRand: () => number = Math.random
   ) {
+    this.runModifier = runModifier;
+    this.layoutRand = layoutRand;
     this.difficultyDef = DIFFICULTIES[difficulty];
     this.ai = new AISystem(this.difficultyDef.noticeMult);
     this.applyDifficultyToSector();
@@ -212,6 +219,13 @@ export class Game {
     // camera framing, HUD, revive, combat) treat it as if it were never there.
     if (this.solo) this.p2.eliminate();
 
+    this.map.loadSector(0, this.layoutRand, this.runModifier);
+    if (this.runModifier === 'blackout') {
+      for (const player of [this.p1, this.p2]) {
+        if (!player.isEliminated) player.flashlightBattery = FLASHLIGHT_BATTERY_MAX / 2;
+      }
+    }
+
     this.combat = new CombatSystem(this.map, this.noise, {
       onZombieKilled: (zombie, killer) => this.onZombieKilled(zombie, killer),
       onSectorAlertingShot: player => this.onSectorAlertingShot(player)
@@ -230,6 +244,9 @@ export class Game {
 
   private spawnZombies() {
     this.zombies = this.map.layout.zombies.map(s => new Zombie(s.x, s.y, s.angle, s.archetype, this.difficultyDef.zombieHpMult));
+    if (this.runModifier !== 'heavy' || this.zombies.length >= HORDE_MAX_ZOMBIES) return;
+    const spawn = this.map.rollSurgeSpawn(this.layoutRand);
+    this.zombies.push(new Zombie(spawn.x, spawn.y, 0, 'armored_brute', this.difficultyDef.zombieHpMult));
   }
 
   private onZombieKilled(zombie: Zombie, _killer: Player) {
@@ -317,6 +334,7 @@ export class Game {
       // Coordinate system: world-space pixels, origin top-left, +x right, +y down — same space as sectors.ts.
       missionTimeSec: Number(this.missionTime.toFixed(1)),
       sector: this.map.sector.name,
+      runModifier: this.runModifier,
       objective: { label: obj.label, progress: Number(this.map.objectiveProgress.toFixed(2)), complete: this.map.objectiveComplete },
       extraction:
         zone.radius > 0
@@ -684,7 +702,7 @@ export class Game {
     if (this.zombies.length >= HORDE_MAX_ZOMBIES) return;
 
     this.sectorHordeWarningTimer = SURGE_WARNING_SEC;
-    this.sectorHordeCooldown = SECTOR_HORDE_COOLDOWN_SEC;
+    this.sectorHordeCooldown = this.runModifier === 'hush' ? SECTOR_HORDE_COOLDOWN_SEC / 2 : SECTOR_HORDE_COOLDOWN_SEC;
   }
 
   private updateSectorHorde(dt: number) {
@@ -791,7 +809,7 @@ export class Game {
   }
 
   private advanceSector() {
-    this.map.loadSector(this.map.sectorIndex + 1);
+    this.map.loadSector(this.map.sectorIndex + 1, this.layoutRand, this.runModifier);
     this.applyDifficultyToSector();
     this.zombies = [];
     this.projectiles = [];
@@ -831,7 +849,8 @@ export class Game {
       sectorReached: this.map.sector.name,
       zombiesAlerted: this.zombiesAlerted,
       silentKills: this.p1.silentKills + this.p2.silentKills,
-      difficulty: this.difficultyDef.label
+      difficulty: this.difficultyDef.label,
+      runModifier: getSectorModifier(this.runModifier).name
     });
   }
 
@@ -857,7 +876,7 @@ export class Game {
     ctx.restore();
 
     this.renderLighting(ctx);
-    this.hud.renderScreenSpace(ctx, this.p1, this.p2, this.map);
+    this.hud.renderScreenSpace(ctx, this.p1, this.p2, this.map, this.runModifier);
     this.renderBlasts(ctx);
     this.renderSurgeWarning(ctx);
     this.renderDamageFlash(ctx);

@@ -5,6 +5,7 @@ import { showQuitScreen } from './QuitScreen';
 import { GameMode, loadArmoryState, saveArmoryState } from './LoadoutStorage';
 import { Difficulty, DIFFICULTIES, DIFFICULTY_ORDER } from '../config/difficulty';
 import { SECTOR_ALERT_SOUND_RADIUS_PX } from '../config/constants';
+import { pickSectorModifier, getSectorModifier, SectorModifierId } from '../config/sectorModifiers';
 import { SessionManager } from '../net/SessionManager';
 import { LobbyPanel } from './LobbyPanel';
 
@@ -48,7 +49,7 @@ export class ArmoryMenu {
   }
 
   open(
-    onDeploy: (mode: GameMode, difficulty: Difficulty, p1: WeaponLoadout, p2: WeaponLoadout) => void,
+    onDeploy: (mode: GameMode, difficulty: Difficulty, p1: WeaponLoadout, p2: WeaponLoadout, runModifier: SectorModifierId) => void,
     options: { session?: SessionManager | null; startOnline?: boolean; createHost?: boolean; joinCode?: string } = {}
   ) {
     const session = options.session ?? null;
@@ -61,6 +62,7 @@ export class ArmoryMenu {
     let difficulty: Difficulty = saved.difficulty;
     const mySlot: 0 | 1 = session?.role === 'GUEST' ? 1 : 0;
     let editingOperative: 0 | 1 = mode === 'online' ? mySlot : 0;
+    let runModifier = pickSectorModifier();
     let lobbyPanel: LobbyPanel | null = null;
     let broadcastTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -244,8 +246,13 @@ export class ArmoryMenu {
         mode === 'solo'
           ? 'Going down alone is fatal — with no partner to revive you, it means instant elimination.'
           : 'Downed partners can be revived by standing nearby!';
+      const mod = getSectorModifier(runModifier);
       protocolBox.innerHTML = `
         <div style="color:${ORANGE}; font-size:12px; letter-spacing:1px; font-weight:bold; margin-bottom:9px;">SURVIVAL PROTOCOL:</div>
+        <div style="background:${FIELD_BG}; border:1px solid ${PANEL_BORDER}; border-radius:4px; padding:10px 12px; margin-bottom:10px;">
+          <div style="color:${CYAN}; font-size:12px; letter-spacing:1px; font-weight:bold;">RUN MODIFIER: ${mod.name}</div>
+          <div style="color:${MUTED}; font-size:12px; margin-top:4px; line-height:1.5;">${mod.blurb}</div>
+        </div>
         <ul style="margin:0; padding-left:18px; color:${TEXT}; font-size:13.5px; line-height:1.8;">
           <li>Move through dark sectors to reach the Evac Point.</li>
           <li>Flashlights reveal the dark, but a direct beam on sleeping lurkers alerts them!</li>
@@ -446,8 +453,21 @@ export class ArmoryMenu {
         return;
       }
       this.close();
-      onDeploy(mode, difficulty, loadouts[0], loadouts[1]);
+      onDeploy(mode, difficulty, loadouts[0], loadouts[1], runModifier);
     };
+
+    const rerollModifierBtn = document.createElement('button');
+    rerollModifierBtn.textContent = 'REROLL MODIFIER';
+    rerollModifierBtn.style.cssText = `
+      margin-top: 18px; padding: 8px 20px; font-size: 12px; letter-spacing: 1px;
+      background: ${FIELD_BG}; color: ${CYAN}; border: 1px solid ${PANEL_BORDER}; border-radius: 4px;
+      cursor: pointer; font-family: inherit;
+    `;
+    rerollModifierBtn.onclick = () => {
+      runModifier = pickSectorModifier();
+      renderProtocol();
+    };
+    stage.appendChild(rerollModifierBtn);
     stage.appendChild(readyBtn);
     stage.appendChild(deployBtn);
 
@@ -473,7 +493,7 @@ export class ArmoryMenu {
         this.close();
         const own = session.role === 'HOST' ? hostLoadout : guestLoadout;
         const partner = session.role === 'HOST' ? guestLoadout : hostLoadout;
-        onDeploy('online', difficulty, own, partner);
+        onDeploy('online', difficulty, own, partner, runModifier);
       };
       if (options.createHost && session.role === 'LOCAL') {
         session.createHostSession().catch(() => updateDeployButton());
