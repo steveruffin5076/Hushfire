@@ -49,7 +49,8 @@ export class Player extends Entity {
   private ammoBySlot: { primary: { mag: number; reserve: number }; secondary: { mag: number; reserve: number } };
   public isReloading = false;
   public reloadTimer = 0;
-  public lastShotTime = 0;
+  /** Far in the past so the first shot is never blocked by performance.now() ≈ 0 at page load. */
+  public lastShotTime = -Infinity;
   public muzzleFlashTimer = 0;
   public flashlightOn = true;
   public flashlightBattery = FLASHLIGHT_BATTERY_MAX;

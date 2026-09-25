@@ -24,3 +24,19 @@ describe('suppressor balance', () => {
     }
   });
 });
+
+describe('recoilMult spread', () => {
+  const baseSpreadRad = 0.015;
+
+  it('muzzle brake tightens grouping vs bare barrel', () => {
+    const bare = baseSpreadRad * MUZZLE_MODIFIERS.none.recoilMult;
+    const brake = baseSpreadRad * MUZZLE_MODIFIERS.muzzle_brake.recoilMult;
+    expect(brake).toBeLessThan(bare);
+  });
+
+  it('suppressor widens grouping slightly', () => {
+    const bare = baseSpreadRad * MUZZLE_MODIFIERS.none.recoilMult;
+    const suppressed = baseSpreadRad * MUZZLE_MODIFIERS.suppressor.recoilMult;
+    expect(suppressed).toBeGreaterThan(bare);
+  });
+});

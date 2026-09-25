@@ -9,7 +9,17 @@ import globals from 'globals';
  * workflow runs it before deploying.
  */
 export default tseslint.config(
-  { ignores: ['dist/', 'node_modules/', 'public/'] },
+  {
+    ignores: [
+      'dist/',
+      'node_modules/',
+      'public/',
+      // Agent skill tooling — not part of the shipped game bundle.
+      '.claude/',
+      // Vite dev-server cache artifacts (should not be committed).
+      'vite.config.ts.timestamp-*.mjs'
+    ]
+  },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
@@ -27,5 +37,10 @@ export default tseslint.config(
   {
     files: ['vite.config.ts', 'eslint.config.js'],
     languageOptions: { globals: { ...globals.node } }
+  },
+  {
+    // Playwright helpers: Node driver + browser globals inside page.evaluate().
+    files: ['scripts/**/*.{js,mjs}'],
+    languageOptions: { globals: { ...globals.node, ...globals.browser } }
   }
 );

@@ -132,8 +132,10 @@ export class AISystem {
       zombie.advanceWaypoint();
     }
 
-    const next = zombie.waypoint ?? target;
-    zombie.moveToward(next, speed, dt);
+    // No LOS and A* found no route — hold position until the next repath tick
+    // instead of grinding straight into the wall (see progress.md §9 bug #2).
+    const next = zombie.waypoint;
+    if (next) zombie.moveToward(next, speed, dt);
   }
 
   private updateSuspicious(dt: number, zombie: Zombie, map: MapManager) {

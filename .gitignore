@@ -13,3 +13,6 @@ dist/
 Thumbs.db
 .vscode/
 .idea/
+
+# Vite dev-server cache (local only).
+vite.config.ts.timestamp-*.mjs

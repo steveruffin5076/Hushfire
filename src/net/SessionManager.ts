@@ -5,8 +5,10 @@
 import Peer, { DataConnection } from 'peerjs';
 import type { NetMessage } from './Protocol';
 import { PROTO_VERSION } from './Protocol';
+import type { NetInputMessage, NetSnapshotMessage } from './GameSnapshot';
 import { generateRoomCode, isRoomHash, normalizeRoomCode, peerIdForRoom } from './roomCode';
 import type { WeaponLoadout } from '../entities/Player';
+import type { SectorModifierId } from '../config/sectorModifiers';
 
 export type SessionRole = 'HOST' | 'GUEST' | 'LOCAL';
 export type SessionState = 'IDLE' | 'SIGNALING' | 'CONNECTED' | 'CLOSED' | 'ERROR';
@@ -30,7 +32,9 @@ export class SessionManager {
 
   onStateChange?: () => void;
   onMessage?: (msg: NetMessage) => void;
-  onDeploy?: (seed: number, hostLoadout: WeaponLoadout, guestLoadout: WeaponLoadout) => void;
+  onDeploy?: (seed: number, runModifier: SectorModifierId, hostLoadout: WeaponLoadout, guestLoadout: WeaponLoadout) => void;
+  onRemoteInput?: (msg: NetInputMessage) => void;
+  onSnapshot?: (msg: NetSnapshotMessage) => void;
 
   private peer: Peer | null = null;
   private conn: DataConnection | null = null;
@@ -94,10 +98,20 @@ export class SessionManager {
     this.onStateChange?.();
   }
 
-  hostDeploy(seed: number, hostLoadout: WeaponLoadout, guestLoadout: WeaponLoadout) {
+  hostDeploy(seed: number, runModifier: SectorModifierId, hostLoadout: WeaponLoadout, guestLoadout: WeaponLoadout) {
     if (this.role !== 'HOST') return;
-    this.send({ t: 'deploy', seed, hostLoadout, guestLoadout });
-    this.onDeploy?.(seed, hostLoadout, guestLoadout);
+    this.send({ t: 'deploy', seed, runModifier, hostLoadout, guestLoadout });
+    this.onDeploy?.(seed, runModifier, hostLoadout, guestLoadout);
+  }
+
+  sendInput(msg: NetInputMessage) {
+    if (this.role !== 'GUEST') return;
+    this.send(msg);
+  }
+
+  sendSnapshot(msg: NetSnapshotMessage) {
+    if (this.role !== 'HOST') return;
+    this.send(msg);
   }
 
   destroy(clearHash = true) {
@@ -206,7 +220,13 @@ export class SessionManager {
         this.onStateChange?.();
         break;
       case 'deploy':
-        this.onDeploy?.(msg.seed, msg.hostLoadout, msg.guestLoadout);
+        this.onDeploy?.(msg.seed, msg.runModifier, msg.hostLoadout, msg.guestLoadout);
+        break;
+      case 'input':
+        this.onRemoteInput?.(msg);
+        break;
+      case 'snapshot':
+        this.onSnapshot?.(msg);
         break;
       case 'bye':
         this.handleDrop('Partner left the session.');

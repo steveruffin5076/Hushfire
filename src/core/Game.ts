@@ -20,6 +20,10 @@ import { SECTORS } from '../config/sectors';
 import { SectorModifierId, getSectorModifier } from '../config/sectorModifiers';
 import { AssetLoader, AssetKey } from './AssetLoader';
 import { WEAPON_REGISTRY, MUZZLE_MODIFIERS } from '../config/weapons';
+import { SessionManager } from '../net/SessionManager';
+import { inputToNet, netToInput } from '../net/Protocol';
+import type { NetPlayerSnap, NetSnapshotMessage } from '../net/GameSnapshot';
+import { Pickup } from '../entities/Pickup';
 
 const FIXED_DT = 1 / 60;
 // Contact damage now comes from the run's difficulty (config/difficulty.ts):
@@ -72,6 +76,11 @@ const ZOMBIE_HEALTH_BAR_W = 0.5;
 const ZOMBIE_HEALTH_BAR_GAP = 6;
 
 const PICKUP_SPRITE_SIZE = 30;
+
+export interface OnlineGameConfig {
+  session: SessionManager;
+  role: 'host' | 'guest';
+}
 
 export interface GameCallbacks {
   onMissionEnd: (stats: RunStats) => void;
@@ -175,6 +184,14 @@ export class Game {
   private hitSoundCooldown = new Map<number, number>();
   private readonly runModifier: SectorModifierId;
   private readonly layoutRand: () => number;
+  private readonly netRole: 'local' | 'host' | 'guest' = 'local';
+  private session: SessionManager | null = null;
+  private netTick = 0;
+  private netInputSeq = 0;
+  private netSnapshotAccum = 0;
+  private guestRemoteInput: PlayerInputState | null = null;
+  private pendingSnapshot: NetSnapshotMessage | null = null;
+  private guestMissionEnded = false;
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -185,7 +202,8 @@ export class Game {
     private solo = false,
     difficulty: Difficulty = 'normal',
     runModifier: SectorModifierId = 'scavenger',
-    layoutRand: () => number = Math.random
+    layoutRand: () => number = Math.random,
+    online?: OnlineGameConfig
   ) {
     this.runModifier = runModifier;
     this.layoutRand = layoutRand;
@@ -232,6 +250,166 @@ export class Game {
     });
 
     this.spawnZombies();
+
+    if (online) {
+      this.netRole = online.role;
+      this.session = online.session;
+      this.wireNetSession();
+    }
+  }
+
+  private wireNetSession() {
+    if (!this.session) return;
+    this.session.onRemoteInput = msg => {
+      if (this.netRole === 'host') this.guestRemoteInput = netToInput(msg);
+    };
+    this.session.onSnapshot = msg => {
+      if (this.netRole === 'guest') {
+        this.pendingSnapshot = msg;
+        if (msg.missionOver && !this.guestMissionEnded) {
+          this.guestMissionEnded = true;
+          this.endMission(msg.missionOver.victory);
+        }
+      }
+    };
+  }
+
+  private static emptyInput(): PlayerInputState {
+    return {
+      moveX: 0,
+      moveY: 0,
+      aimAngle: 0,
+      isFiring: false,
+      isSprinting: false,
+      isSneaking: false,
+      isReloading: false,
+      isInteracting: false,
+      isSwitchingWeapon: false,
+      selectPrimary: false,
+      selectSecondary: false,
+      isTogglingFlashlight: false
+    };
+  }
+
+  private capturePlayerSnap(player: Player): NetPlayerSnap {
+    return {
+      x: player.x,
+      y: player.y,
+      angle: player.angle,
+      hp: player.health,
+      maxHp: player.maxHealth,
+      downed: player.isDowned,
+      eliminated: player.isEliminated,
+      activeWeaponId: player.activeWeaponId,
+      activeSlot: player.activeSlot,
+      mag: player.currentMag,
+      reserve: player.reserveAmmo,
+      reloading: player.isReloading,
+      flashlightOn: player.flashlightOn,
+      battery: player.flashlightBattery,
+      hasKeycard: player.hasKeycard
+    };
+  }
+
+  private applyPlayerSnap(player: Player, snap: NetPlayerSnap) {
+    player.x = snap.x;
+    player.y = snap.y;
+    player.angle = snap.angle;
+    player.health = snap.hp;
+    player.isDowned = snap.downed;
+    if (snap.eliminated && !player.isEliminated) player.eliminate();
+    player.activeSlot = snap.activeSlot;
+    player.currentMag = snap.mag;
+    player.reserveAmmo = snap.reserve;
+    player.isReloading = snap.reloading;
+    player.flashlightOn = snap.flashlightOn;
+    player.flashlightBattery = snap.battery;
+    player.hasKeycard = snap.hasKeycard;
+  }
+
+  private buildSnapshot(missionOver?: { victory: boolean }): NetSnapshotMessage {
+    const zone = this.map.extractionZone;
+    return {
+      t: 'snapshot',
+      tick: this.netTick,
+      missionTime: this.missionTime,
+      sectorIndex: this.map.sectorIndex,
+      objectiveProgress: this.map.objectiveProgress,
+      objectiveComplete: this.map.objectiveComplete,
+      evac:
+        zone.radius > 0
+          ? {
+              active: zone.isActive,
+              occupied: zone.isOccupied,
+              holdoutTimer: zone.holdoutTimer,
+              complete: zone.isComplete
+            }
+          : null,
+      p1: this.capturePlayerSnap(this.p1),
+      p2: this.capturePlayerSnap(this.p2),
+      zombies: this.zombies
+        .filter(z => z.alive || z.isDying)
+        .map(z => ({
+          id: z.id,
+          x: z.x,
+          y: z.y,
+          angle: z.angle,
+          hp: z.health,
+          archetype: z.archetype,
+          state: z.state
+        })),
+      pickups: this.map.pickups.map(p => ({ x: p.x, y: p.y, type: p.type })),
+      projectiles: this.projectiles.map(p => ({
+        x: p.x,
+        y: p.y,
+        angle: p.angle,
+        stuck: p.stuck,
+        ownerId: p.ownerId
+      })),
+      paused: this.paused,
+      missionOver
+    };
+  }
+
+  private applyGuestSnapshot(snap: NetSnapshotMessage) {
+    this.missionTime = snap.missionTime;
+    this.paused = snap.paused;
+
+    if (snap.sectorIndex !== this.map.sectorIndex) {
+      this.map.loadSector(snap.sectorIndex, this.layoutRand, this.runModifier);
+      this.applyDifficultyToSector();
+    }
+    this.map.objectiveProgress = snap.objectiveProgress;
+    this.map.objectiveComplete = snap.objectiveComplete;
+    if (snap.objectiveComplete) this.map.completeObjective();
+
+    const zone = this.map.extractionZone;
+    if (snap.evac && zone.radius > 0) {
+      zone.isActive = snap.evac.active;
+      zone.isOccupied = snap.evac.occupied;
+      zone.holdoutTimer = snap.evac.holdoutTimer;
+      zone.isComplete = snap.evac.complete;
+    }
+
+    // Guest's local P1 is the host's P2; partner is host's P1.
+    this.applyPlayerSnap(this.p1, snap.p2);
+    this.applyPlayerSnap(this.p2, snap.p1);
+
+    this.zombies = snap.zombies.map(
+      z => {
+        const zombie = new Zombie(z.x, z.y, z.angle, z.archetype, this.difficultyDef.zombieHpMult);
+        zombie.health = z.hp;
+        zombie.state = z.state;
+        return zombie;
+      }
+    );
+
+    this.map.pickups = snap.pickups.map(p => new Pickup(p.x, p.y, p.type));
+    this.projectiles = snap.projectiles.map(p => {
+      const bolt = new Projectile(p.x, p.y, p.angle, 0, p.ownerId, 0);
+      if (p.stuck) bolt.stick();
+      return bolt;
+    });
   }
 
   /** The evac holdout length is per difficulty, not per sector — overrides what MapManager loaded. */
@@ -431,10 +609,19 @@ export class Game {
   }
 
   private update(dt: number) {
+    if (this.netRole === 'guest') {
+      this.updateGuestClient(dt);
+      return;
+    }
+
     this.missionTime += dt;
+    this.netTick++;
 
     const in1 = this.input.getPlayer1Input({ x: this.p1.x, y: this.p1.y });
-    const in2 = this.input.getPlayer2Input({ x: this.p2.x, y: this.p2.y }, { x: this.p1.x, y: this.p1.y });
+    const in2 =
+      this.netRole === 'host'
+        ? (this.guestRemoteInput ?? Game.emptyInput())
+        : this.input.getPlayer2Input({ x: this.p2.x, y: this.p2.y }, { x: this.p1.x, y: this.p1.y });
     this.input.endFrame();
 
     if (!this.p1.isEliminated) this.p1.update(dt, in1, this.map);
@@ -491,6 +678,43 @@ export class Game {
     );
 
     this.checkMissionEnd();
+
+    if (this.netRole === 'host' && this.session) {
+      this.netSnapshotAccum += dt;
+      if (this.netSnapshotAccum >= 1 / 30) {
+        this.netSnapshotAccum -= 1 / 30;
+        this.session.sendSnapshot(this.buildSnapshot());
+      }
+    }
+  }
+
+  /** Guest sends local input and renders host-authoritative state from snapshots. */
+  private updateGuestClient(dt: number) {
+    const in1 = this.input.getPlayer1Input({ x: this.p1.x, y: this.p1.y });
+    this.input.endFrame();
+
+    if (this.session) {
+      this.netInputSeq++;
+      this.session.sendInput(inputToNet(this.netInputSeq, in1));
+    }
+
+    if (this.pendingSnapshot) {
+      this.applyGuestSnapshot(this.pendingSnapshot);
+      this.pendingSnapshot = null;
+    } else if (!this.p1.isEliminated) {
+      this.p1.update(dt, in1, this.map);
+    }
+
+    for (const zombie of this.zombies) zombie.updateJuice(dt);
+    this.zombies = this.zombies.filter(z => z.alive || z.isDying);
+    this.camera.update(
+      [
+        { x: this.p1.x, y: this.p1.y, alive: !this.p1.isEliminated },
+        { x: this.p2.x, y: this.p2.y, alive: !this.p2.isEliminated }
+      ],
+      dt
+    );
+    this.damageFlashAlpha = Math.max(0, this.damageFlashAlpha - dt * 2.5);
   }
 
   private handleFootsteps(player: Player) {
@@ -840,6 +1064,9 @@ export class Game {
   }
 
   private endMission(victory: boolean) {
+    if (this.netRole === 'host' && this.session) {
+      this.session.sendSnapshot(this.buildSnapshot({ victory }));
+    }
     this.stop();
     this.callbacks.onMissionEnd({
       victory,

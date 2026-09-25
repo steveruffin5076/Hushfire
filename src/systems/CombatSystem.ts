@@ -91,10 +91,11 @@ export class CombatSystem {
     }
 
     const pelletCount = weapon.pelletCount ?? 1;
-    const spreadRad = pelletCount > 1 ? (18 * Math.PI) / 180 : 0.015;
+    const baseSpreadRad = pelletCount > 1 ? (18 * Math.PI) / 180 : 0.015;
+    const spreadRad = baseSpreadRad * muzzleMod.recoilMult;
 
     for (let i = 0; i < pelletCount; i++) {
-      const jitter = pelletCount > 1 ? (Math.random() - 0.5) * spreadRad : (Math.random() - 0.5) * spreadRad;
+      const jitter = (Math.random() - 0.5) * spreadRad;
       const angle = player.angle + jitter;
       this.hitscan(player, angle, damage / pelletCount, ammoMod.armorPen, zombies, decals);
     }

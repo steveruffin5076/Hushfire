@@ -1,7 +1,7 @@
 # Phase 7 — Mode 1: Online URL Lobby — Implementation Plan
 
-**Status: PLAN ONLY. Nothing in this document is implemented yet.**
-Written 2026-09-23 against `main` @ `583eb4a` (PR #13).
+**Status: Milestone 1 (lobby) and Milestone 2 (gameplay sync) are implemented.** This doc remains the design reference; see `progress.md` §4 for the live feature list.
+Written 2026-09-23 against `main` @ `583eb4a` (PR #13). Updated 2026-09-25.
 
 Deliverable being specified: *"P1 clicks CREATE SESSION → gets a room code + shareable
 link → P2 clicks it and connects in ~500ms → both see each other's operative/attachments
@@ -18,12 +18,10 @@ Source specs: `docs/COOP_SESSION_GUIDE.md` §2–§4, `docs/PLAN_AND_PHASES.md` 
 live bidirectional loadout mirroring, two-player ready check, host-gated simultaneous
 deploy into `Game`.
 
-**Out of scope:** gameplay network synchronization. After both peers press deploy, each
-browser constructs its own `Game` and runs its own independent local simulation with the
-mirrored loadouts. Two players would see two *different* games — the zombies, damage and
-extraction timer are not shared. This is a legitimate, testable milestone (it is the
-entire UX contract the guide describes), but **it is not playable co-op.** Section 11
-covers the follow-on milestone that makes it real.
+**Originally out of scope (now implemented):** gameplay network synchronization. As of
+2026-09-25 the host runs the authoritative sim and the guest renders from ~30 Hz
+snapshots while sending 60 Hz input — see `src/net/GameSnapshot.ts` and `Game.ts`
+`netRole` host/guest paths. Section 14 records the design rationale.
 
 Also out of scope: gamepad support (listed in Phase 7 and the guide, absent from
 `Input.ts`), spent bullet casings (the one Phase 7 polish item not yet built — decals and

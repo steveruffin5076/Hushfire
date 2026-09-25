@@ -35,9 +35,8 @@ const AMMO_LABELS: Record<AmmoType, string> = {
 };
 
 /**
- * Pre-mission screen: picks the game mode (solo — a single operative, no
- * partner — or 2-player local) and weapon loadout(s), then deploys. In
- * 2-player mode a second set of tabs lets you configure Operative 2 too.
+ * Pre-mission screen: solo or online co-op, plus weapon loadout(s). Online
+ * mode shows operative tabs so each player edits their own slot.
  */
 export class ArmoryMenu {
   private root: HTMLDivElement;
@@ -49,8 +48,21 @@ export class ArmoryMenu {
   }
 
   open(
-    onDeploy: (mode: GameMode, difficulty: Difficulty, p1: WeaponLoadout, p2: WeaponLoadout, runModifier: SectorModifierId) => void,
-    options: { session?: SessionManager | null; startOnline?: boolean; createHost?: boolean; joinCode?: string } = {}
+    onDeploy: (
+      mode: GameMode,
+      difficulty: Difficulty,
+      p1: WeaponLoadout,
+      p2: WeaponLoadout,
+      runModifier: SectorModifierId,
+      net?: { seed: number; role: 'host' | 'guest' }
+    ) => void,
+    options: {
+      session?: SessionManager | null;
+      startOnline?: boolean;
+      createHost?: boolean;
+      joinCode?: string;
+      onBack?: () => void;
+    } = {}
   ) {
     const session = options.session ?? null;
     this.container.style.pointerEvents = 'auto';
@@ -108,6 +120,23 @@ export class ArmoryMenu {
     quitBtn.onclick = () => showQuitScreen(this.root);
     this.root.appendChild(quitBtn);
 
+    if (options.onBack) {
+      const backBtn = document.createElement('button');
+      backBtn.textContent = '← BACK TO MAIN MENU';
+      backBtn.style.cssText = `
+        position: absolute; top: 18px; left: 22px; background: none; border: 1px solid ${PANEL_BORDER};
+        color: ${MUTED}; font-size: 12px; letter-spacing: 2px; padding: 8px 14px; cursor: pointer;
+        font-family: inherit; border-radius: 3px;
+      `;
+      backBtn.onmouseenter = () => { backBtn.style.color = CYAN; backBtn.style.borderColor = CYAN; };
+      backBtn.onmouseleave = () => { backBtn.style.color = MUTED; backBtn.style.borderColor = PANEL_BORDER; };
+      backBtn.onclick = () => {
+        this.close();
+        options.onBack?.();
+      };
+      this.root.appendChild(backBtn);
+    }
+
     const header = document.createElement('div');
     header.style.cssText = 'text-align: center; margin-bottom: 28px;';
     header.innerHTML = `
@@ -142,10 +171,8 @@ export class ArmoryMenu {
       border-radius: 4px; cursor: pointer; border: 1px solid;
     `;
     const soloBtn = this.buildModeButton('SOLO');
-    const coopBtn = this.buildModeButton('LOCAL');
     const onlineBtn = this.buildModeButton('ONLINE');
     modeRow.appendChild(soloBtn);
-    modeRow.appendChild(coopBtn);
     modeRow.appendChild(onlineBtn);
 
     // Difficulty: three buttons plus a one-line summary of the selected level.
@@ -195,9 +222,8 @@ export class ArmoryMenu {
       const active = `background: ${CYAN}; color: #05050A; border-color: ${CYAN}; font-weight: bold;`;
       const inactive = `background: ${FIELD_BG}; color: ${MUTED}; border-color: ${PANEL_BORDER}; font-weight: normal;`;
       soloBtn.style.cssText = modeButtonBase + (mode === 'solo' ? active : inactive);
-      coopBtn.style.cssText = modeButtonBase + (mode === 'coop' ? active : inactive);
       onlineBtn.style.cssText = modeButtonBase + (mode === 'online' ? active : inactive);
-      operativeTabs.style.display = mode === 'coop' || mode === 'online' ? 'flex' : 'none';
+      operativeTabs.style.display = mode === 'online' ? 'flex' : 'none';
       if (mode === 'solo') editingOperative = 0;
       if (mode === 'online') editingOperative = mySlot;
       lobbyMount.style.display = mode === 'online' ? 'block' : 'none';
@@ -207,7 +233,6 @@ export class ArmoryMenu {
       updateDeployButton();
     };
     soloBtn.onclick = () => setMode('solo');
-    coopBtn.onclick = () => setMode('coop');
     onlineBtn.onclick = () => {
       if (session?.role === 'LOCAL') session.createHostSession().catch(() => updateDeployButton());
       setMode('online');
@@ -392,15 +417,11 @@ export class ArmoryMenu {
       });
       broadcastLoadout();
       // Every loadout or mode change ends up here, so this is the one place to persist.
-      saveArmoryState({ mode: mode === 'online' ? 'coop' : mode, difficulty, loadouts });
+      saveArmoryState({ mode, difficulty, loadouts });
       // Loadout swaps can change this card's height (e.g. hidden vs. shown
       // operative tabs), so re-fit on every re-render, not just on resize.
       fitStage();
     };
-
-    setDifficulty(difficulty);
-    setMode(mode);
-    setOperative(0);
 
     const updateDeployButton = () => {
       const online = mode === 'online' && session;
@@ -449,7 +470,7 @@ export class ArmoryMenu {
       if (mode === 'online' && session) {
         if (session.role !== 'HOST' || deployBtn.disabled) return;
         const seed = Math.floor(Math.random() * 0xffffffff);
-        session.hostDeploy(seed, loadouts[0], session.partnerLoadout ?? loadouts[1]);
+        session.hostDeploy(seed, runModifier, loadouts[0], session.partnerLoadout ?? loadouts[1]);
         return;
       }
       this.close();
@@ -471,6 +492,11 @@ export class ArmoryMenu {
     stage.appendChild(readyBtn);
     stage.appendChild(deployBtn);
 
+    // Buttons must exist before setMode — it toggles readyBtn/deployBtn state.
+    setDifficulty(difficulty);
+    setMode(mode);
+    setOperative(0);
+
     if (session) {
       lobbyPanel = new LobbyPanel(session);
       lobbyPanel.mount(lobbyMount);
@@ -489,11 +515,12 @@ export class ArmoryMenu {
           updateDeployButton();
         }
       };
-      session.onDeploy = (_seed, hostLoadout, guestLoadout) => {
+      session.onDeploy = (seed, mod, hostLoadout, guestLoadout) => {
         this.close();
         const own = session.role === 'HOST' ? hostLoadout : guestLoadout;
         const partner = session.role === 'HOST' ? guestLoadout : hostLoadout;
-        onDeploy('online', difficulty, own, partner, runModifier);
+        const role = session.role === 'HOST' ? 'host' : 'guest';
+        onDeploy('online', difficulty, own, partner, mod, { seed, role });
       };
       if (options.createHost && session.role === 'LOCAL') {
         session.createHostSession().catch(() => updateDeployButton());

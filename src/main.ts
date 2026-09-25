@@ -10,6 +10,7 @@ import { MenuGamepadNav } from './ui/MenuGamepadNav';
 import { Difficulty } from './config/difficulty';
 import { SectorModifierId } from './config/sectorModifiers';
 import { SessionManager } from './net/SessionManager';
+import { mulberry32 } from './core/seededRand';
 
 window.addEventListener('DOMContentLoaded', async () => {
   const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
@@ -30,9 +31,18 @@ window.addEventListener('DOMContentLoaded', async () => {
   const sectorRewardMenu = new SectorRewardMenu(overlay);
   let activeGame: Game | null = null;
 
-  const deploy = (mode: GameMode, difficulty: Difficulty, p1Loadout: WeaponLoadout, p2Loadout: WeaponLoadout, runModifier: SectorModifierId) => {
+  const deploy = (
+    mode: GameMode,
+    difficulty: Difficulty,
+    p1Loadout: WeaponLoadout,
+    p2Loadout: WeaponLoadout,
+    runModifier: SectorModifierId,
+    net?: { seed: number; role: 'host' | 'guest' }
+  ) => {
     activeGame?.stop();
     const solo = mode === 'solo';
+    const layoutRand = net ? mulberry32(net.seed) : Math.random;
+    const online = mode === 'online' && session.role !== 'LOCAL' && net ? { session, role: net.role } : undefined;
     activeGame = new Game(
       canvas,
       [p1Loadout, p2Loadout],
@@ -67,18 +77,35 @@ window.addEventListener('DOMContentLoaded', async () => {
       },
       solo,
       difficulty,
-      runModifier
+      runModifier,
+      layoutRand,
+      online
     );
     activeGame.start();
   };
 
-  const openArmory = (opts: { online?: boolean; host?: boolean; joinCode?: string } = {}) => {
-    armory.open((mode, difficulty, p1, p2, runModifier) => deploy(mode, difficulty, p1, p2, runModifier), {
-      session,
-      startOnline: opts.online ?? session.role !== 'LOCAL',
-      createHost: opts.host,
-      joinCode: opts.joinCode
+  const openMainMenu = () => {
+    mainMenu.open({
+      onStart: () => openArmory(),
+      onCreateOnline: () => openArmory({ online: true, host: true }),
+      onJoinOnline: code => openArmory({ online: true, joinCode: code })
     });
+  };
+
+  const openArmory = (opts: { online?: boolean; host?: boolean; joinCode?: string } = {}) => {
+    armory.open(
+      (mode, difficulty, p1, p2, runModifier, net) => deploy(mode, difficulty, p1, p2, runModifier, net),
+      {
+        session,
+        startOnline: opts.online ?? session.role !== 'LOCAL',
+        createHost: opts.host,
+        joinCode: opts.joinCode,
+        onBack: () => {
+          session.destroy();
+          openMainMenu();
+        }
+      }
+    );
   };
 
   new MenuGamepadNav(overlay).start();
@@ -87,11 +114,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     mainMenu.close();
     openArmory({ online: true });
   } else {
-    mainMenu.open({
-      onStart: () => openArmory(),
-      onCreateOnline: () => openArmory({ online: true, host: true }),
-      onJoinOnline: code => openArmory({ online: true, joinCode: code })
-    });
+    openMainMenu();
   }
 
   (window as unknown as { render_game_to_text: () => string }).render_game_to_text = () =>
