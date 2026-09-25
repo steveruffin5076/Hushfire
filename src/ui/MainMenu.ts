@@ -106,7 +106,7 @@ export class MainMenu {
     stack.appendChild(joinRow);
 
     const hint = document.createElement('div');
-    hint.textContent = 'Online co-op shares a room code — gameplay sync is lobby-only for now.';
+    hint.textContent = 'Host: CREATE CO-OP SESSION first, then send the invite link. Guest opens the link while host stays in the lobby.';
     hint.style.cssText = `font-size:11px;color:${MUTED};max-width:360px;text-align:center;line-height:1.4;`;
     stack.appendChild(hint);
   }

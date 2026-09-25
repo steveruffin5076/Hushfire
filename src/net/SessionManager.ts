@@ -15,10 +15,17 @@ export type SessionState = 'IDLE' | 'SIGNALING' | 'CONNECTED' | 'CLOSED' | 'ERRO
 
 const PEER_OPTS = {
   debug: 1,
-  config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }
+  config: {
+    iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' }
+    ]
+  }
 } as const;
 
 const HOST_RETRY_MAX = 3;
+/** Fail fast instead of spinning "CONNECTING…" forever when ICE or the host peer never answers. */
+const CONNECT_TIMEOUT_MS = 15_000;
 
 export class SessionManager {
   public role: SessionRole = 'LOCAL';
@@ -40,6 +47,7 @@ export class SessionManager {
   private conn: DataConnection | null = null;
   private queue: NetMessage[] = [];
   private destroyed = false;
+  private connectTimeout: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     const hash = window.location.hash.replace('#', '').trim();
@@ -116,6 +124,7 @@ export class SessionManager {
 
   destroy(clearHash = true) {
     this.destroyed = true;
+    this.clearConnectTimeout();
     this.send({ t: 'bye' });
     this.conn?.close();
     this.peer?.destroy();
@@ -135,7 +144,27 @@ export class SessionManager {
 
   private setState(next: SessionState) {
     this.state = next;
+    if (next === 'CONNECTED' || next === 'ERROR' || next === 'CLOSED') this.clearConnectTimeout();
     this.onStateChange?.();
+  }
+
+  private startConnectTimeout() {
+    this.clearConnectTimeout();
+    this.connectTimeout = setTimeout(() => {
+      if (this.state !== 'SIGNALING') return;
+      this.setError(
+        'Connection timed out. Keep the host in the lobby, use the copied invite link, and try again. ' +
+          'School/corporate Wi‑Fi or VPN often blocks peer-to-peer links.'
+      );
+      this.peer?.destroy();
+      this.peer = null;
+      this.conn = null;
+    }, CONNECT_TIMEOUT_MS);
+  }
+
+  private clearConnectTimeout() {
+    if (this.connectTimeout) clearTimeout(this.connectTimeout);
+    this.connectTimeout = null;
   }
 
   private setError(message: string) {
@@ -147,6 +176,7 @@ export class SessionManager {
     return new Promise((resolve, reject) => {
       this.setState('SIGNALING');
       this.connectStartedAt = Date.now();
+      this.startConnectTimeout();
       const id = peerIdForRoom(this.roomCode);
       const peer = new Peer(id, PEER_OPTS);
       this.peer = peer;
@@ -176,11 +206,17 @@ export class SessionManager {
   private connectAsGuest() {
     this.setState('SIGNALING');
     this.connectStartedAt = Date.now();
+    this.startConnectTimeout();
     const peer = new Peer(PEER_OPTS);
     this.peer = peer;
 
     peer.on('open', () => {
       const conn = peer.connect(peerIdForRoom(this.roomCode), { reliable: true, serialization: 'json' });
+      conn.on('error', () => {
+        if (this.state === 'SIGNALING') {
+          this.setError('Room not found — the host must create the session and stay in the lobby.');
+        }
+      });
       this.attach(conn);
       conn.on('open', () => {
         this.send({ t: 'hello', code: this.roomCode, proto: PROTO_VERSION });
