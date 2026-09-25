@@ -9,13 +9,16 @@ export class LobbyPanel {
 
   mount(parent: HTMLElement) {
     parent.appendChild(this.root);
-    this.session.onStateChange = () => this.render();
     this.render();
   }
 
   unmount() {
     this.root.remove();
-    this.session.onStateChange = undefined;
+  }
+
+  /** Re-read session state — ArmoryMenu calls this from its shared onStateChange hook. */
+  refresh() {
+    this.render();
   }
 
   private render() {

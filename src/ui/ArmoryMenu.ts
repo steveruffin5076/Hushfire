@@ -451,9 +451,9 @@ export class ArmoryMenu {
     `;
     readyBtn.onclick = () => {
       if (!session) return;
-      session.localReady = !session.localReady;
-      readyBtn.textContent = session.localReady ? 'UNREADY' : 'READY';
-      session.broadcastLoadout(loadouts[mySlot], session.localReady);
+      const nextReady = !session.localReady;
+      readyBtn.textContent = nextReady ? 'UNREADY' : 'READY';
+      session.broadcastLoadout(loadouts[mySlot], nextReady);
       updateDeployButton();
     };
 
@@ -502,6 +502,8 @@ export class ArmoryMenu {
       lobbyPanel.mount(lobbyMount);
       readyBtn.style.display = 'inline-block';
       session.onStateChange = () => {
+        lobbyPanel?.refresh();
+        readyBtn.textContent = session.localReady ? 'UNREADY' : 'READY';
         updateDeployButton();
         if (session.partnerLoadout) {
           loadouts[mySlot === 0 ? 1 : 0] = session.partnerLoadout;
@@ -512,6 +514,7 @@ export class ArmoryMenu {
         if (msg.t === 'loadout') {
           loadouts[mySlot === 0 ? 1 : 0] = msg.loadout;
           if (editingOperative !== mySlot) renderLoadout();
+          lobbyPanel?.refresh();
           updateDeployButton();
         }
       };
