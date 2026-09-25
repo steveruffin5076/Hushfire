@@ -11,6 +11,7 @@ import {
   SPRINT_NOISE_RADIUS,
   DOWNED_CRAWL_SPEED,
   REVIVE_TIME_SEC,
+  BLEEDOUT_SEC,
   FLASHLIGHT_BATTERY_MAX,
   FLASHLIGHT_DRAIN_PER_SEC
 } from '../config/constants';
@@ -56,6 +57,8 @@ export class Player extends Entity {
 
   public isDowned = false;
   public reviveProgress = 0;
+  /** Seconds spent downed this life — co-op bleed-out escalates to eliminated. */
+  public bleedoutTimer = 0;
 
   public hasKeycard = false;
 
@@ -168,6 +171,8 @@ export class Player extends Entity {
       this.x += input.moveX * speed * dt;
       this.y += input.moveY * speed * dt;
       this.noiseRadius = 0;
+      this.bleedoutTimer += dt;
+      if (this.bleedoutTimer >= BLEEDOUT_SEC) this.eliminate();
     } else {
       this.movementState = input.isSneaking ? 'sneak' : input.isSprinting ? 'sprint' : 'walk';
       const speed = this.movementState === 'sneak' ? SNEAK_SPEED : this.movementState === 'sprint' ? SPRINT_SPEED : WALK_SPEED;
@@ -232,18 +237,21 @@ export class Player extends Entity {
     this.isDowned = false;
     this.health = Math.round(this.maxHealth * 0.5);
     this.reviveProgress = 0;
+    this.bleedoutTimer = 0;
   }
 
   down() {
     this.isDowned = true;
     this.health = 0;
     this.reviveProgress = 0;
+    this.bleedoutTimer = 0;
   }
 
   eliminate() {
     this.isDowned = false;
     this.isEliminated = true;
     this.health = 0;
+    this.bleedoutTimer = 0;
   }
 
   startReload() {

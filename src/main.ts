@@ -7,6 +7,7 @@ import { PauseMenu } from './ui/PauseMenu';
 import { WeaponLoadout } from './entities/Player';
 import { MenuGamepadNav } from './ui/MenuGamepadNav';
 import { Difficulty } from './config/difficulty';
+import { recordRun, recordsForDifficulty } from './ui/RunRecords';
 
 window.addEventListener('DOMContentLoaded', async () => {
   const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
@@ -38,7 +39,8 @@ window.addEventListener('DOMContentLoaded', async () => {
       {
         onMissionEnd: (stats: RunStats) => {
           pauseMenu.hide();
-          extractionModal.show(stats, () => openArmory());
+          const newBest = recordRun(stats);
+          extractionModal.show(stats, () => openArmory(), newBest, recordsForDifficulty(stats.difficulty));
         },
         onPauseChange: (paused: boolean) => {
           if (paused) {
