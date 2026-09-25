@@ -4,11 +4,9 @@ import { CYAN, ORANGE, TEXT, MUTED, GREEN, RED, PANEL_BG, PANEL_BORDER, FIELD_BG
 import { showQuitScreen } from './QuitScreen';
 import { GameMode, loadArmoryState, saveArmoryState } from './LoadoutStorage';
 import { Difficulty, DIFFICULTIES, DIFFICULTY_ORDER } from '../config/difficulty';
+import { SECTOR_ALERT_SOUND_RADIUS_PX } from '../config/constants';
 
 export type { GameMode };
-
-/** Below this a suppressed weapon's sound radius counts as stealthy relative to this game's ~280-1000px unsuppressed range. */
-const STEALTH_SOUND_THRESHOLD_PX = 150;
 
 const MUZZLE_LABELS: Record<MuzzleType, string> = {
   none: 'No Attachment',
@@ -477,7 +475,7 @@ export class ArmoryMenu {
       const ammoMod = AMMO_MODIFIERS[ammoType];
       const damage = Math.round(weapon.baseDamage * muzzleMod.dmgMult * ammoMod.dmgMult);
       const soundRadius = Math.round(weapon.baseSoundRadiusPx * muzzleMod.soundMult * ammoMod.soundMult);
-      const stealthy = soundRadius <= STEALTH_SOUND_THRESHOLD_PX;
+      const stealthy = soundRadius <= SECTOR_ALERT_SOUND_RADIUS_PX;
 
       return (
         row('EFFECTIVE DAMAGE', `${damage} DMG / shot`, TEXT) +

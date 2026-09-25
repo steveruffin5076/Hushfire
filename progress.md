@@ -1,6 +1,6 @@
 # HUSHFIRE — Progress & Handoff
 
-Last updated: 2026-09-24, against `main` after PR #33. Written as a handoff for another developer or AI assistant, e.g. Cursor. Read this first, then `CLAUDE.md`.
+Last updated: 2026-09-25 (sector-alert horde fix, local). Written as a handoff for another developer or AI assistant, e.g. Cursor. Read this first, then `CLAUDE.md`.
 
 **Status in one line:** the full single-machine game is playable and deployed. Title → armory → 3 sectors → evac, solo or 2-player local co-op, on keyboard/mouse, gamepad or touch. **Online co-op (Phase 7) is the main thing not built yet.**
 
@@ -16,7 +16,7 @@ npm install        # after any pull that touched package.json
 npm run dev        # http://localhost:3000
 npm run typecheck  # tsc --noEmit (covers src/ and tests/)
 npm run lint       # ESLint + typescript-eslint; `any` is an error
-npm test           # Vitest, 257 tests in tests/
+npm test           # Vitest, 263 tests in tests/
 npm run build      # tsc && vite build → dist/
 ```
 
@@ -64,11 +64,11 @@ src/
     MapManager.ts         Walls, collision, pickups, doors, extraction zone, NavGrid, surge spawn validation
     NavGrid.ts            A* grid pathfinding
     Geometry.ts           Segment math, angleBetween
-    HordeSurge.ts         Evac wave pacing, mix, raw edge spawn points (validated by MapManager)
+    HordeSurge.ts         Evac wave pacing, sector-alert shot check, mix, raw edge spawn points (validated by MapManager)
   ui/                     HUD, ArmoryMenu, MainMenu, PauseMenu, ExtractionModal (end screen), QuitScreen,
                           LoadoutStorage (localStorage), MenuGamepadNav, StealthRating, theme
   net/SessionManager.ts   Phase 7 stub only — not wired to anything
-tests/                    16 Vitest files, one per system (see §6)
+tests/                    17 Vitest files, one per system (see §6)
 docs/                     Design specs + PHASE7_ONLINE_LOBBY_PLAN.md
 public/assets/            Processed game art (sprites, backgrounds, branding, items, fx)
 images/                   Raw art uploads from the owner (source material, not loaded by the game)
@@ -92,6 +92,7 @@ images/                   Raw art uploads from the owner (source material, not l
 - Darkness mask `rgba(5,5,8,0.96)`. Flashlight cones are raycast against walls.
 - **Flashlight battery:** 100 charge lasts 300 s of on-time and only drains while on. At empty the light forces off and can't be relit. A battery pickup gives +50. There's a HUD bar and a clickable ON/OFF button for P1.
 - **Noise:** footsteps (sneak 20 / walk 90 / sprint 260 px) and gunshots emit sound. Each wall crossed multiplies the radius by 0.28. The suspicious threshold is 0.38. Enraged needs 0.8, or 0.55 for gunshots.
+- **Sector-alert gunfire:** any shot louder than 150 px (the armory's "WILL ALERT SECTOR" threshold — `SECTOR_ALERT_SOUND_RADIUS_PX` in `constants.ts`) wakes **every** zombie in the sector, ignoring walls. After a 2 s "HORDE INCOMING" warning, 1 zombie (2 in co-op) spawns from a map edge; 8 s cooldown between reinforcement waves; capped at 18 zombies total. Silent weapons (knife, crossbow) never trigger this. Suppressed MPX/Glock stay under the threshold; suppressed M4/shotgun/revolver still alert the sector. Evac holdout skips sector-alert spawns (it already runs its own surge loop). Wired via `CombatSystem` → `onSectorAlertingShot` → `Game.onSectorAlertingShot`.
 - **Close-range notice:** a zombie that can see a player moving faster than a sneak turns ENRAGED within 40 px (dormant) or 100 px (suspicious). Sneaking or standing still stays hidden.
 - The flood light and spotlight alert zombies they shine on. The UV light and laser don't.
 - Knife backstab (400 dmg) from the zombie's rear 120°. The knife never uses ammo.
@@ -117,7 +118,7 @@ images/                   Raw art uploads from the owner (source material, not l
 
 - **Layout shuffle:** every zombie and pickup has 2 alternative spots (`alts`), and one is picked per run. Types and counts never change, so sector HP stays 358 → 466 → 498.
 - **Evac horde waves:** every 10 s down to the difficulty minimum. Co-op waves are 2 zombies. Mix: lurker 40 / stalker 25 / bio 25 / brute 10%. Capped at 18 zombies. Spawns are validated so they never land inside Sector 3's off-roof blocker boxes (`MapManager.rollSurgeSpawn`).
-- **Warnings:** "HORDE INCOMING" banner 2 s before each wave.
+- **Warnings:** "HORDE INCOMING" banner 2 s before each evac wave and before sector-alert reinforcement waves.
 - **End screen:** difficulty, sector reached, time, kills, shots, silent kills, zombies alerted, stealth rating (GHOST 0 / SHADOW ≤3 / OPERATOR ≤8 / LOUD).
 
 ### Controls
@@ -149,7 +150,9 @@ images/                   Raw art uploads from the owner (source material, not l
 - **Split HUD button:** the HUD flashlight button only takes clicks for P1, since local co-op shares one mouse.
 - **Touch is P1 only:** two players on one phone isn't supported.
 - **`recoilMult` is unused:** it's defined on muzzles, but nothing reads it (there's no spread model). The muzzle brake, compensator and flash hider are weak as a result.
-- **Not playtested for feel:** the balance numbers (notice radii, suppressor 0.35, wave pacing, EASY/HARD) are reasoned from the code and unit-tested, but haven't been played by a human. The owner should playtest before more tuning.
+- **Not playtested for feel:** the balance numbers (notice radii, suppressor 0.35, wave pacing, EASY/HARD) are reasoned from the code and unit-tested, but haven't been played end-to-end by a human. The owner should playtest before more tuning.
+- **2026-09-25 playtest check:** owner confirmed WASD movement and mouse-click firing work correctly in a normal browser on the live site. (An earlier automated-browser check in this session couldn't get keyboard/mouse input to move the player or fire — real key/click events reached the page but `Player`/`Game` state never updated — but that didn't reproduce for the owner, so it's an artifact of that automation tool, not a game bug.)
+- **2026-09-25 sector-alert fix:** owner reported unsuppressed weapons did not attract a horde. Root cause: loud shots only used wall-dampened `NoiseSystem` propagation (1–2 zombies woke up); the armory's "sector horde frenzy" promise was never wired. Fixed by sector-wide ENRAGE + edge reinforcement spawns on shots above 150 px. Owner confirmed it works. Covered by `tests/sectorAlert.test.ts`.
 - **Zombies can still grind corners:** when A* returns no path, `AISystem` falls back to walking straight at the target. That's visible "stuck against a wall" behaviour, not trapped inside geometry — a separate issue from the horde spawn fix in PR #33.
 
 ---
@@ -167,6 +170,8 @@ images/                   Raw art uploads from the owner (source material, not l
   - Phone emulation (`hasTouch`, 844×390) with CDP `Input.dispatchTouchEvent` for multi-touch.
 - **Art alignment:** plot every spot (spawns, zombie/pickup alts, boxes) over the sector's background image with PIL and look at it. This caught spots in the sky that the tests couldn't.
 - **Surge spawn safety** (`tests/hordeSurge.test.ts`): Monte-Carlo `rollSurgeSpawn` on Sector 3 — every point must be `isFreePosition` and have a nav path to the evac pad. `tests/collision.test.ts` also checks `ejectFromBoxes` for a point deep inside a blocker.
+- **Sector alert** (`tests/sectorAlert.test.ts`): `isSectorAlertingShot` threshold, `CombatSystem` callback fires for loud unsuppressed guns but not suppressed SMGs, sector-wide ENRAGE.
+- **Deterministic Playwright loop (2026-09-25, `.claude/skills/develop-web-game`):** `Game` now exposes `window.render_game_to_text()` (JSON: mode, players, zombies, pickups, objective/extraction, score — see `Game.renderGameToText()`) and `window.advanceTime(ms)` (steps the sim in fixed 1/60s ticks and renders once, ignoring wall-clock time — see `Game.advanceTime()`), wired up in `main.ts`. The first `advanceTime()` call flips a one-way `manualStepping` flag that stops the real `requestAnimationFrame` loop from also scheduling itself, so a test's steps aren't double-counted with real-time ones (real play never calls `advanceTime`, so it's unaffected). A working example lives at `scripts/dev-playtest.mjs` (the official skill's own installed copy is `.claude/skills/develop-web-game/`) — `node scripts/dev-playtest.mjs http://localhost:5183/` (needs `playwright` on the path) clicks through Start → Deploy, holds D/W via real keyboard events, fires the mouse, and prints/saves the state JSON + screenshots to `dev-playtest-output/`. Confirmed against `main` + this session's in-progress sector-alert changes: `WALK_SPEED` (160px/s) matched exactly, mouse-fire decremented ammo and `shotsFired` correctly, zero console errors. This is also how the earlier "WASD/click don't work" false alarm got fully cleared: it was that other automation tool's flaky key timing, not the game.
 
 ---
 
@@ -176,7 +181,7 @@ images/                   Raw art uploads from the owner (source material, not l
 2. **Sector modifiers** (medium): a random twist per run that reuses existing systems. Examples:
    - *Blackout:* 50% battery, no battery pickups.
    - *Scavenger:* half the pickups.
-   - *Hush:* any unsuppressed shot calls a horde wave.
+   - *Hush:* extra reinforcement pressure on top of the base sector-alert system (e.g. halve the 8 s cooldown or double wave size).
    - *Heavy:* +1 brute.
    Show the active modifier on the briefing.
 3. **Reward choice between sectors** (medium): pick a medkit, 2 mags or a battery. It needs a small DOM menu with gamepad navigation, which `MenuGamepadNav` already handles.
@@ -198,3 +203,5 @@ images/                   Raw art uploads from the owner (source material, not l
 ## 8. History
 
 All work landed through PRs #1–#33 on `main`: deploy pipeline, art pipeline, asset-path fix, title screen, sprite and background replacements, wall alignment, lighting, flashlight battery, `.gitignore`, test suite, lint, loadout saving, gamepad, touch, gamepad menus, design-review bug fixes and tuning, layout shuffle, difficulty levels, Sector 3 roof edge, bolts/radio/door cleanup, progress handoff rewrite (PR #32), horde surge spawn-in-wall fix (PR #33). See `git log --merges` for details.
+
+**Local (not yet merged):** sector-alert horde frenzy — loud gunfire (>150 px) wakes every zombie in the sector and calls edge reinforcements (`Game.onSectorAlertingShot`, `HordeSurge.isSectorAlertingShot`, `tests/sectorAlert.test.ts`). Owner playtested and confirmed.

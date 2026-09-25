@@ -64,5 +64,18 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   new MenuGamepadNav(overlay).start();
   mainMenu.open(() => openArmory());
+
+  // Test-only hooks for the develop-web-game skill's Playwright loop (see
+  // .claude/skills/develop-web-game/SKILL.md). Harmless in normal play —
+  // nothing in src/ calls these, they only exist for an external test script
+  // to poke.
+  (window as unknown as { render_game_to_text: () => string }).render_game_to_text = () =>
+    activeGame && activeGame.isRunning()
+      ? activeGame.renderGameToText()
+      : JSON.stringify({ mode: 'menu' });
+  (window as unknown as { advanceTime: (ms: number) => void }).advanceTime = (ms: number) => {
+    activeGame?.advanceTime(ms);
+  };
+
   console.log('HUSHFIRE Game Engine Initialized Successfully.');
 });

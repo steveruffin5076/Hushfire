@@ -6,6 +6,7 @@ import { WEAPON_REGISTRY, MUZZLE_MODIFIERS, AMMO_MODIFIERS } from '../config/wea
 import { NoiseSystem } from './NoiseSystem';
 import { MapManager } from './MapManager';
 import { angleBetween } from './Geometry';
+import { isSectorAlertingShot } from './HordeSurge';
 
 export interface Decal {
   x: number;
@@ -23,6 +24,8 @@ export function bloodDecal(x: number, y: number, r: number, color: string): Deca
 
 export interface CombatEvents {
   onZombieKilled?: (zombie: Zombie, killer: Player) => void;
+  /** Loud, unsuppressed gunfire that should wake the sector and can call reinforcements. */
+  onSectorAlertingShot?: (player: Player) => void;
 }
 
 const MELEE_RANGE = 46;
@@ -71,6 +74,9 @@ export class CombatSystem {
     const soundRadius = weapon.baseSoundRadiusPx * muzzleMod.soundMult * ammoMod.soundMult;
     player.noiseRadius = Math.max(player.noiseRadius, soundRadius);
     this.noise.emit({ x: player.x, y: player.y, radius: soundRadius, type: weapon.isSilentByDefault ? 'footstep' : 'gunshot' });
+    if (isSectorAlertingShot(soundRadius, weapon.isSilentByDefault)) {
+      this.events.onSectorAlertingShot?.(player);
+    }
 
     const damage = weapon.baseDamage * muzzleMod.dmgMult * ammoMod.dmgMult;
 

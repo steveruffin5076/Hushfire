@@ -1,0 +1,27 @@
+// vite.config.ts
+import { defineConfig } from "file:///sessions/rcw-019r7v98xxdmzsavbwqwrumi/mnt/Hushfire/node_modules/vite/dist/node/index.js";
+var vite_config_default = defineConfig({
+  base: process.env.GITHUB_ACTIONS ? "/Hushfire/" : "/",
+  server: {
+    host: "0.0.0.0",
+    port: 3e3,
+    open: false,
+    // Vite >= 5.4.12 rejects any Host header that isn't localhost or a bare IP
+    // (DNS-rebinding protection), which 403s this dev server when it's reached
+    // through a proxy or by hostname from another device — e.g. the two-window
+    // co-op test in docs/COOP_SESSION_GUIDE.md §6. It already binds 0.0.0.0 on
+    // purpose, so accept any host by default and allow locking it down to an
+    // explicit comma-separated list via VITE_ALLOWED_HOSTS. Dev-server only:
+    // the Pages build is static and never runs this.
+    allowedHosts: process.env.VITE_ALLOWED_HOSTS ? process.env.VITE_ALLOWED_HOSTS.split(",").map((h) => h.trim()) : true
+  },
+  build: {
+    target: "es2022",
+    outDir: "dist",
+    assetsDir: "assets"
+  }
+});
+export {
+  vite_config_default as default
+};
+//# sourceMappingURL=data:application/json;base64,ewogICJ2ZXJzaW9uIjogMywKICAic291cmNlcyI6IFsidml0ZS5jb25maWcudHMiXSwKICAic291cmNlc0NvbnRlbnQiOiBbImNvbnN0IF9fdml0ZV9pbmplY3RlZF9vcmlnaW5hbF9kaXJuYW1lID0gXCIvc2Vzc2lvbnMvcmN3LTAxOXI3djk4eHhkbXpzYXZid3F3cnVtaS9tbnQvSHVzaGZpcmVcIjtjb25zdCBfX3ZpdGVfaW5qZWN0ZWRfb3JpZ2luYWxfZmlsZW5hbWUgPSBcIi9zZXNzaW9ucy9yY3ctMDE5cjd2OTh4eGRtenNhdmJ3cXdydW1pL21udC9IdXNoZmlyZS92aXRlLmNvbmZpZy50c1wiO2NvbnN0IF9fdml0ZV9pbmplY3RlZF9vcmlnaW5hbF9pbXBvcnRfbWV0YV91cmwgPSBcImZpbGU6Ly8vc2Vzc2lvbnMvcmN3LTAxOXI3djk4eHhkbXpzYXZid3F3cnVtaS9tbnQvSHVzaGZpcmUvdml0ZS5jb25maWcudHNcIjtpbXBvcnQgeyBkZWZpbmVDb25maWcgfSBmcm9tICd2aXRlJztcclxuXHJcbmV4cG9ydCBkZWZhdWx0IGRlZmluZUNvbmZpZyh7XHJcbiAgYmFzZTogcHJvY2Vzcy5lbnYuR0lUSFVCX0FDVElPTlMgPyAnL0h1c2hmaXJlLycgOiAnLycsXHJcbiAgc2VydmVyOiB7XHJcbiAgICBob3N0OiAnMC4wLjAuMCcsXHJcbiAgICBwb3J0OiAzMDAwLFxyXG4gICAgb3BlbjogZmFsc2UsXHJcbiAgICAvLyBWaXRlID49IDUuNC4xMiByZWplY3RzIGFueSBIb3N0IGhlYWRlciB0aGF0IGlzbid0IGxvY2FsaG9zdCBvciBhIGJhcmUgSVBcclxuICAgIC8vIChETlMtcmViaW5kaW5nIHByb3RlY3Rpb24pLCB3aGljaCA0MDNzIHRoaXMgZGV2IHNlcnZlciB3aGVuIGl0J3MgcmVhY2hlZFxyXG4gICAgLy8gdGhyb3VnaCBhIHByb3h5IG9yIGJ5IGhvc3RuYW1lIGZyb20gYW5vdGhlciBkZXZpY2UgXHUyMDE0IGUuZy4gdGhlIHR3by13aW5kb3dcclxuICAgIC8vIGNvLW9wIHRlc3QgaW4gZG9jcy9DT09QX1NFU1NJT05fR1VJREUubWQgXHUwMEE3Ni4gSXQgYWxyZWFkeSBiaW5kcyAwLjAuMC4wIG9uXHJcbiAgICAvLyBwdXJwb3NlLCBzbyBhY2NlcHQgYW55IGhvc3QgYnkgZGVmYXVsdCBhbmQgYWxsb3cgbG9ja2luZyBpdCBkb3duIHRvIGFuXHJcbiAgICAvLyBleHBsaWNpdCBjb21tYS1zZXBhcmF0ZWQgbGlzdCB2aWEgVklURV9BTExPV0VEX0hPU1RTLiBEZXYtc2VydmVyIG9ubHk6XHJcbiAgICAvLyB0aGUgUGFnZXMgYnVpbGQgaXMgc3RhdGljIGFuZCBuZXZlciBydW5zIHRoaXMuXHJcbiAgICBhbGxvd2VkSG9zdHM6IHByb2Nlc3MuZW52LlZJVEVfQUxMT1dFRF9IT1NUU1xyXG4gICAgICA/IHByb2Nlc3MuZW52LlZJVEVfQUxMT1dFRF9IT1NUUy5zcGxpdCgnLCcpLm1hcChoID0+IGgudHJpbSgpKVxyXG4gICAgICA6IHRydWVcclxuICB9LFxyXG4gIGJ1aWxkOiB7XHJcbiAgICB0YXJnZXQ6ICdlczIwMjInLFxyXG4gICAgb3V0RGlyOiAnZGlzdCcsXHJcbiAgICBhc3NldHNEaXI6ICdhc3NldHMnXHJcbiAgfVxyXG59KTtcclxuIl0sCiAgIm1hcHBpbmdzIjogIjtBQUEyVSxTQUFTLG9CQUFvQjtBQUV4VyxJQUFPLHNCQUFRLGFBQWE7QUFBQSxFQUMxQixNQUFNLFFBQVEsSUFBSSxpQkFBaUIsZUFBZTtBQUFBLEVBQ2xELFFBQVE7QUFBQSxJQUNOLE1BQU07QUFBQSxJQUNOLE1BQU07QUFBQSxJQUNOLE1BQU07QUFBQTtBQUFBO0FBQUE7QUFBQTtBQUFBO0FBQUE7QUFBQTtBQUFBLElBUU4sY0FBYyxRQUFRLElBQUkscUJBQ3RCLFFBQVEsSUFBSSxtQkFBbUIsTUFBTSxHQUFHLEVBQUUsSUFBSSxPQUFLLEVBQUUsS0FBSyxDQUFDLElBQzNEO0FBQUEsRUFDTjtBQUFBLEVBQ0EsT0FBTztBQUFBLElBQ0wsUUFBUTtBQUFBLElBQ1IsUUFBUTtBQUFBLElBQ1IsV0FBVztBQUFBLEVBQ2I7QUFDRixDQUFDOyIsCiAgIm5hbWVzIjogW10KfQo=

@@ -1,4 +1,4 @@
-import { CANVAS_WIDTH, CANVAS_HEIGHT, REVIVE_RANGE_PX, FLASHLIGHT_BATTERY_MAX, BATTERY_PICKUP_CHARGE } from '../config/constants';
+import { CANVAS_WIDTH, CANVAS_HEIGHT, REVIVE_RANGE_PX, FLASHLIGHT_BATTERY_MAX, BATTERY_PICKUP_CHARGE, SECTOR_HORDE_COOLDOWN_SEC } from '../config/constants';
 import { InputManager, PlayerInputState } from './Input';
 import { Camera } from './Camera';
 import { SoundManager } from './SoundManager';
@@ -98,6 +98,8 @@ export class Game {
   private missionTime = 0;
   /** Real-time freeze-frame on a big impact — simulation pauses, rendering doesn't. */
   private hitStopTimer = 0;
+  /** Set the first time advanceTime() is called, so the real-time rAF loop stops scheduling itself and a test's deterministic steps are the only ones that run. See advanceTime()'s own comment. */
+  private manualStepping = false;
   /** Red vignette on taking damage, faded out each tick. */
   private damageFlashAlpha = 0;
   private readonly handleKeyDown = (e: KeyboardEvent) => {
@@ -152,6 +154,10 @@ export class Game {
   private projectiles: Projectile[] = [];
   private decals: Decal[] = [];
   private hordeSpawnTimer = SURGE_START_INTERVAL_SEC;
+  /** Cooldown between reinforcement waves drawn in by loud sector-alerting gunfire. */
+  private sectorHordeCooldown = 0;
+  /** Brief "HORDE INCOMING" banner before a sector-alert reinforcement wave. */
+  private sectorHordeWarningTimer = 0;
   /** Run-wide stealth stat: zombies that went ENRAGED while alive. */
   private zombiesAlerted = 0;
   /** Bio-Carrier death bursts, drawn as expanding rings showing who heard them. */
@@ -199,7 +205,8 @@ export class Game {
     if (this.solo) this.p2.eliminate();
 
     this.combat = new CombatSystem(this.map, this.noise, {
-      onZombieKilled: (zombie, killer) => this.onZombieKilled(zombie, killer)
+      onZombieKilled: (zombie, killer) => this.onZombieKilled(zombie, killer),
+      onSectorAlertingShot: player => this.onSectorAlertingShot(player)
     });
 
     this.spawnZombies();
@@ -238,6 +245,95 @@ export class Game {
     requestAnimationFrame(t => this.tick(t));
   }
 
+  /** So the window-level render_game_to_text hook (see docs/develop-web-game skill) can tell a live run from a stopped one without reaching into private state. */
+  public isRunning(): boolean {
+    return this.running;
+  }
+
+  /**
+   * Deterministic test-only frame stepper (see docs/develop-web-game skill; wired
+   * to `window.advanceTime` in main.ts). Advances the simulation by `ms` of
+   * gameplay time in fixed 1/60s steps — ignoring wall-clock time — then renders
+   * once, so a Playwright-driven test can step frames reproducibly instead of
+   * racing real timers. Mirrors tick()'s own pause/hit-stop handling so a paused
+   * or frozen game behaves the same under advanceTime as it does under real play.
+   */
+  public advanceTime(ms: number) {
+    if (!this.running) return;
+    this.manualStepping = true;
+    const steps = Math.max(1, Math.round(ms / (FIXED_DT * 1000)));
+    for (let i = 0; i < steps; i++) {
+      if (!this.running) break;
+      if (this.input.poll()) this.togglePause();
+      if (this.paused) {
+        this.input.endFrame();
+        continue;
+      }
+      if (this.hitStopTimer > 0) {
+        this.hitStopTimer -= FIXED_DT;
+        continue;
+      }
+      this.update(FIXED_DT);
+    }
+    this.render();
+  }
+
+  /**
+   * Test-only state dump (see docs/develop-web-game skill; wired to
+   * `window.render_game_to_text` in main.ts). Kept succinct and biased toward
+   * what's currently on screen — no history — per the skill's own guidance.
+   */
+  public renderGameToText(): string {
+    const zone = this.map.extractionZone;
+    const obj = this.map.sector.objective;
+    const playerPayload = (p: Player) => ({
+      id: p.playerNumber,
+      x: Math.round(p.x),
+      y: Math.round(p.y),
+      angle: Number(p.angle.toFixed(2)),
+      hp: Math.round(p.health),
+      maxHp: p.maxHealth,
+      downed: p.isDowned,
+      eliminated: p.isEliminated,
+      weapon: p.activeWeaponId,
+      mag: p.currentMag,
+      reserve: p.reserveAmmo,
+      reloading: p.isReloading,
+      flashlightOn: p.flashlightOn,
+      battery: Math.round(p.flashlightBattery),
+      hasKeycard: p.hasKeycard
+    });
+
+    return JSON.stringify({
+      mode: this.paused ? 'paused' : 'playing',
+      // Coordinate system: world-space pixels, origin top-left, +x right, +y down — same space as sectors.ts.
+      missionTimeSec: Number(this.missionTime.toFixed(1)),
+      sector: this.map.sector.name,
+      objective: { label: obj.label, progress: Number(this.map.objectiveProgress.toFixed(2)), complete: this.map.objectiveComplete },
+      extraction:
+        zone.radius > 0
+          ? { active: zone.isActive, occupied: zone.isOccupied, holdoutTimerSec: Number(zone.holdoutTimer.toFixed(1)), complete: zone.isComplete }
+          : null,
+      players: [this.p1, this.p2].filter(p => !p.isEliminated || p === this.p1).map(playerPayload),
+      zombies: this.zombies.map(z => ({
+        x: Math.round(z.x),
+        y: Math.round(z.y),
+        archetype: z.archetype,
+        state: z.state,
+        hp: Math.round(z.health),
+        maxHp: z.maxHealth,
+        alive: z.alive
+      })),
+      pickups: this.map.pickups.map(pk => ({ x: pk.x, y: pk.y, type: pk.type })),
+      score: {
+        kills: this.p1.killCount + this.p2.killCount,
+        shotsFired: this.p1.shotsFired + this.p2.shotsFired,
+        silentKills: this.p1.silentKills + this.p2.silentKills,
+        zombiesAlerted: this.zombiesAlerted
+      }
+    });
+  }
+
   public stop() {
     this.running = false;
     window.removeEventListener('keydown', this.handleKeyDown);
@@ -267,6 +363,13 @@ export class Game {
 
   private tick(timestamp: number) {
     if (!this.running) return;
+    // Once a test has taken over stepping via advanceTime(), stop scheduling the
+    // real-time rAF loop — otherwise both drive update()/render() concurrently
+    // and every advanceTime() call gets extra, wall-clock-timed physics steps
+    // mixed in on top of its own deterministic ones (silently makes the movement
+    // test numbers wrong, though it doesn't affect real play, which never calls
+    // advanceTime). See docs/develop-web-game skill.
+    if (this.manualStepping) return;
     const frameDt = Math.min((timestamp - this.lastTime) / 1000, 0.25);
     this.lastTime = timestamp;
 
@@ -337,6 +440,8 @@ export class Game {
 
     this.handleZombieContact(dt, this.p1);
     this.handleZombieContact(dt, this.p2);
+
+    this.updateSectorHorde(dt);
 
     for (const zombie of this.zombies) zombie.updateJuice(dt);
     // A dying zombie stays around (excluded from combat/AI targeting via its own
@@ -553,6 +658,52 @@ export class Game {
     }
   }
 
+  /**
+   * Loud unsuppressed fire wakes every zombie in the sector (ignoring walls) and
+   * can call edge reinforcements on a cooldown — the "sector horde frenzy" the
+   * armory warns about. Evac holdout already runs its own surge loop.
+   */
+  private onSectorAlertingShot(player: Player) {
+    const source = { x: player.x, y: player.y };
+    for (const zombie of this.zombies) {
+      if (!zombie.alive || zombie.state === 'ENRAGED') continue;
+      zombie.alert('ENRAGED', source);
+    }
+
+    const zone = this.map.extractionZone;
+    if (zone.isActive) return;
+    if (this.sectorHordeCooldown > 0 || this.sectorHordeWarningTimer > 0) return;
+    if (this.zombies.length >= HORDE_MAX_ZOMBIES) return;
+
+    this.sectorHordeWarningTimer = SURGE_WARNING_SEC;
+    this.sectorHordeCooldown = SECTOR_HORDE_COOLDOWN_SEC;
+  }
+
+  private updateSectorHorde(dt: number) {
+    if (this.sectorHordeWarningTimer > 0) {
+      this.sectorHordeWarningTimer -= dt;
+      if (this.sectorHordeWarningTimer > 0) return;
+      this.spawnSectorHordeWave();
+    }
+
+    if (this.sectorHordeCooldown > 0) this.sectorHordeCooldown -= dt;
+  }
+
+  private spawnSectorHordeWave() {
+    const zone = this.map.extractionZone;
+    if (zone.isActive) return;
+
+    const waveSize = surgeSize(!this.p2.isEliminated);
+    const attract = { x: this.p1.x, y: this.p1.y };
+    for (let i = 0; i < waveSize && this.zombies.length < HORDE_MAX_ZOMBIES; i++) {
+      const spawn = this.map.rollSurgeSpawn(Math.random);
+      const zombie = new Zombie(spawn.x, spawn.y, 0, pickSurgeArchetype(Math.random()), this.difficultyDef.zombieHpMult);
+      zombie.alert('ENRAGED', attract);
+      zombie.alertCounted = true;
+      this.zombies.push(zombie);
+    }
+  }
+
   /** Holdout climax: the siren draws a rolling horde at the pad, arriving faster as the clock runs down (see HordeSurge.ts). */
   private updateHordeSurge(dt: number) {
     this.hordeSpawnTimer -= dt;
@@ -604,6 +755,8 @@ export class Game {
     this.decals = [];
     this.blasts = [];
     this.hordeSpawnTimer = SURGE_START_INTERVAL_SEC;
+    this.sectorHordeCooldown = 0;
+    this.sectorHordeWarningTimer = 0;
     this.spawnZombies();
 
     const spawns = this.map.sector.playerSpawns;
@@ -693,10 +846,12 @@ export class Game {
     }
   }
 
-  /** Flashing banner for the last couple of seconds before each evac wave, so surges never arrive unannounced. */
+  /** Flashing banner before evac waves and sector-alert reinforcement waves. */
   private renderSurgeWarning(ctx: CanvasRenderingContext2D) {
     const zone = this.map.extractionZone;
-    if (!zone.isActive || zone.isComplete || this.hordeSpawnTimer > SURGE_WARNING_SEC) return;
+    const evacWarning = zone.isActive && !zone.isComplete && this.hordeSpawnTimer <= SURGE_WARNING_SEC;
+    const sectorWarning = this.sectorHordeWarningTimer > 0;
+    if (!evacWarning && !sectorWarning) return;
     const blink = Math.floor(performance.now() / 180) % 2 === 0;
     if (!blink) return;
     const text = '⚠ HORDE INCOMING';

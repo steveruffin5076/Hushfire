@@ -34,6 +34,10 @@ export const SPRINT_SPEED = 280; // px/s
 export const SNEAK_NOISE_RADIUS = 20; // px
 export const WALK_NOISE_RADIUS = 90;  // px
 export const SPRINT_NOISE_RADIUS = 260; // px
+/** Armory "WILL ALERT SECTOR" threshold — louder shots wake every zombie and can draw reinforcements. */
+export const SECTOR_ALERT_SOUND_RADIUS_PX = 150;
+/** Minimum gap between sector horde reinforcement waves called in by loud gunfire. */
+export const SECTOR_HORDE_COOLDOWN_SEC = 8;
 
 // Downed / Revive Mechanic
 export const DOWNED_CRAWL_SPEED = 45; // px/s (~0.8 m/s)
