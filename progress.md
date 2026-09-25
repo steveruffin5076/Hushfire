@@ -1,11 +1,14 @@
 # HUSHFIRE — Progress & Handoff
 
-Last updated: 2026-09-24, against `main` after PR #33. Written as a handoff for another developer or AI assistant, e.g. Cursor. Read this first, then `CLAUDE.md`.
+Last updated: 2026-09-25, against `main` at `08bb3ca` (merge of PR #33). Written as a handoff for another developer or AI assistant, e.g. Cursor. Read this first, then `CLAUDE.md`.
+
+**Revisions:** **2026-09-25** reconciled the PR #14-era audit (written at `b0319d8`) against the current tree — many findings from that audit are now **fixed** (see §5 "Resolved since the PR #14 audit"). Open bugs and engagement gaps below are live findings with file evidence.
 
 **Status in one line:** the full single-machine game is playable and deployed. Title → armory → 3 sectors → evac, solo or 2-player local co-op, on keyboard/mouse, gamepad or touch. **Online co-op (Phase 7) is the main thing not built yet.**
 
 - Live site: https://steveruffin5076.github.io/Hushfire/
 - Repo: https://github.com/steveruffin5076/Hushfire (default branch `main`)
+- **33 PRs merged** on `main`. 41 TypeScript files under `src/`, ~6,060 lines. Largest: `Game.ts` (1026), `ArmoryMenu.ts` (510), `HUD.ts` (283), `Player.ts` (281), `SoundManager.ts` (248).
 
 ---
 
@@ -13,25 +16,26 @@ Last updated: 2026-09-24, against `main` after PR #33. Written as a handoff for 
 
 ```bash
 npm install        # after any pull that touched package.json
-npm run dev        # http://localhost:3000
+npm run dev        # http://localhost:3000 (or 3001 if 3000 is taken)
 npm run typecheck  # tsc --noEmit (covers src/ and tests/)
 npm run lint       # ESLint + typescript-eslint; `any` is an error
 npm test           # Vitest, 257 tests in tests/
 npm run build      # tsc && vite build → dist/
 ```
 
-CI (`.github/workflows/deploy-pages.yml`) runs `npm ci` → `npm run lint` → `npm test` → `npm run build` on every push to `main`, then deploys to GitHub Pages. **A failing lint or test blocks the deploy.**
+CI (`.github/workflows/deploy-pages.yml`) runs `npm ci` → `npm run lint` → `npm test` → `npm run build` on every **push to `main`**, then deploys to GitHub Pages. **A failing lint or test blocks the deploy.** There is still no `pull_request` trigger — PRs are only validated after merge.
 
 ---
 
 ## 2. Rules that must not be broken
 
-1. **Asset paths.** The site is served under `/Hushfire/`. Never hardcode `'/assets/...'` in `src/`. Always use `` `${import.meta.env.BASE_URL}assets/...` `` (see `src/core/AssetLoader.ts`, `src/ui/MainMenu.ts`). This broke once already and silently dropped every sprite to placeholder art. After touching asset loading, verify with `GITHUB_ACTIONS=true npm run build` and serve `dist/` under a `/Hushfire/` subpath. See `CLAUDE.md` §4.
+1. **Asset paths.** The site is served under `/Hushfire/`. Never hardcode `'/assets/...'` in `src/`. Always use `` `${import.meta.env.BASE_URL}assets/...` `` (see `src/core/AssetLoader.ts`, `src/ui/MainMenu.ts`). After touching asset loading, verify with `GITHUB_ACTIONS=true npm run build` and serve `dist/` under a `/Hushfire/` subpath. See `CLAUDE.md` §4.
 2. **`node_modules/` and `dist/` are git-ignored.** Never commit them.
-3. **Keep lint, typecheck and tests green.** Add a test for every behaviour change. Most game logic is plain TypeScript and testable without a browser (see §6).
-4. **Walls must match the art.** Each sector's `boxes` in `src/config/sectors.ts` are hand-aligned to the background image. If you move walls, spawns or pickups, the tests in `tests/sectors.test.ts` check that every possible spot is in the map, not in a wall, and reachable. Also eyeball it: plot the spots over the background image (§6).
-5. **Sprites:** 128×128 PNG, transparent background, facing +X (right), rotation pivot at the canvas center. They're rotated live with `ctx.rotate(angle)`, so front-facing or 3/4-view art looks wrong. Draw size is cosmetic (`PLAYER_SPRITE_SIZE` / `ZOMBIE_SPRITE_SIZE` in `Game.ts`) and separate from the collision radius (16 px).
-6. **Workflow the owner uses:** small PRs to `main`, one topic each, merged once checks pass. Update this file when something ships.
+3. **Keep lint, typecheck and tests green.** Add a test for every behaviour change. Most game logic is plain TypeScript and testable without a browser (see §8).
+4. **Walls must match the art.** Each sector's `boxes` in `src/config/sectors.ts` are hand-aligned to the background image. `tests/sectors.test.ts` checks every possible spawn/pickup alt is on walkable floor and reachable.
+5. **Sprites:** 128×128 PNG, facing +X, pivot at canvas centre. Draw size is cosmetic (`PLAYER_SPRITE_SIZE` / `ZOMBIE_SPRITE_SIZE` in `Game.ts`); collision radius stays **16 px**.
+6. **Never run `generate_assets.py` wholesale.** It regenerates procedurally and will **clobber the 7 hand-made character sprites** with old placeholders. No per-asset entry point.
+7. **Workflow:** small PRs to `main`, one topic each, merged once checks pass. **Update this file when something ships.**
 
 ---
 
@@ -49,7 +53,7 @@ src/
     zombies.ts            Zombie archetypes (lurker, audio_stalker, bio_carrier, armored_brute)
   core/
     Game.ts               Orchestrator (~1000 lines): fixed 60 Hz update, render, pickups, objectives, sector advance, evac, end
-    Input.ts              Keyboard/mouse for P1 and P2, merges gamepad + touch; poll()/endFrame()/resetEdges()
+    Input.ts              Keyboard/mouse for P1 and P2, merges gamepad + touch; poll()/endFrame()/dispose()
     Gamepad.ts            Pure gamepad mapping + pad assignment rules
     TouchControls.ts      On-screen twin-stick controls for P1 (drawn on canvas)
     Camera.ts             Follow/zoom/shake; worldToScreen/screenToWorld
@@ -59,7 +63,7 @@ src/
   lighting/               Raycaster (cone polygons), Flashlight, ShadowRenderer (darkness mask)
   systems/
     AISystem.ts           Zombie senses (light, close-range notice) + movement/pathing
-    NoiseSystem.ts        Sound events → SUSPICIOUS/ENRAGED, wall dampening
+    NoiseSystem.ts        Sound events → SUSPICIOUS/ENRAGED, wall dampening, scream propagation (AI only)
     CombatSystem.ts       Firing, hitscan, melee/backstab, armour, bolts (collectStuckBolts)
     MapManager.ts         Walls, collision, pickups, doors, extraction zone, NavGrid, surge spawn validation
     NavGrid.ts            A* grid pathfinding
@@ -68,7 +72,7 @@ src/
   ui/                     HUD, ArmoryMenu, MainMenu, PauseMenu, ExtractionModal (end screen), QuitScreen,
                           LoadoutStorage (localStorage), MenuGamepadNav, StealthRating, theme
   net/SessionManager.ts   Phase 7 stub only — not wired to anything
-tests/                    16 Vitest files, one per system (see §6)
+tests/                    16 Vitest files, 257 tests (see §8)
 docs/                     Design specs + PHASE7_ONLINE_LOBBY_PLAN.md
 public/assets/            Processed game art (sprites, backgrounds, branding, items, fx)
 images/                   Raw art uploads from the owner (source material, not loaded by the game)
@@ -79,122 +83,186 @@ images/                   Raw art uploads from the owner (source material, not l
 ## 4. What's done
 
 ### Core loop
-- Title screen (key art) → armory (mode, difficulty, loadouts) → Sector 1 Transit → Sector 2 Bio-Lab → Sector 3 Helipad → end screen.
-- **Sector objectives:**
-  - S1: find the keycard, override the blast door.
-  - S2: hold the lockdown terminal for 3.5 s.
-  - S3: hold the radio in the annex for 2.5 s, then hold the evac pad through the horde.
-- Solo (P2 never spawns; going down = elimination) or 2-player local co-op (downed players can be revived by holding interact nearby).
-- Every living operative must reach the exit, and downed partners must be revived first. The evac clock only runs while someone is on the pad.
-- Health, ammo and battery carry over between sectors. There are no checkpoints; a run is about 6–10 min.
+- Title screen → armory (mode, difficulty, loadouts) → Sector 1 Transit → Sector 2 Bio-Lab → Sector 3 Helipad → end screen.
+- **Sector objectives:** S1 keycard + blast door; S2 lockdown terminal (3.5 s hold); S3 radio (2.5 s) then evac pad horde holdout.
+- Solo (P2 never spawns; 0 HP = elimination) or 2-player local co-op (downed → revivable crawl).
+- Health, ammo and battery carry over between sectors. Run is ~6–10 min.
 
-### Lighting & stealth
-- Darkness mask `rgba(5,5,8,0.96)`. Flashlight cones are raycast against walls.
-- **Flashlight battery:** 100 charge lasts 300 s of on-time and only drains while on. At empty the light forces off and can't be relit. A battery pickup gives +50. There's a HUD bar and a clickable ON/OFF button for P1.
-- **Noise:** footsteps (sneak 20 / walk 90 / sprint 260 px) and gunshots emit sound. Each wall crossed multiplies the radius by 0.28. The suspicious threshold is 0.38. Enraged needs 0.8, or 0.55 for gunshots.
-- **Close-range notice:** a zombie that can see a player moving faster than a sneak turns ENRAGED within 40 px (dormant) or 100 px (suspicious). Sneaking or standing still stays hidden.
-- The flood light and spotlight alert zombies they shine on. The UV light and laser don't.
-- Knife backstab (400 dmg) from the zombie's rear 120°. The knife never uses ammo.
-- Brute front armour ×0.25 unless armour-piercing.
-- **Bio-carrier:** a pulsing green ring. On death its 400 px blast enrages everything in range, shown by a shockwave ring.
-- **Suppressor:** sound ×0.35. The MPX and Glock stay "stealth ready" (≤150 px); the M4, shotgun and revolver don't.
-
-### Combat & items
-- **Weapons:** MPX, M4A1, shotgun, crossbow (primary); Glock 17, revolver, knife (secondary).
-- **Attachments:** muzzle, rail/light and ammo type are chosen per weapon.
-- **Ammo crate:** +2 mags per gun, capped at the starting reserve. It stays on the floor if both guns are full.
-- **Crossbow bolts:** walking over a stuck bolt returns it to reserve.
-- **Pickups:** ammo, medkit (+50 HP), battery (+50), keycard.
+### Lighting, stealth & combat
+- Raycast darkness + flashlight cones; battery drain; acoustic noise propagation; close-range notice; suppressors; knife backstab; brute armour; bio-carrier death blast; reticle drawn after lighting pass; procedural red reticle (PR #14).
+- **7 weapons** with muzzle/rail/ammo attachments; crossbow bolts retrievable; pickups: ammo, medkit, battery, keycard.
 
 ### Difficulty & replayability
-- **Difficulty** (`config/difficulty.ts`), chosen in the armory:
-
-  | | Zombie HP | Contact dmg | Notice radius | Evac hold | Fastest wave |
-  |---|---|---|---|---|---|
-  | EASY | ×0.8 | 11/s | ×0.75 | 90 s | 6 s |
-  | NORMAL | ×1 | 15/s | ×1 | 120 s | 4 s |
-  | HARD | ×1.25 | 22/s | ×1.4 | 150 s | 3 s |
-
-- **Layout shuffle:** every zombie and pickup has 2 alternative spots (`alts`), and one is picked per run. Types and counts never change, so sector HP stays 358 → 466 → 498.
-- **Evac horde waves:** every 10 s down to the difficulty minimum. Co-op waves are 2 zombies. Mix: lurker 40 / stalker 25 / bio 25 / brute 10%. Capped at 18 zombies. Spawns are validated so they never land inside Sector 3's off-roof blocker boxes (`MapManager.rollSurgeSpawn`).
-- **Warnings:** "HORDE INCOMING" banner 2 s before each wave.
-- **End screen:** difficulty, sector reached, time, kills, shots, silent kills, zombies alerted, stealth rating (GHOST 0 / SHADOW ≤3 / OPERATOR ≤8 / LOUD).
+- **EASY / NORMAL / HARD** in armory (`config/difficulty.ts`).
+- **Layout shuffle:** each zombie/pickup has 2 `alts`; one picked per run. Sector zombie HP totals: **358 → 466 → 498** (S3 finale is hardest, not easiest — fixed since the PR #14 audit).
+- **Evac horde:** pacing tightens to difficulty minimum; co-op doubles wave size; mix 40/25/25/10%; cap 18. **`MapManager.rollSurgeSpawn`** (PR #33) prevents spawning inside Sector 3 off-roof blockers.
+- **End screen:** stats + **stealth rating** (GHOST / SHADOW / OPERATOR / LOUD) via `StealthRating.ts`.
+- **Loadout persistence:** mode, difficulty, both loadouts in `localStorage` (`LoadoutStorage.ts`).
 
 ### Controls
-- **Keyboard/mouse** (P1 WASD + mouse, P2 arrows + IJKL). The full table is in `docs/COOP_SESSION_GUIDE.md` §5.
-- **Gamepad** (standard layout):
-  - Solo → the first pad is P1. Co-op with one pad → P2. Two pads → one each.
-  - The menus are pad-navigable too: a cyan highlight moves between buttons, A presses, and B resumes from pause.
-- **Touch:**
-  - On-screen twin-stick controls for P1 appear after the first touch.
-  - Pushing the aim stick past its ring fires.
-  - Buttons: SPRINT/SNEAK toggles, RELOAD, USE, SWAP, LIGHT, pause.
-  - Upright phones get a "rotate to landscape" prompt.
-- The armory remembers mode, difficulty and both loadouts in `localStorage`. Saves from older builds are checked field by field.
+- Keyboard/mouse, **gamepad** (including menu nav), **touch** twin-stick for P1. See `docs/COOP_SESSION_GUIDE.md` §5.
 
-### Art
-- P1, P2 and all zombie archetypes, including the lurker aggro variant, use the owner's uploaded top-down art.
-- Each sector has a background image.
-- **Sector 3:** off-roof blocker walls stop anyone walking over the sky. Horde surge spawns use the same box set — raw map-edge rolls can land inside a blocker, so `rollSurgeSpawn` rejects them and `resolveCircleCollision` ejects any circle trapped in a box interior.
-- **Sector 2:** no door, because nothing in the art anchors one.
+### Tooling & quality
+- `.gitignore` for `node_modules/` and `dist/`; `npm install` works on Linux/macOS.
+- **257 Vitest tests**, ESLint with `any` as error, CI lint+test+build on push to `main`.
+
+### Phase 7 prep
+- `docs/PHASE7_ONLINE_LOBBY_PLAN.md` — PeerJS, host-authoritative, typed messages, armory-as-lobby.
 
 ---
 
-## 5. Known issues, quirks & doc drift
+## 5. Known bugs & gaps (prioritized)
 
-- **`CLAUDE.md` is partly out of date.**
-  - §2 still quotes the original noise numbers (dampening 0.65, threshold 0.3). The live values are in `src/config/constants.ts` (0.72, 0.38, gunshot enrage 0.55).
-  - Its file-structure tree lists only the original files; §3 above is the current map.
-- **Crossbow warm-up:** the crossbow can't fire in the first 1.33 s after page load, because `lastShotTime` starts at 0 against `performance.now()`. Harmless.
-- **Split HUD button:** the HUD flashlight button only takes clicks for P1, since local co-op shares one mouse.
-- **Touch is P1 only:** two players on one phone isn't supported.
-- **`recoilMult` is unused:** it's defined on muzzles, but nothing reads it (there's no spread model). The muzzle brake, compensator and flash hider are weak as a result.
-- **Not playtested for feel:** the balance numbers (notice radii, suppressor 0.35, wave pacing, EASY/HARD) are reasoned from the code and unit-tested, but haven't been played by a human. The owner should playtest before more tuning.
-- **Zombies can still grind corners:** when A* returns no path, `AISystem` falls back to walking straight at the target. That's visible "stuck against a wall" behaviour, not trapped inside geometry — a separate issue from the horde spawn fix in PR #33.
+Live findings against `main@08bb3ca`. **Nothing below has been started** unless noted as fixed in §5.1.
+
+### P0 — resource leaks on every restart
+
+Both accumulate per replay. Neither is caught by typecheck, lint, or the current test suite.
+
+- **`InputManager` leaks 6 permanent `window` listeners per `Game` instance.** Constructor attaches keydown, keyup, mousemove, mousedown, mouseup, contextmenu to `window` with inline arrows (`Input.ts:47-64`). `dispose()` only detaches touch (`Input.ts:256-258`); `Game.stop()` does not remove the window listeners (`Game.ts:241-246`). `main.ts` creates a new `Game` on every deploy/restart, so each replay adds 6 immortal listeners — mousemove calls `getBoundingClientRect()` every move per leaked instance. **Fix:** named handlers + full `dispose()` from `Game.stop()`.
+- **`SoundManager` leaks an `AudioContext` per `Game`.** `private sound = new SoundManager()` (`Game.ts:80`); no `close()` anywhere in `SoundManager.ts`. After ~6 replays Chrome can silently stop audio. **Fix:** share one `SoundManager` across games, or `close()` in `Game.stop()`.
+
+### P0 — can permanently hang a run **(CO-OP ONLY)**
+
+> **Solo is correct** (`Game.ts:464-467`): solo skips `down()` and goes straight to `eliminate()`. P2 is eliminated at start in solo (`Game.ts:186`). Do not "fix" solo.
+
+- **Both players downed = mission never ends.** `AISystem` excludes downed players from targeting (`AISystem.ts:25`); enraged zombies with no living target idle (`updateEnraged`). Downed players cannot revive each other (`Game.ts:379`: reviver must not be downed). No bleed-out timer — `Player.down()` sets the flag and only enraged contact escalates to eliminated (`Game.ts:451-452`). `checkMissionEnd()` fails only when **both** eliminated (`Game.ts:617-619`). Result: both down in co-op = crawl forever; only Esc → Restart escapes. **Fix:** bleed-out timer and/or fail when no player can act.
+
+### P1 — co-op correctness & feel
+
+- **Every sound is spatialized to Player 1.** All `this.sound.*` call sites pass `this.p1.position` as the listener, including P2's footsteps and gunfire (`Game.ts` — e.g. 368-369, 393-395). P2 hears the world through P1's ears. **Fix:** camera midpoint or per-player listener at call sites.
+- **Horde scream cascade is silent.** `SoundType` includes `'scream'` (`NoiseSystem.ts:12`); `propagateScreams()` alerts zombies (`NoiseSystem.ts:66-74`) but nothing calls `sound.playScream`. Biggest noise punishment gives no audio warning.
+- **No zombie–zombie separation.** `AISystem` resolves walls only (`AISystem.ts:50-52`). 18-cap horde stacks into one pile (worse after ×1.35 sprites).
+- **HUD is not diegetic** despite docs saying otherwise — corner panels, no wear/heat gauge (`HUD.ts`).
+- **Zombies grind corners** when A* returns `[]` — `steer()` falls back to direct `moveToward(target)` (`AISystem.ts:135-136`). Visible "stuck against wall", distinct from spawn-in-wall (fixed PR #33).
+
+### P2 — performance
+
+- **No raycast caching** (`CLAUDE.md` §1 mandates it). `renderLighting()` runs full raycast every frame, including while paused and during hit-stop.
+- **Decals unbounded within a sector** — cleared only on sector change (`Game.ts` advanceSector).
+- **Per-frame allocations** in the 60 Hz loop: `Entity.position` getter, `NoiseSystem.propagate`, `propagateScreams` filter.
+
+### P3 — robustness & first impression
+
+- **No `blur` / `visibilitychange` handling** — alt-tab can leave keys logically held.
+- **No loading spinner** during `assets.loadAll()` in `main.ts`.
+- **No favicon / meta description / OG tags** in `index.html`.
+- **No volume or sensitivity persistence** — only loadouts use `localStorage`; master gain hardcoded `0.6` in `SoundManager.ts`.
+- **Asset 404s swallowed** — `AssetLoader` `onerror` resolves silently.
+- **`howler` is an unused dependency** — `SoundManager` is pure Web Audio API.
+- **`reticle_crosshair.png` still in AssetLoader manifest** but never drawn (procedural reticle since PR #14) — wasted fetch.
+- **`generate_assets.py` footgun** — see §2 rule 6.
+- **`README.md`** is still minimal.
+
+### Phase 7
+
+- `SessionManager.ts` is a client stub, imported by nothing. No `Protocol.ts`, no transport, no lobby UI wired up. Plan in `docs/PHASE7_ONLINE_LOBBY_PLAN.md`.
+
+### 5.1 Resolved since the PR #14 audit
+
+These were open in the Sept 25 audit at `b0319d8` but are **fixed on current `main`**:
+
+| Finding (old audit) | Status now |
+|---|---|
+| `node_modules/` committed, Linux can't build | `.gitignore` + `npm install` works |
+| No test suite / lint | 257 Vitest tests + ESLint |
+| No gamepad / touch | `Gamepad.ts`, `TouchControls.ts`, menu nav |
+| No `localStorage` at all | `LoadoutStorage.ts` for armory |
+| No difficulty options | EASY / NORMAL / HARD |
+| Identical layout every run | `sectorLayout.ts` shuffle |
+| Zombie ramp backwards (5→7→6) | S3 now 8 zombies, 498 HP > S2's 466 |
+| Horde spawn inside wall boxes | PR #33: `rollSurgeSpawn` + `ejectFromBoxes` |
+| No stealth grade on end screen | GHOST/SHADOW/OPERATOR/LOUD |
+| Zero `any` outside SessionManager | Still true (PR #14) |
+
+**Still partially true:** persistence exists for loadouts only — no personal bests, unlocks, or volume. Stealth rating is per-run, not saved.
 
 ---
 
-## 6. How things were tested (reuse these)
+## 6. Engagement — will a player come back?
 
-- **Unit tests** (`tests/*.test.ts`). Game logic runs in Node. Examples:
-  - `new MapManager()`, `new AISystem()`, `new CombatSystem(map, noise)`
-  - `new Player(...)`, `new Zombie(...)`
-  - `InputManager` with stubbed `window` and `navigator.getGamepads` (see `tests/gamepad.test.ts`, `tests/touch.test.ts`)
-- **Mutation check:** for important rules, temporarily break the code and confirm a test fails before trusting it.
-- **Browser checks:** Playwright drives `npm run dev`.
-  - Title → armory → deploy.
-  - Simulated gamepads via an init script that overrides `navigator.getGamepads`.
-  - Phone emulation (`hasTouch`, 844×390) with CDP `Input.dispatchTouchEvent` for multi-touch.
-- **Art alignment:** plot every spot (spawns, zombie/pickup alts, boxes) over the sector's background image with PIL and look at it. This caught spots in the sky that the tests couldn't.
-- **Surge spawn safety** (`tests/hordeSurge.test.ts`): Monte-Carlo `rollSurgeSpawn` on Sector 3 — every point must be `isFreePosition` and have a nav path to the evac pad. `tests/collision.test.ts` also checks `ejectFromBoxes` for a point deep inside a blocker.
+**Verdict (2026-09-25):** first run is solid; **second-run hooks are thin.** The stealth core, feel (hit-stop, shake, decals), and `audio_stalker` archetype are strengths — do not regress them while adding retention.
+
+### Still missing (confirmed by grep / code read)
+
+- **No personal best or run history** — end screen shows stats + stealth rating but nothing persists (`ExtractionModal.ts`; only `LoadoutStorage` touches `localStorage`).
+- **All 7 weapons free from run 1** — no unlock economy in `weapons.ts`.
+- **Entire game fits one 1280×720 screen** — no scrolling; camera zoom/follow is mostly dead code waiting on larger sector art. Lighting's "around the corner" fantasy is limited.
+- **~21 authored zombie slots** (5 + 7 + 8) with 2 alts each — shuffle helps but route archetypes are memorizable by run 3.
+- **No music / ambient bed** — `SoundType` is combat SFX only; `'scream'` never plays.
+- **No tutorial** — noise mechanic is never explicitly taught.
+
+### What works (keep)
+
+- Noise meter + foot ring (`HUD.ts`) make stealth readable.
+- Difficulty + layout shuffle + stealth rating add some variety.
+- Solo down/eliminate logic is thoughtful (`Game.ts:464-467`).
+
+### Ranked by excitement-per-hour
+
+| # | Change | Leverage |
+|---|---|---|
+| 1 | **Persist best run + personal-best compare on end screen** | Cheapest "one more run" hook; stats already computed |
+| 2 | **Sectors larger than viewport** | Camera code ready; unlocks exploration + lighting value |
+| 3 | **Gate 4–5 weapons behind performance** | Armory becomes a reward loop |
+| 4 | **Sector modifiers** (blackout, hush, heavy…) | Reuses existing systems; see §7 |
+| 5 | **Ambient audio + emit missing scream SFX** | Tension between encounters |
+| 6 | **~20 s onboarding beat** (loud shot → stalker) | Teaches the core mechanic |
 
 ---
 
 ## 7. What's next (recommended order)
 
-1. **Playtest a full run** on NORMAL, then EASY and HARD. Tune the numbers from real notes, not guesses.
-2. **Sector modifiers** (medium): a random twist per run that reuses existing systems. Examples:
-   - *Blackout:* 50% battery, no battery pickups.
-   - *Scavenger:* half the pickups.
-   - *Hush:* any unsuppressed shot calls a horde wave.
-   - *Heavy:* +1 brute.
-   Show the active modifier on the briefing.
-3. **Reward choice between sectors** (medium): pick a medkit, 2 mags or a battery. It needs a small DOM menu with gamepad navigation, which `MenuGamepadNav` already handles.
-4. **Phase 7 — online co-op** (large, several PRs). Recommended approach, which updates `docs/PHASE7_ONLINE_LOBBY_PLAN.md`:
-   - **Transport:** PeerJS (WebRTC). The room code is the host's peer ID, and the link is `…/Hushfire/#HUSH-XXXX`. No server of our own, so it works on GitHub Pages.
-   - **Model:** host-authoritative. Only the host runs `Game`. The guest sends `PlayerInputState` at 60 Hz, and the host broadcasts snapshots at about 30 Hz: player, zombie, bolt and pickup state, objective/evac state, and a list of sound/FX events so the guest can play audio. The guest renders snapshots with interpolation.
-     - Don't do deterministic lockstep. `Math.random` is used by the layout shuffle and waves, and `Math.sin`/`atan2` can differ between browsers.
-   - **Reordered milestones:** the plan's lobby-only milestone ends in two separate games, so get to shared play first.
-     1. Transport, console-tested.
-     2. Lobby: CREATE/JOIN link. Each player picks their own loadout; the host picks difficulty and deploys.
-     3. Playable: guest input drives P2, the host sends snapshots, and a "view-only" `Game` mode renders them.
-     4. Polish: guest-side prediction of its own movement, disconnect/reconnect, connect timeout and error messages.
-   - **Known limit:** without a TURN relay, some network pairs (strict NAT) can't connect. Ship STUN-only with a clear error first. A paid TURN service is the owner's decision.
-   - **Already done** from the old plan's prerequisites: the `.gitignore`, gamepad support, and removing `any` from `SessionManager`.
-5. **Smaller ideas:** a spread model so `recoilMult` matters; more sectors on existing art (e.g. a "Quarantine Annex" remix of the Bio-Lab); a survival mode on the Sector 3 map.
+### Stability first (protect what exists)
+
+1. **Restart leaks** — `InputManager` window listeners + `SoundManager` `AudioContext` (P0, ~1 PR).
+2. **Co-op downed hang** — bleed-out timer or fail when nobody can act (P0, ~15 lines + test).
+3. **Co-op audio listener + scream SFX** (P1, small, serves headline mechanic).
+4. **Zombie separation** (P1, pairs with horde cap).
+5. **PR CI on `pull_request`** — typecheck/lint/test before merge (~15 lines in workflow).
+6. **Playtest full runs** on NORMAL / EASY / HARD — tune from notes, not guesses.
+
+### Retention & content (make run 2 worth it)
+
+7. **Personal best persistence** on end screen (engagement #1).
+8. **Sector modifiers** between sectors — blackout, scavenger, hush, heavy; show on briefing.
+9. **Reward choice between sectors** — medkit / 2 mags / battery; `MenuGamepadNav` ready.
+10. **Larger sector maps** — highest single change to what the game *is*.
+
+### Large bet
+
+11. **Phase 7 online co-op** — see `docs/PHASE7_ONLINE_LOBBY_PLAN.md`. Milestones: transport → lobby → shared play → polish. PeerJS, host-authoritative, no deterministic lockstep.
+
+### Smaller ideas
+
+- Spread model for `recoilMult`; raycast cache; decal cap; `visibilitychange` pause; drop unused `howler` + `reticle_crosshair` from manifest; sync `CLAUDE.md` noise numbers and file tree.
 
 ---
 
-## 8. History
+## 8. How things were tested (reuse these)
 
-All work landed through PRs #1–#33 on `main`: deploy pipeline, art pipeline, asset-path fix, title screen, sprite and background replacements, wall alignment, lighting, flashlight battery, `.gitignore`, test suite, lint, loadout saving, gamepad, touch, gamepad menus, design-review bug fixes and tuning, layout shuffle, difficulty levels, Sector 3 roof edge, bolts/radio/door cleanup, progress handoff rewrite (PR #32), horde surge spawn-in-wall fix (PR #33). See `git log --merges` for details.
+- **Unit tests** (`tests/*.test.ts`) — game logic in Node without a browser.
+- **Mutation check** — break the rule, confirm a test fails.
+- **Sector alignment** — `tests/sectors.test.ts` (144 cases): every spawn alt inside map, not in a box, reachable, door paths, S3 roof edge walks.
+- **Surge spawn safety** — `tests/hordeSurge.test.ts`: 300× `rollSurgeSpawn` on S3 must be `isFreePosition` with path to evac pad.
+- **Browser checks** (manual / Playwright): title → armory → deploy; gamepad init script; touch emulation.
+- **Art alignment** — plot spots over sector background images (PIL); caught sky spawns tests couldn't.
+
+Typecheck passing does **not** replace a browser playtest for feel, reticle legibility, or corner-grinding behaviour.
+
+---
+
+## 9. History
+
+Work landed through PRs **#1–#33** on `main`: deploy pipeline, art, asset-path fix, title screen, sprites/backgrounds, wall alignment, lighting, flashlight battery, reticle/sprite sizing (PR #14), `.gitignore`, test suite, lint, loadouts, gamepad, touch, difficulty, layout shuffle, Sector 3 roof edge, bolts/radio/door cleanup, progress handoff (PR #32), horde surge spawn fix (PR #33). See `git log --merges`.
+
+---
+
+## 10. Handoff notes
+
+- **Never run `generate_assets.py` wholesale** — clobbers real character art.
+- **`npm install` then `npm run dev`** — `node_modules/` is git-ignored; fresh clones work on Linux/macOS.
+- **Vite `server.allowedHosts`** is set in `vite.config.ts` — keep it when editing.
+- **`progress.md` (this file) is canonical.** If `docs/IMPROVEMENTS.md` exists elsewhere, keep in sync or delete the duplicate.
+- **Co-op down hang affects co-op only** — solo eliminate-on-0-HP is intentional and correct.
+- **Horde spawn:** use `MapManager.rollSurgeSpawn`, not raw `rawSurgeSpawnPoint` — the latter can land in blockers by design (tested).
