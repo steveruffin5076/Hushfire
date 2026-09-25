@@ -158,8 +158,8 @@ export class ArmoryMenu {
     const layout = document.createElement('div');
     layout.id = 'armory-layout';
     layout.style.cssText = `
-      display: grid; width: 100%; gap: 20px; align-items: start;
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1.12fr);
+      display: grid; width: 100%; gap: 20px; align-items: stretch;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     `;
     stage.appendChild(layout);
 
@@ -549,7 +549,7 @@ export class ArmoryMenu {
     const card = document.createElement('div');
     card.style.cssText = `
       background: ${PANEL_BG}; border: 1px solid ${PANEL_BORDER}; border-radius: 6px; padding: 16px;
-      width: 100%; min-width: 0; box-sizing: border-box;
+      width: 100%; min-width: 0; height: 100%; box-sizing: border-box;
       box-shadow: 0 8px 30px rgba(0,0,0,0.4);
     `;
 
