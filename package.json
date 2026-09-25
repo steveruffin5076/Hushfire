@@ -12,7 +12,8 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "howler": "^2.2.4"
+    "howler": "^2.2.4",
+    "peerjs": "^1.5.5"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",

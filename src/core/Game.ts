@@ -15,6 +15,8 @@ import { SURGE_START_INTERVAL_SEC, surgeInterval, surgeSize, pickSurgeArchetype 
 import { CombatSystem, Decal, bloodDecal, HIT_FLASH_SEC, BIO_CARRIER_BLAST_RADIUS, collectStuckBolts } from '../systems/CombatSystem';
 import { HUD } from '../ui/HUD';
 import { RunStats } from '../ui/ExtractionModal';
+import type { SectorReward } from '../ui/SectorRewardMenu';
+import { SECTORS } from '../config/sectors';
 import { AssetLoader, AssetKey } from './AssetLoader';
 import { WEAPON_REGISTRY, MUZZLE_MODIFIERS } from '../config/weapons';
 
@@ -74,6 +76,11 @@ export interface GameCallbacks {
   onMissionEnd: (stats: RunStats) => void;
   /** Fired whenever Esc flips the pause state, so the host page can show/hide its own pause UI. */
   onPauseChange?: (paused: boolean) => void;
+  /** Sector 1/2 exit reached — pick a supply drop before the next sector loads. */
+  onSectorReward?: (
+    info: { sectorName: string; nextSectorName: string },
+    onChosen: (reward: SectorReward) => void
+  ) => void;
 }
 
 export class Game {
@@ -158,6 +165,7 @@ export class Game {
   private sectorHordeCooldown = 0;
   /** Brief "HORDE INCOMING" banner before a sector-alert reinforcement wave. */
   private sectorHordeWarningTimer = 0;
+  private waitingForReward = false;
   /** Run-wide stealth stat: zombies that went ENRAGED while alive. */
   private zombiesAlerted = 0;
   /** Bio-Carrier death bursts, drawn as expanding rings showing who heard them. */
@@ -738,13 +746,48 @@ export class Game {
   /** Walking into the exit zone after finishing the objective advances to the next sector. */
   private updateSectorExit() {
     const exit = this.map.sector.exitZone;
-    if (!exit || !this.map.objectiveComplete) return;
+    if (!exit || !this.map.objectiveComplete || this.waitingForReward) return;
 
     // Every operative still in the fight must be standing in the exit — a
     // downed partner has to be revived first, not dragged along for free.
     const atExit = (p: Player) => !p.isDowned && Math.hypot(p.x - exit.x, p.y - exit.y) <= exit.radius;
     const team = [this.p1, this.p2].filter(p => !p.isEliminated);
-    if (team.length > 0 && team.every(atExit)) this.advanceSector();
+    if (team.length === 0 || !team.every(atExit)) return;
+
+    const nextSector = SECTORS[this.map.sectorIndex + 1];
+    if (!nextSector || !this.callbacks.onSectorReward) {
+      this.advanceSector();
+      return;
+    }
+
+    this.waitingForReward = true;
+    this.paused = true;
+    this.callbacks.onSectorReward(
+      { sectorName: this.map.sector.name, nextSectorName: nextSector.name },
+      reward => {
+        this.applySectorReward(reward);
+        this.advanceSector();
+        this.waitingForReward = false;
+        this.paused = false;
+      }
+    );
+  }
+
+  private applySectorReward(reward: SectorReward) {
+    const team = [this.p1, this.p2].filter(p => !p.isEliminated);
+    for (const player of team) {
+      switch (reward) {
+        case 'medkit':
+          player.health = Math.min(player.maxHealth, player.health + 50);
+          break;
+        case 'ammo':
+          player.addAmmoPickup();
+          break;
+        case 'battery':
+          player.flashlightBattery = Math.min(FLASHLIGHT_BATTERY_MAX, player.flashlightBattery + BATTERY_PICKUP_CHARGE);
+          break;
+      }
+    }
   }
 
   private advanceSector() {
@@ -757,6 +800,7 @@ export class Game {
     this.hordeSpawnTimer = SURGE_START_INTERVAL_SEC;
     this.sectorHordeCooldown = 0;
     this.sectorHordeWarningTimer = 0;
+    this.waitingForReward = false;
     this.spawnZombies();
 
     const spawns = this.map.sector.playerSpawns;

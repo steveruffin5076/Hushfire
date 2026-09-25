@@ -4,9 +4,11 @@ import { MainMenu } from './ui/MainMenu';
 import { ArmoryMenu, GameMode } from './ui/ArmoryMenu';
 import { ExtractionModal, RunStats } from './ui/ExtractionModal';
 import { PauseMenu } from './ui/PauseMenu';
+import { SectorRewardMenu } from './ui/SectorRewardMenu';
 import { WeaponLoadout } from './entities/Player';
 import { MenuGamepadNav } from './ui/MenuGamepadNav';
 import { Difficulty } from './config/difficulty';
+import { SessionManager } from './net/SessionManager';
 
 window.addEventListener('DOMContentLoaded', async () => {
   const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
@@ -19,18 +21,17 @@ window.addEventListener('DOMContentLoaded', async () => {
   const assets = new AssetLoader();
   await assets.loadAll();
 
+  const session = new SessionManager();
   const mainMenu = new MainMenu(overlay);
   const armory = new ArmoryMenu(overlay);
   const extractionModal = new ExtractionModal(overlay);
   const pauseMenu = new PauseMenu(overlay);
+  const sectorRewardMenu = new SectorRewardMenu(overlay);
   let activeGame: Game | null = null;
-
-  const openArmory = () => {
-    armory.open((mode: GameMode, difficulty: Difficulty, p1: WeaponLoadout, p2: WeaponLoadout) => deploy(mode, difficulty, p1, p2));
-  };
 
   const deploy = (mode: GameMode, difficulty: Difficulty, p1Loadout: WeaponLoadout, p2Loadout: WeaponLoadout) => {
     activeGame?.stop();
+    const solo = mode === 'solo';
     activeGame = new Game(
       canvas,
       [p1Loadout, p2Loadout],
@@ -38,6 +39,7 @@ window.addEventListener('DOMContentLoaded', async () => {
       {
         onMissionEnd: (stats: RunStats) => {
           pauseMenu.hide();
+          sectorRewardMenu.hide();
           extractionModal.show(stats, () => openArmory());
         },
         onPauseChange: (paused: boolean) => {
@@ -49,26 +51,47 @@ window.addEventListener('DOMContentLoaded', async () => {
                 pauseMenu.hide();
                 openArmory();
               },
-              onQuit: () => activeGame?.stop()
+              onQuit: () => {
+                activeGame?.stop();
+                session.destroy();
+              }
             });
           } else {
             pauseMenu.hide();
           }
+        },
+        onSectorReward: (info, onChosen) => {
+          sectorRewardMenu.show(info.sectorName, info.nextSectorName, onChosen);
         }
       },
-      mode === 'solo',
+      solo,
       difficulty
     );
     activeGame.start();
   };
 
-  new MenuGamepadNav(overlay).start();
-  mainMenu.open(() => openArmory());
+  const openArmory = (opts: { online?: boolean; host?: boolean; joinCode?: string } = {}) => {
+    armory.open((mode, difficulty, p1, p2) => deploy(mode, difficulty, p1, p2), {
+      session,
+      startOnline: opts.online ?? session.role !== 'LOCAL',
+      createHost: opts.host,
+      joinCode: opts.joinCode
+    });
+  };
 
-  // Test-only hooks for the develop-web-game skill's Playwright loop (see
-  // .claude/skills/develop-web-game/SKILL.md). Harmless in normal play —
-  // nothing in src/ calls these, they only exist for an external test script
-  // to poke.
+  new MenuGamepadNav(overlay).start();
+
+  if (session.role === 'GUEST') {
+    mainMenu.close();
+    openArmory({ online: true });
+  } else {
+    mainMenu.open({
+      onStart: () => openArmory(),
+      onCreateOnline: () => openArmory({ online: true, host: true }),
+      onJoinOnline: code => openArmory({ online: true, joinCode: code })
+    });
+  }
+
   (window as unknown as { render_game_to_text: () => string }).render_game_to_text = () =>
     activeGame && activeGame.isRunning()
       ? activeGame.renderGameToText()

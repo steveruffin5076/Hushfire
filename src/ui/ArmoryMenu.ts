@@ -5,6 +5,8 @@ import { showQuitScreen } from './QuitScreen';
 import { GameMode, loadArmoryState, saveArmoryState } from './LoadoutStorage';
 import { Difficulty, DIFFICULTIES, DIFFICULTY_ORDER } from '../config/difficulty';
 import { SECTOR_ALERT_SOUND_RADIUS_PX } from '../config/constants';
+import { SessionManager } from '../net/SessionManager';
+import { LobbyPanel } from './LobbyPanel';
 
 export type { GameMode };
 
@@ -45,15 +47,22 @@ export class ArmoryMenu {
     this.container.appendChild(this.root);
   }
 
-  open(onDeploy: (mode: GameMode, difficulty: Difficulty, p1: WeaponLoadout, p2: WeaponLoadout) => void) {
+  open(
+    onDeploy: (mode: GameMode, difficulty: Difficulty, p1: WeaponLoadout, p2: WeaponLoadout) => void,
+    options: { session?: SessionManager | null; startOnline?: boolean; createHost?: boolean; joinCode?: string } = {}
+  ) {
+    const session = options.session ?? null;
     this.container.style.pointerEvents = 'auto';
 
     // Reopens on whatever mode and loadouts were last picked (see LoadoutStorage).
     const saved = loadArmoryState();
     const loadouts: [WeaponLoadout, WeaponLoadout] = saved.loadouts;
-    let mode: GameMode = saved.mode;
+    let mode: GameMode = options.startOnline || session?.role === 'GUEST' ? 'online' : saved.mode;
     let difficulty: Difficulty = saved.difficulty;
-    let editingOperative: 0 | 1 = 0;
+    const mySlot: 0 | 1 = session?.role === 'GUEST' ? 1 : 0;
+    let editingOperative: 0 | 1 = mode === 'online' ? mySlot : 0;
+    let lobbyPanel: LobbyPanel | null = null;
+    let broadcastTimer: ReturnType<typeof setTimeout> | null = null;
 
     this.root.innerHTML = '';
     this.root.style.cssText = `
@@ -130,10 +139,12 @@ export class ArmoryMenu {
       flex: 1; padding: 12px 8px; font-size: 13px; letter-spacing: 1px; font-family: inherit;
       border-radius: 4px; cursor: pointer; border: 1px solid;
     `;
-    const soloBtn = this.buildModeButton('SOLO ONLY');
-    const coopBtn = this.buildModeButton('2-PLAYER LOCAL');
+    const soloBtn = this.buildModeButton('SOLO');
+    const coopBtn = this.buildModeButton('LOCAL');
+    const onlineBtn = this.buildModeButton('ONLINE');
     modeRow.appendChild(soloBtn);
     modeRow.appendChild(coopBtn);
+    modeRow.appendChild(onlineBtn);
 
     // Difficulty: three buttons plus a one-line summary of the selected level.
     const diffLabel = document.createElement('div');
@@ -183,13 +194,22 @@ export class ArmoryMenu {
       const inactive = `background: ${FIELD_BG}; color: ${MUTED}; border-color: ${PANEL_BORDER}; font-weight: normal;`;
       soloBtn.style.cssText = modeButtonBase + (mode === 'solo' ? active : inactive);
       coopBtn.style.cssText = modeButtonBase + (mode === 'coop' ? active : inactive);
-      operativeTabs.style.display = mode === 'coop' ? 'flex' : 'none';
+      onlineBtn.style.cssText = modeButtonBase + (mode === 'online' ? active : inactive);
+      operativeTabs.style.display = mode === 'coop' || mode === 'online' ? 'flex' : 'none';
       if (mode === 'solo') editingOperative = 0;
+      if (mode === 'online') editingOperative = mySlot;
+      lobbyMount.style.display = mode === 'online' ? 'block' : 'none';
+      readyBtn.style.display = mode === 'online' && session ? 'inline-block' : 'none';
       renderProtocol();
       renderLoadout();
+      updateDeployButton();
     };
     soloBtn.onclick = () => setMode('solo');
     coopBtn.onclick = () => setMode('coop');
+    onlineBtn.onclick = () => {
+      if (session?.role === 'LOCAL') session.createHostSession().catch(() => updateDeployButton());
+      setMode('online');
+    };
 
     const setOperative = (index: 0 | 1) => {
       editingOperative = index;
@@ -205,6 +225,17 @@ export class ArmoryMenu {
     const protocolBox = document.createElement('div');
     protocolBox.style.cssText = `background: ${PANEL_BG}; border: 1px solid ${PANEL_BORDER}; border-radius: 4px; padding: 14px 16px; margin-top: 4px;`;
     deployCard.body.appendChild(protocolBox);
+
+    const lobbyMount = document.createElement('div');
+    deployCard.body.appendChild(lobbyMount);
+
+    const broadcastLoadout = () => {
+      if (!session || mode !== 'online') return;
+      if (broadcastTimer) clearTimeout(broadcastTimer);
+      broadcastTimer = setTimeout(() => {
+        session.broadcastLoadout(loadouts[mySlot], session.localReady);
+      }, 120);
+    };
 
     // The last tip depends on mode: solo has no partner to revive you — going
     // down there is an instant elimination (see Game.ts's handleZombieContact).
@@ -349,8 +380,12 @@ export class ArmoryMenu {
       );
 
       loadoutBody.appendChild(this.buildStatsPanel(loadout));
+      loadoutBody.querySelectorAll('select').forEach(el => {
+        if (mode === 'online' && editingOperative !== mySlot) (el as HTMLSelectElement).disabled = true;
+      });
+      broadcastLoadout();
       // Every loadout or mode change ends up here, so this is the one place to persist.
-      saveArmoryState({ mode, difficulty, loadouts });
+      saveArmoryState({ mode: mode === 'online' ? 'coop' : mode, difficulty, loadouts });
       // Loadout swaps can change this card's height (e.g. hidden vs. shown
       // operative tabs), so re-fit on every re-render, not just on resize.
       fitStage();
@@ -360,21 +395,97 @@ export class ArmoryMenu {
     setMode(mode);
     setOperative(0);
 
+    const updateDeployButton = () => {
+      const online = mode === 'online' && session;
+      if (!online) {
+        deployBtn.textContent = 'DEPLOY TO SECTOR 1';
+        deployBtn.disabled = false;
+        deployBtn.style.opacity = '1';
+        return;
+      }
+      const bothReady = session.localReady && session.partnerReady && session.isConnected;
+      if (session.role === 'HOST') {
+        deployBtn.textContent = bothReady ? 'DEPLOY TO SECTOR 1' : 'WAITING FOR PARTNER';
+        deployBtn.disabled = !bothReady;
+      } else {
+        deployBtn.textContent = session.localReady ? 'WAITING FOR HOST' : 'NOT READY';
+        deployBtn.disabled = true;
+      }
+      deployBtn.style.opacity = deployBtn.disabled ? '0.65' : '1';
+    };
+
+    const readyBtn = document.createElement('button');
+    readyBtn.textContent = 'READY';
+    readyBtn.style.cssText = `
+      margin-top: 22px; padding: 10px 28px; font-size: 13px; letter-spacing: 2px; font-weight: bold;
+      background: ${FIELD_BG}; color: ${CYAN}; border: 1px solid ${PANEL_BORDER}; border-radius: 4px;
+      cursor: pointer; font-family: inherit; display: none;
+    `;
+    readyBtn.onclick = () => {
+      if (!session) return;
+      session.localReady = !session.localReady;
+      readyBtn.textContent = session.localReady ? 'UNREADY' : 'READY';
+      session.broadcastLoadout(loadouts[mySlot], session.localReady);
+      updateDeployButton();
+    };
+
     // ---- Deploy ----
     const deployBtn = document.createElement('button');
     deployBtn.textContent = 'DEPLOY TO SECTOR 1';
     deployBtn.style.cssText = `
-      margin-top: 30px; padding: 16px 56px; font-size: 16px; letter-spacing: 3px; font-weight: bold;
+      margin-top: 12px; padding: 16px 56px; font-size: 16px; letter-spacing: 3px; font-weight: bold;
       background: linear-gradient(180deg, #FFB23E, ${ORANGE}); color: #1A0D00; border: none; border-radius: 4px;
       cursor: pointer; font-family: inherit; box-shadow: 0 0 24px rgba(255,158,27,0.45);
     `;
     deployBtn.dataset.padDefault = '';
     deployBtn.onclick = () => {
+      if (mode === 'online' && session) {
+        if (session.role !== 'HOST' || deployBtn.disabled) return;
+        const seed = Math.floor(Math.random() * 0xffffffff);
+        session.hostDeploy(seed, loadouts[0], session.partnerLoadout ?? loadouts[1]);
+        return;
+      }
       this.close();
       onDeploy(mode, difficulty, loadouts[0], loadouts[1]);
     };
+    stage.appendChild(readyBtn);
     stage.appendChild(deployBtn);
+
+    if (session) {
+      lobbyPanel = new LobbyPanel(session);
+      lobbyPanel.mount(lobbyMount);
+      readyBtn.style.display = 'inline-block';
+      session.onStateChange = () => {
+        updateDeployButton();
+        if (session.partnerLoadout) {
+          loadouts[mySlot === 0 ? 1 : 0] = session.partnerLoadout;
+          if (editingOperative !== mySlot) renderLoadout();
+        }
+      };
+      session.onMessage = msg => {
+        if (msg.t === 'loadout') {
+          loadouts[mySlot === 0 ? 1 : 0] = msg.loadout;
+          if (editingOperative !== mySlot) renderLoadout();
+          updateDeployButton();
+        }
+      };
+      session.onDeploy = (_seed, hostLoadout, guestLoadout) => {
+        this.close();
+        const own = session.role === 'HOST' ? hostLoadout : guestLoadout;
+        const partner = session.role === 'HOST' ? guestLoadout : hostLoadout;
+        onDeploy('online', difficulty, own, partner);
+      };
+      if (options.createHost && session.role === 'LOCAL') {
+        session.createHostSession().catch(() => updateDeployButton());
+      } else if (options.joinCode) {
+        session.joinSession(options.joinCode);
+      } else if (session.role === 'GUEST') {
+        session.joinSession(session.roomCode);
+      }
+    }
+
     fitStage();
+    updateDeployButton();
   }
 
   private buildCard(label: string, accent: string): { card: HTMLDivElement; body: HTMLDivElement } {

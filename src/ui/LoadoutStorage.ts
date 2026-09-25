@@ -2,7 +2,7 @@ import { WEAPON_REGISTRY, MUZZLE_MODIFIERS, RAIL_MODIFIERS, AMMO_MODIFIERS } fro
 import { WeaponLoadout } from '../entities/Player';
 import { Difficulty, DIFFICULTIES } from '../config/difficulty';
 
-export type GameMode = 'solo' | 'coop';
+export type GameMode = 'solo' | 'coop' | 'online';
 
 export interface ArmoryState {
   mode: GameMode;
@@ -84,7 +84,7 @@ export function loadArmoryState(storage: KeyValueStorage | null = defaultStorage
   }
   const loadouts = Array.isArray(parsed.loadouts) ? parsed.loadouts : [];
   return {
-    mode: parsed.mode === 'coop' ? 'coop' : 'solo',
+    mode: parsed.mode === 'coop' ? 'coop' : parsed.mode === 'online' ? 'online' : 'solo',
     difficulty: pick(parsed.difficulty, DIFFICULTIES, 'normal'),
     loadouts: [sanitizeLoadout(loadouts[0], DEFAULT_LOADOUTS[0]), sanitizeLoadout(loadouts[1], DEFAULT_LOADOUTS[1])]
   };
