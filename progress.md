@@ -1,6 +1,6 @@
 # HUSHFIRE — Progress & Handoff
 
-Last updated: 2026-09-24, against `main` after PR #33. Written as a handoff for another developer or AI assistant, e.g. Cursor. Read this first, then `CLAUDE.md`.
+Last updated: 2026-09-25, against branch implementing stability + personal-best work (post PR #33). Written as a handoff for another developer or AI assistant, e.g. Cursor. Read this first, then `CLAUDE.md`.
 
 **Status in one line:** the full single-machine game is playable and deployed. Title → armory → 3 sectors → evac, solo or 2-player local co-op, on keyboard/mouse, gamepad or touch. **Online co-op (Phase 7) is the main thing not built yet.**
 
@@ -16,11 +16,11 @@ npm install        # after any pull that touched package.json
 npm run dev        # http://localhost:3000
 npm run typecheck  # tsc --noEmit (covers src/ and tests/)
 npm run lint       # ESLint + typescript-eslint; `any` is an error
-npm test           # Vitest, 257 tests in tests/
+npm test           # Vitest, 265 tests in tests/
 npm run build      # tsc && vite build → dist/
 ```
 
-CI (`.github/workflows/deploy-pages.yml`) runs `npm ci` → `npm run lint` → `npm test` → `npm run build` on every push to `main`, then deploys to GitHub Pages. **A failing lint or test blocks the deploy.**
+CI (`.github/workflows/deploy-pages.yml`) runs `npm ci` → `npm run lint` → `npm test` → `npm run build` on push to `main` and on `pull_request`. Deploy to GitHub Pages runs only on push to `main`. **A failing lint or test blocks the deploy.**
 
 ---
 
@@ -118,7 +118,7 @@ images/                   Raw art uploads from the owner (source material, not l
 - **Layout shuffle:** every zombie and pickup has 2 alternative spots (`alts`), and one is picked per run. Types and counts never change, so sector HP stays 358 → 466 → 498.
 - **Evac horde waves:** every 10 s down to the difficulty minimum. Co-op waves are 2 zombies. Mix: lurker 40 / stalker 25 / bio 25 / brute 10%. Capped at 18 zombies. Spawns are validated so they never land inside Sector 3's off-roof blocker boxes (`MapManager.rollSurgeSpawn`).
 - **Warnings:** "HORDE INCOMING" banner 2 s before each wave.
-- **End screen:** difficulty, sector reached, time, kills, shots, silent kills, zombies alerted, stealth rating (GHOST 0 / SHADOW ≤3 / OPERATOR ≤8 / LOUD).
+- **End screen:** difficulty, sector reached, time, kills, shots, silent kills, zombies alerted, stealth rating (GHOST 0 / SHADOW ≤3 / OPERATOR ≤8 / LOUD). **Personal bests** per difficulty persist in `localStorage` (`RunRecords.ts`): longest survival, most kills, fewest alerts on a win.
 
 ### Controls
 - **Keyboard/mouse** (P1 WASD + mouse, P2 arrows + IJKL). The full table is in `docs/COOP_SESSION_GUIDE.md` §5.
@@ -152,6 +152,16 @@ images/                   Raw art uploads from the owner (source material, not l
 - **Not playtested for feel:** the balance numbers (notice radii, suppressor 0.35, wave pacing, EASY/HARD) are reasoned from the code and unit-tested, but haven't been played by a human. The owner should playtest before more tuning.
 - **Zombies can still grind corners:** when A* returns no path, `AISystem` falls back to walking straight at the target. That's visible "stuck against a wall" behaviour, not trapped inside geometry — a separate issue from the horde spawn fix in PR #33.
 
+### Recently fixed (2026-09-25)
+
+- **Restart leaks:** `InputManager.dispose()` removes all window listeners; `getSharedSoundManager()` shares one `AudioContext` across games.
+- **Co-op downed hang:** `BLEEDOUT_SEC` (25 s) escalates downed → eliminated (`tests/bleedout.test.ts`).
+- **Co-op audio:** `Game.audioListener()` midpoint for spatial SFX.
+- **Scream SFX:** `playZombieScream` on horde cascade (`tests/noise.test.ts`).
+- **Zombie separation:** soft push in `AISystem` (`tests/aiSeparation.test.ts`).
+- **Personal bests:** `RunRecords.ts` + end-screen banner (`tests/runRecords.test.ts`).
+- **PR CI:** `pull_request` trigger on deploy workflow; deploy only on push to `main`.
+
 ---
 
 ## 6. How things were tested (reuse these)
@@ -173,14 +183,15 @@ images/                   Raw art uploads from the owner (source material, not l
 ## 7. What's next (recommended order)
 
 1. **Playtest a full run** on NORMAL, then EASY and HARD. Tune the numbers from real notes, not guesses.
-2. **Sector modifiers** (medium): a random twist per run that reuses existing systems. Examples:
+2. **Larger sector maps** — camera zoom/follow code is ready; content is not.
+3. **Sector modifiers** (medium): a random twist per run that reuses existing systems. Examples:
    - *Blackout:* 50% battery, no battery pickups.
    - *Scavenger:* half the pickups.
    - *Hush:* any unsuppressed shot calls a horde wave.
    - *Heavy:* +1 brute.
    Show the active modifier on the briefing.
-3. **Reward choice between sectors** (medium): pick a medkit, 2 mags or a battery. It needs a small DOM menu with gamepad navigation, which `MenuGamepadNav` already handles.
-4. **Phase 7 — online co-op** (large, several PRs). Recommended approach, which updates `docs/PHASE7_ONLINE_LOBBY_PLAN.md`:
+4. **Reward choice between sectors** (medium): pick a medkit, 2 mags or a battery. It needs a small DOM menu with gamepad navigation, which `MenuGamepadNav` already handles.
+5. **Phase 7 — online co-op** (large, several PRs). Recommended approach, which updates `docs/PHASE7_ONLINE_LOBBY_PLAN.md`:
    - **Transport:** PeerJS (WebRTC). The room code is the host's peer ID, and the link is `…/Hushfire/#HUSH-XXXX`. No server of our own, so it works on GitHub Pages.
    - **Model:** host-authoritative. Only the host runs `Game`. The guest sends `PlayerInputState` at 60 Hz, and the host broadcasts snapshots at about 30 Hz: player, zombie, bolt and pickup state, objective/evac state, and a list of sound/FX events so the guest can play audio. The guest renders snapshots with interpolation.
      - Don't do deterministic lockstep. `Math.random` is used by the layout shuffle and waves, and `Math.sin`/`atan2` can differ between browsers.
@@ -191,10 +202,10 @@ images/                   Raw art uploads from the owner (source material, not l
      4. Polish: guest-side prediction of its own movement, disconnect/reconnect, connect timeout and error messages.
    - **Known limit:** without a TURN relay, some network pairs (strict NAT) can't connect. Ship STUN-only with a clear error first. A paid TURN service is the owner's decision.
    - **Already done** from the old plan's prerequisites: the `.gitignore`, gamepad support, and removing `any` from `SessionManager`.
-5. **Smaller ideas:** a spread model so `recoilMult` matters; more sectors on existing art (e.g. a "Quarantine Annex" remix of the Bio-Lab); a survival mode on the Sector 3 map.
+6. **Smaller ideas:** a spread model so `recoilMult` matters; raycast cache; more sectors on existing art; a survival mode on the Sector 3 map.
 
 ---
 
 ## 8. History
 
-All work landed through PRs #1–#33 on `main`: deploy pipeline, art pipeline, asset-path fix, title screen, sprite and background replacements, wall alignment, lighting, flashlight battery, `.gitignore`, test suite, lint, loadout saving, gamepad, touch, gamepad menus, design-review bug fixes and tuning, layout shuffle, difficulty levels, Sector 3 roof edge, bolts/radio/door cleanup, progress handoff rewrite (PR #32), horde surge spawn-in-wall fix (PR #33). See `git log --merges` for details.
+All work landed through PRs #1–#33 on `main` (stability/personal-best batch pending merge): deploy pipeline, art pipeline, asset-path fix, title screen, sprite and background replacements, wall alignment, lighting, flashlight battery, `.gitignore`, test suite, lint, loadout saving, gamepad, touch, gamepad menus, design-review bug fixes and tuning, layout shuffle, difficulty levels, Sector 3 roof edge, bolts/radio/door cleanup, progress handoff rewrite (PR #32), horde surge spawn-in-wall fix (PR #33). See `git log --merges` for details.

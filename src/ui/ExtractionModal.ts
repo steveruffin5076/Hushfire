@@ -23,7 +23,7 @@ export class ExtractionModal {
     this.container.appendChild(this.root);
   }
 
-  show(stats: RunStats, onRestart: () => void) {
+  show(stats: RunStats, onRestart: () => void, newBest: string[] = [], prior?: { bestTimeSurvivedSec: number; bestKills: number; bestStealthAlerts: number | null }) {
     this.container.style.pointerEvents = 'auto';
     this.root.innerHTML = '';
     this.root.style.cssText = `
@@ -57,6 +57,21 @@ export class ExtractionModal {
     grade.style.cssText = 'margin-top: 14px; font-size: 13px; letter-spacing: 2px; color: #8A94A6;';
     grade.innerHTML = `STEALTH RATING: <span style="font-size: 20px; font-weight: bold; letter-spacing: 4px; color: ${RATING_COLOR[rating]}">${rating}</span>`;
     this.root.appendChild(grade);
+
+    if (newBest.length > 0) {
+      const banner = document.createElement('div');
+      banner.style.cssText = 'margin-top: 12px; font-size: 13px; letter-spacing: 2px; color: #00E676; font-weight: bold;';
+      banner.textContent = `NEW PERSONAL BEST — ${newBest.join(' · ')}`;
+      this.root.appendChild(banner);
+    }
+
+    if (prior) {
+      const compare = document.createElement('div');
+      compare.style.cssText = 'margin-top: 10px; font-size: 12px; letter-spacing: 1px; color: #6A7486; line-height: 1.6;';
+      const stealth = prior.bestStealthAlerts === null ? '—' : `${prior.bestStealthAlerts}`;
+      compare.innerHTML = `YOUR BEST ON ${stats.difficulty}: ${Math.round(prior.bestTimeSurvivedSec)}s · ${prior.bestKills} kills · ${stealth} alerted (wins)`;
+      this.root.appendChild(compare);
+    }
 
     const restartBtn = document.createElement('button');
     restartBtn.textContent = 'RETURN TO ARMORY';
