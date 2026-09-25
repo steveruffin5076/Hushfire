@@ -40,6 +40,7 @@ const AMMO_LABELS: Record<AmmoType, string> = {
  */
 export class ArmoryMenu {
   private root: HTMLDivElement;
+  private resizeHandler: (() => void) | null = null;
 
   constructor(private container: HTMLElement) {
     this.root = document.createElement('div');
@@ -84,12 +85,34 @@ export class ArmoryMenu {
       font-family: 'Segoe UI', monospace; color: ${TEXT}; overflow: hidden;
     `;
 
+    const stageShell = document.createElement('div');
+    stageShell.style.cssText = `
+      flex: 1; min-height: 0; width: 100%; overflow: hidden; box-sizing: border-box;
+      display: flex; justify-content: center; align-items: flex-start;
+      padding: 52px 24px 10px;
+    `;
     const stage = document.createElement('div');
     stage.style.cssText = `
-      flex: 1; min-height: 0; display: flex; flex-direction: column; width: 100%; box-sizing: border-box;
-      padding: 56px 28px 16px;
+      width: 100%; display: flex; flex-direction: column; transform-origin: top center;
     `;
-    this.root.appendChild(stage);
+    stageShell.appendChild(stage);
+    this.root.appendChild(stageShell);
+
+    const fitStage = () => {
+      requestAnimationFrame(() => {
+        stage.style.transform = 'none';
+        const availW = stageShell.clientWidth;
+        const availH = stageShell.clientHeight;
+        const naturalW = stage.offsetWidth;
+        const naturalH = stage.offsetHeight;
+        if (!naturalW || !naturalH) return;
+        const scale = Math.min(1, availW / naturalW, availH / naturalH);
+        stage.style.transform = `scale(${scale})`;
+      });
+    };
+    if (this.resizeHandler) window.removeEventListener('resize', this.resizeHandler);
+    this.resizeHandler = fitStage;
+    window.addEventListener('resize', this.resizeHandler);
 
     const quitBtn = document.createElement('button');
     quitBtn.textContent = 'QUIT GAME ✕';
@@ -135,19 +158,9 @@ export class ArmoryMenu {
     const layout = document.createElement('div');
     layout.id = 'armory-layout';
     layout.style.cssText = `
-      flex: 1; min-height: 0; display: grid; width: 100%; gap: 20px; align-items: stretch;
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1.12fr); overflow: hidden;
+      display: grid; width: 100%; gap: 20px; align-items: start;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.12fr);
     `;
-    const responsiveStyle = document.createElement('style');
-    responsiveStyle.textContent = `
-      @media (max-width: 960px) {
-        #armory-layout {
-          grid-template-columns: 1fr !important;
-          grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
-        }
-      }
-    `;
-    this.root.appendChild(responsiveStyle);
     stage.appendChild(layout);
 
     // ---- Card 1: game mode & mission briefing ----
@@ -236,6 +249,7 @@ export class ArmoryMenu {
       renderProtocol();
       renderLoadout();
       updateDeployButton();
+      fitStage();
     };
     soloBtn.onclick = () => setMode('solo');
     onlineBtn.onclick = () => {
@@ -272,13 +286,14 @@ export class ArmoryMenu {
           <div style="color:${CYAN}; font-size:12px; letter-spacing:1px; font-weight:bold;">RUN MODIFIER: ${mod.name}</div>
           <div style="color:${MUTED}; font-size:12px; margin-top:4px; line-height:1.5;">${mod.blurb}</div>
         </div>
-        <ul style="margin:0; padding-left:18px; color:${TEXT}; font-size:13.5px; line-height:1.8;">
+        <ul style="margin:0; padding-left:18px; color:${TEXT}; font-size:13px; line-height:1.55;">
           <li>Move through dark sectors to reach the Evac Point.</li>
           <li>Flashlights reveal the dark, but a direct beam on sleeping lurkers alerts them!</li>
           <li>Suppressed shots allow stealth kills. Unsilenced guns cause sector horde frenzies.</li>
           <li>${lastTip}</li>
         </ul>
       `;
+      fitStage();
     };
 
     // ---- Card 2: weapon loadout ----
@@ -301,7 +316,7 @@ export class ArmoryMenu {
       onRightChange: (v: string) => void
     ): HTMLDivElement => {
       const row = document.createElement('div');
-      row.style.cssText = 'display: flex; gap: 16px; margin-bottom: 16px;';
+      row.style.cssText = 'display: flex; gap: 14px; margin-bottom: 12px;';
       row.appendChild(this.buildSelect(leftLabel, leftOptions, leftValue, onLeftChange));
       row.appendChild(this.buildSelect(rightLabel, rightOptions, rightValue, onRightChange));
       return row;
@@ -409,6 +424,7 @@ export class ArmoryMenu {
       broadcastLoadout();
       // Every loadout or mode change ends up here, so this is the one place to persist.
       saveArmoryState({ mode, difficulty, loadouts });
+      fitStage();
     };
 
     const updateDeployButton = () => {
@@ -500,6 +516,7 @@ export class ArmoryMenu {
         if (session.partnerLoadout) {
           loadouts[mySlot === 0 ? 1 : 0] = session.partnerLoadout;
         }
+        fitStage();
       };
       session.onMessage = msg => {
         if (msg.t === 'loadout') {
@@ -525,14 +542,14 @@ export class ArmoryMenu {
     }
 
     updateDeployButton();
+    fitStage();
   }
 
   private buildCard(label: string, accent: string): { card: HTMLDivElement; body: HTMLDivElement } {
     const card = document.createElement('div');
     card.style.cssText = `
-      background: ${PANEL_BG}; border: 1px solid ${PANEL_BORDER}; border-radius: 6px; padding: 18px;
-      width: 100%; min-width: 0; min-height: 0; height: 100%; box-sizing: border-box;
-      display: flex; flex-direction: column; overflow: hidden;
+      background: ${PANEL_BG}; border: 1px solid ${PANEL_BORDER}; border-radius: 6px; padding: 16px;
+      width: 100%; min-width: 0; box-sizing: border-box;
       box-shadow: 0 8px 30px rgba(0,0,0,0.4);
     `;
 
@@ -546,7 +563,6 @@ export class ArmoryMenu {
     card.appendChild(divider);
 
     const body = document.createElement('div');
-    body.style.cssText = 'flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden;';
     card.appendChild(body);
 
     return { card, body };
@@ -601,10 +617,10 @@ export class ArmoryMenu {
 
   private buildStatsPanel(loadout: WeaponLoadout): HTMLDivElement {
     const box = document.createElement('div');
-    box.style.cssText = `background: ${PANEL_BG}; border: 1px solid ${PANEL_BORDER}; border-radius: 4px; padding: 14px 16px; margin-top: 4px;`;
+    box.style.cssText = `background: ${PANEL_BG}; border: 1px solid ${PANEL_BORDER}; border-radius: 4px; padding: 10px 14px; margin-top: 2px;`;
 
     const row = (label: string, value: string, color: string) => `
-      <div style="display:flex; justify-content:space-between; align-items:center; font-size:13px; padding:5px 0; color:${MUTED};">
+      <div style="display:flex; justify-content:space-between; align-items:center; font-size:12.5px; padding:3px 0; color:${MUTED};">
         <span>${label}:</span><span style="color:${color}; font-weight:bold;">${value}</span>
       </div>
     `;
@@ -640,6 +656,10 @@ export class ArmoryMenu {
   }
 
   close() {
+    if (this.resizeHandler) {
+      window.removeEventListener('resize', this.resizeHandler);
+      this.resizeHandler = null;
+    }
     this.root.innerHTML = '';
     // Emptying the panel is not enough: the root itself carries `inset: 0` and a
     // near-opaque backdrop, so leaving the style behind veils the whole game in
