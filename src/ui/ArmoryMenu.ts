@@ -36,7 +36,7 @@ const AMMO_LABELS: Record<AmmoType, string> = {
 
 /**
  * Pre-mission screen: solo or online co-op, plus weapon loadout(s). Online
- * mode shows operative tabs so each player edits their own slot.
+ * mode locks host to Operative 1 and guest to Operative 2 — no switching.
  */
 export class ArmoryMenu {
   private root: HTMLDivElement;
@@ -203,19 +203,29 @@ export class ArmoryMenu {
       saveArmoryState({ mode, difficulty, loadouts });
     };
 
-    const operativeTabs = document.createElement('div');
-    operativeTabs.style.cssText = 'display: none; gap: 8px; margin-bottom: 14px;';
-    const op1Tab = this.buildOperativeTab('OPERATIVE 1');
-    const op2Tab = this.buildOperativeTab('OPERATIVE 2');
-    operativeTabs.appendChild(op1Tab);
-    operativeTabs.appendChild(op2Tab);
+    /** Online co-op: fixed slot per role — host = Op 1, guest = Op 2, no switching. */
+    const operativeSlotLabel = document.createElement('div');
+    operativeSlotLabel.style.cssText = `
+      display: none; margin-bottom: 14px; padding: 10px 14px; font-size: 12px; letter-spacing: 1px;
+      color: ${ORANGE}; font-weight: bold; border: 1px solid ${PANEL_BORDER}; border-radius: 3px;
+      text-align: center; background: ${FIELD_BG};
+    `;
 
     const loadoutBody = document.createElement('div');
 
-    const operativeTabBase = `
-      padding: 6px 14px; font-size: 11.5px; letter-spacing: 1px; font-family: inherit;
-      border-radius: 3px; cursor: pointer; border: 1px solid;
-    `;
+    const applyOnlineOperativeSlot = () => {
+      if (mode !== 'online') {
+        operativeSlotLabel.style.display = 'none';
+        editingOperative = 0;
+        return;
+      }
+      editingOperative = mySlot;
+      operativeSlotLabel.style.display = 'block';
+      operativeSlotLabel.textContent =
+        mySlot === 0
+          ? 'YOUR OPERATIVE: OPERATIVE 1 (HOST) — LOCKED'
+          : 'YOUR OPERATIVE: OPERATIVE 2 (GUEST) — LOCKED';
+    };
 
     const setMode = (next: GameMode) => {
       mode = next;
@@ -223,10 +233,7 @@ export class ArmoryMenu {
       const inactive = `background: ${FIELD_BG}; color: ${MUTED}; border-color: ${PANEL_BORDER}; font-weight: normal;`;
       soloBtn.style.cssText = modeButtonBase + (mode === 'solo' ? active : inactive);
       onlineBtn.style.cssText = modeButtonBase + (mode === 'online' ? active : inactive);
-      operativeTabs.style.display = mode === 'online' ? 'flex' : 'none';
-      if (mode === 'solo') editingOperative = 0;
-      if (mode === 'online') editingOperative = mySlot;
-      refreshOperativeTabs();
+      applyOnlineOperativeSlot();
       lobbyMount.style.display = mode === 'online' ? 'block' : 'none';
       readyBtn.style.display = mode === 'online' && session ? 'inline-block' : 'none';
       renderProtocol();
@@ -238,33 +245,6 @@ export class ArmoryMenu {
       if (session?.role === 'LOCAL') session.createHostSession().catch(() => updateDeployButton());
       setMode('online');
     };
-
-    const refreshOperativeTabs = () => {
-      const tabLabel = (index: 0 | 1) => {
-        if (mode !== 'online') return `OPERATIVE ${index + 1}`;
-        if (index === mySlot) return `OPERATIVE ${index + 1} (YOU)`;
-        return session?.role === 'HOST' ? `OPERATIVE ${index + 1} (PARTNER)` : `OPERATIVE ${index + 1} (HOST)`;
-      };
-      op1Tab.textContent = tabLabel(0);
-      op2Tab.textContent = tabLabel(1);
-      for (const [btn, index] of [[op1Tab, 0], [op2Tab, 1]] as const) {
-        const locked = mode === 'online' && index !== mySlot;
-        btn.title = locked ? 'View only — your partner controls this operative' : '';
-        btn.style.opacity = locked ? '0.72' : '1';
-      }
-    };
-
-    const setOperative = (index: 0 | 1) => {
-      editingOperative = index;
-      const active = `background: ${ORANGE}; color: #05050A; border-color: ${ORANGE};`;
-      const inactive = `background: ${FIELD_BG}; color: ${MUTED}; border-color: ${PANEL_BORDER};`;
-      op1Tab.style.cssText = operativeTabBase + (index === 0 ? active : inactive);
-      op2Tab.style.cssText = operativeTabBase + (index === 1 ? active : inactive);
-      refreshOperativeTabs();
-      renderLoadout();
-    };
-    op1Tab.onclick = () => setOperative(0);
-    op2Tab.onclick = () => setOperative(1);
 
     const protocolBox = document.createElement('div');
     protocolBox.style.cssText = `background: ${PANEL_BG}; border: 1px solid ${PANEL_BORDER}; border-radius: 4px; padding: 14px 16px; margin-top: 4px;`;
@@ -307,7 +287,7 @@ export class ArmoryMenu {
     // ---- Card 2: weapon loadout ----
     const loadoutCard = this.buildCard('[ 2. WEAPON LOADOUT & ATTACHMENTS ]', ORANGE);
     loadoutCard.card.style.width = '380px';
-    loadoutCard.body.appendChild(operativeTabs);
+    loadoutCard.body.appendChild(operativeSlotLabel);
     loadoutCard.body.appendChild(loadoutBody);
     layout.appendChild(loadoutCard.card);
 
@@ -332,25 +312,9 @@ export class ArmoryMenu {
     };
 
     const renderLoadout = () => {
+      if (mode === 'online') editingOperative = mySlot;
       loadoutBody.innerHTML = '';
       const loadout = loadouts[editingOperative];
-      const viewOnly = mode === 'online' && editingOperative !== mySlot;
-
-      if (viewOnly) {
-        const banner = document.createElement('div');
-        banner.textContent =
-          session?.role === 'HOST' ? 'PARTNER LOADOUT — VIEW ONLY' : 'HOST LOADOUT — VIEW ONLY';
-        banner.style.cssText = `
-          margin-bottom: 14px; padding: 8px 12px; font-size: 11px; letter-spacing: 1px;
-          color: ${MUTED}; border: 1px dashed ${PANEL_BORDER}; border-radius: 4px; text-align: center;
-        `;
-        loadoutBody.appendChild(banner);
-      }
-
-      const guardEdit = (fn: () => void) => {
-        if (viewOnly) return;
-        fn();
-      };
 
       loadoutBody.appendChild(
         pairedRow(
@@ -364,14 +328,14 @@ export class ArmoryMenu {
             .map(w => [w.id, w.name] as [string, string]),
           loadout.primaryWeapon,
           loadout.secondaryWeapon,
-          v => guardEdit(() => {
+          v => {
             loadout.primaryWeapon = v;
             renderLoadout();
-          }),
-          v => guardEdit(() => {
+          },
+          v => {
             loadout.secondaryWeapon = v;
             renderLoadout();
-          })
+          }
         )
       );
 
@@ -389,14 +353,14 @@ export class ArmoryMenu {
           muzzleOptions,
           loadout.primaryMuzzle,
           loadout.secondaryMuzzle,
-          v => guardEdit(() => {
+          v => {
             loadout.primaryMuzzle = v as MuzzleType;
             renderLoadout();
-          }),
-          v => guardEdit(() => {
+          },
+          v => {
             loadout.secondaryMuzzle = v as MuzzleType;
             renderLoadout();
-          })
+          }
         )
       );
 
@@ -414,14 +378,14 @@ export class ArmoryMenu {
           railOptions,
           loadout.primaryRail,
           loadout.secondaryRail,
-          v => guardEdit(() => {
+          v => {
             loadout.primaryRail = v as RailType;
             renderLoadout();
-          }),
-          v => guardEdit(() => {
+          },
+          v => {
             loadout.secondaryRail = v as RailType;
             renderLoadout();
-          })
+          }
         )
       );
 
@@ -434,21 +398,18 @@ export class ArmoryMenu {
           ammoOptions,
           loadout.primaryAmmoType,
           loadout.secondaryAmmoType,
-          v => guardEdit(() => {
+          v => {
             loadout.primaryAmmoType = v as AmmoType;
             renderLoadout();
-          }),
-          v => guardEdit(() => {
+          },
+          v => {
             loadout.secondaryAmmoType = v as AmmoType;
             renderLoadout();
-          })
+          }
         )
       );
 
       loadoutBody.appendChild(this.buildStatsPanel(loadout));
-      loadoutBody.querySelectorAll('select').forEach(el => {
-        if (viewOnly) (el as HTMLSelectElement).disabled = true;
-      });
       broadcastLoadout();
       // Every loadout or mode change ends up here, so this is the one place to persist.
       saveArmoryState({ mode, difficulty, loadouts });
@@ -529,7 +490,6 @@ export class ArmoryMenu {
     // Buttons must exist before setMode — it toggles readyBtn/deployBtn state.
     setDifficulty(difficulty);
     setMode(mode);
-    setOperative(mode === 'online' ? mySlot : 0);
 
     if (session) {
       lobbyPanel = new LobbyPanel(session);
@@ -541,13 +501,11 @@ export class ArmoryMenu {
         updateDeployButton();
         if (session.partnerLoadout) {
           loadouts[mySlot === 0 ? 1 : 0] = session.partnerLoadout;
-          if (editingOperative !== mySlot) renderLoadout();
         }
       };
       session.onMessage = msg => {
         if (msg.t === 'loadout') {
           loadouts[mySlot === 0 ? 1 : 0] = msg.loadout;
-          if (editingOperative !== mySlot) renderLoadout();
           lobbyPanel?.refresh();
           updateDeployButton();
         }
@@ -597,16 +555,6 @@ export class ArmoryMenu {
     btn.style.cssText = `
       flex: 1; padding: 12px 8px; font-size: 12px; letter-spacing: 1px; font-family: inherit;
       border: 1px solid ${PANEL_BORDER}; border-radius: 4px; cursor: pointer;
-    `;
-    return btn;
-  }
-
-  private buildOperativeTab(label: string): HTMLButtonElement {
-    const btn = document.createElement('button');
-    btn.textContent = label;
-    btn.style.cssText = `
-      padding: 6px 14px; font-size: 10.5px; letter-spacing: 1px; font-family: inherit;
-      border: 1px solid ${PANEL_BORDER}; border-radius: 3px; cursor: pointer; background: ${FIELD_BG}; color: ${MUTED};
     `;
     return btn;
   }
