@@ -2,30 +2,21 @@
  * PeerJS-backed online lobby transport (Phase 7 milestone 1).
  * Room code lives in the URL hash; the peer id is `hushfire-${roomCode}`.
  */
-import Peer, { DataConnection } from 'peerjs';
+import Peer, { DataConnection, PeerOptions } from 'peerjs';
 import type { NetMessage } from './Protocol';
 import { PROTO_VERSION } from './Protocol';
 import type { NetInputMessage, NetSnapshotMessage } from './GameSnapshot';
 import { generateRoomCode, isRoomHash, normalizeRoomCode, peerIdForRoom } from './roomCode';
+import { resolveIceServers } from './iceConfig';
 import type { WeaponLoadout } from '../entities/Player';
 import type { SectorModifierId } from '../config/sectorModifiers';
 
 export type SessionRole = 'HOST' | 'GUEST' | 'LOCAL';
 export type SessionState = 'IDLE' | 'SIGNALING' | 'CONNECTED' | 'CLOSED' | 'ERROR';
 
-const PEER_OPTS = {
-  debug: 1,
-  config: {
-    iceServers: [
-      { urls: 'stun:stun.l.google.com:19302' },
-      { urls: 'stun:stun1.l.google.com:19302' }
-    ]
-  }
-} as const;
-
 const HOST_RETRY_MAX = 3;
-/** Fail fast instead of spinning "CONNECTING…" forever when ICE or the host peer never answers. */
-const CONNECT_TIMEOUT_MS = 15_000;
+/** Guest-only: fail fast when the host peer or ICE path never answers. */
+const GUEST_CONNECT_TIMEOUT_MS = 20_000;
 
 export class SessionManager {
   public role: SessionRole = 'LOCAL';
@@ -85,7 +76,18 @@ export class SessionManager {
     this.roomCode = normalizeRoomCode(code);
     this.role = 'GUEST';
     window.location.hash = this.roomCode;
-    this.connectAsGuest();
+    void this.connectAsGuest();
+  }
+
+  /** Re-attempt signaling after ERROR — keeps the same room code for hosts. */
+  retryConnection() {
+    if (this.role === 'GUEST' && this.roomCode) {
+      this.joinSession(this.roomCode);
+      return;
+    }
+    if (this.role === 'HOST' && this.roomCode) {
+      void this.resumeHostSession();
+    }
   }
 
   getShareableLink(): string {
@@ -148,18 +150,19 @@ export class SessionManager {
     this.onStateChange?.();
   }
 
-  private startConnectTimeout() {
+  private startGuestConnectTimeout() {
+    if (this.role !== 'GUEST') return;
     this.clearConnectTimeout();
     this.connectTimeout = setTimeout(() => {
-      if (this.state !== 'SIGNALING') return;
+      if (this.state !== 'SIGNALING' || this.role !== 'GUEST') return;
       this.setError(
-        'Connection timed out. Keep the host in the lobby, use the copied invite link, and try again. ' +
-          'School/corporate Wi‑Fi or VPN often blocks peer-to-peer links.'
+        'Connection timed out. Ask the host to stay in the lobby, open the full invite link, and retry. ' +
+          'School/corporate Wi‑Fi or VPN often blocks peer-to-peer links without a TURN relay.'
       );
       this.peer?.destroy();
       this.peer = null;
       this.conn = null;
-    }, CONNECT_TIMEOUT_MS);
+    }, GUEST_CONNECT_TIMEOUT_MS);
   }
 
   private clearConnectTimeout() {
@@ -172,14 +175,38 @@ export class SessionManager {
     this.setState('ERROR');
   }
 
+  private async resumeHostSession(): Promise<void> {
+    this.clearConnectTimeout();
+    this.error = null;
+    this.conn?.close();
+    this.conn = null;
+    this.peer?.destroy();
+    this.peer = null;
+    this.queue = [];
+    this.partnerReady = false;
+    this.partnerLoadout = null;
+    try {
+      await this.openHostPeer();
+    } catch {
+      this.setError('Could not reopen the room — create a new session and send a fresh link.');
+    }
+  }
+
+  private async buildPeerOpts(): Promise<PeerOptions> {
+    return {
+      debug: 1,
+      config: { iceServers: await resolveIceServers() }
+    };
+  }
+
   private openHostPeer(): Promise<void> {
     return new Promise((resolve, reject) => {
-      this.setState('SIGNALING');
-      this.connectStartedAt = Date.now();
-      this.startConnectTimeout();
-      const id = peerIdForRoom(this.roomCode);
-      const peer = new Peer(id, PEER_OPTS);
-      this.peer = peer;
+      void this.buildPeerOpts().then(peerOpts => {
+        this.setState('SIGNALING');
+        this.connectStartedAt = 0;
+        const id = peerIdForRoom(this.roomCode);
+        const peer = new Peer(id, peerOpts);
+        this.peer = peer;
 
       peer.on('open', () => {
         peer.on('connection', conn => {
@@ -200,14 +227,16 @@ export class SessionManager {
       peer.on('disconnected', () => {
         if (!this.destroyed) peer.reconnect();
       });
+      }).catch(reject);
     });
   }
 
-  private connectAsGuest() {
+  private async connectAsGuest() {
+    const peerOpts = await this.buildPeerOpts();
     this.setState('SIGNALING');
     this.connectStartedAt = Date.now();
-    this.startConnectTimeout();
-    const peer = new Peer(PEER_OPTS);
+    this.startGuestConnectTimeout();
+    const peer = new Peer(peerOpts);
     this.peer = peer;
 
     peer.on('open', () => {

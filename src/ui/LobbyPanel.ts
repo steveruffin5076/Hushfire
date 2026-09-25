@@ -26,6 +26,7 @@ export class LobbyPanel {
     const elapsed = connectStartedAt ? Math.max(0, Date.now() - connectStartedAt) : 0;
     const status =
       state === 'CONNECTED' ? 'CONNECTED'
+      : state === 'SIGNALING' && role === 'HOST' ? 'WAITING FOR PARTNER — send the invite link below'
       : state === 'SIGNALING' ? `CONNECTING… (${elapsed}ms)`
       : state === 'ERROR' ? (error ?? 'CONNECTION ERROR')
       : state === 'CLOSED' ? 'DISCONNECTED'
@@ -56,7 +57,8 @@ export class LobbyPanel {
       const input = document.createElement('input');
       input.readOnly = true;
       input.value = link;
-      input.style.cssText = `flex:1;padding:8px;font-size:11px;background:${FIELD_BG};color:${TEXT};border:1px solid ${PANEL_BORDER};border-radius:3px;font-family:inherit;`;
+      input.title = link;
+      input.style.cssText = `flex:1;min-width:0;padding:8px;font-size:11px;background:${FIELD_BG};color:${TEXT};border:1px solid ${PANEL_BORDER};border-radius:3px;font-family:monospace;overflow-x:auto;white-space:nowrap;`;
       const copyBtn = document.createElement('button');
       copyBtn.textContent = 'COPY LINK';
       copyBtn.style.cssText = `padding:8px 12px;font-size:11px;letter-spacing:1px;background:${FIELD_BG};color:${CYAN};border:1px solid ${PANEL_BORDER};border-radius:3px;cursor:pointer;font-family:inherit;`;
@@ -70,9 +72,17 @@ export class LobbyPanel {
       `<span style="display:inline-block;padding:4px 10px;margin-right:8px;border-radius:12px;font-size:11px;letter-spacing:1px;background:${ready ? 'rgba(0,230,118,0.15)' : 'rgba(138,148,166,0.12)'};color:${ready ? GREEN : MUTED};border:1px solid ${ready ? GREEN : PANEL_BORDER};">${label}: ${ready ? 'READY' : 'NOT READY'}</span>`;
 
     const statusRow = document.createElement('div');
-    statusRow.style.cssText = `font-size:12px;color:${statusColor};margin-bottom:8px;`;
+    statusRow.style.cssText = `font-size:12px;line-height:1.45;color:${statusColor};margin-bottom:8px;`;
     statusRow.textContent = status;
     this.root.appendChild(statusRow);
+
+    if (state === 'ERROR') {
+      const retryBtn = document.createElement('button');
+      retryBtn.textContent = 'RETRY CONNECTION';
+      retryBtn.style.cssText = `display:block;margin-bottom:10px;padding:8px 12px;font-size:11px;letter-spacing:1px;background:${FIELD_BG};color:${CYAN};border:1px solid ${PANEL_BORDER};border-radius:3px;cursor:pointer;font-family:inherit;`;
+      retryBtn.onclick = () => this.session.retryConnection();
+      this.root.appendChild(retryBtn);
+    }
 
     const readyRow = document.createElement('div');
     readyRow.innerHTML = pill('YOU', localReady) + pill(role === 'HOST' ? 'PARTNER' : 'HOST', partnerReady);
