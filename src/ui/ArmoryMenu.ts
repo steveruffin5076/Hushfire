@@ -40,7 +40,6 @@ const AMMO_LABELS: Record<AmmoType, string> = {
  */
 export class ArmoryMenu {
   private root: HTMLDivElement;
-  private resizeHandler: (() => void) | null = null;
 
   constructor(private container: HTMLElement) {
     this.root = document.createElement('div');
@@ -81,32 +80,16 @@ export class ArmoryMenu {
     this.root.innerHTML = '';
     this.root.style.cssText = `
       position: absolute; inset: 0; background: rgba(5,6,9,0.97);
-      display: flex; align-items: center; justify-content: center;
-      font-family: 'Segoe UI', monospace; color: ${TEXT}; overflow: hidden;
+      display: flex; flex-direction: column;
+      font-family: 'Segoe UI', monospace; color: ${TEXT}; overflow: auto;
     `;
 
-    // Everything visible lives in `stage` so it can be scaled as one unit to
-    // always fit the viewport (see fitStage below) instead of relying on
-    // scroll, which used to clip the header/deploy button off-screen on
-    // short windows.
     const stage = document.createElement('div');
-    stage.style.cssText = 'display: flex; flex-direction: column; align-items: center; padding: 24px 20px;';
+    stage.style.cssText = `
+      flex: 1; display: flex; flex-direction: column; width: 100%; box-sizing: border-box;
+      padding: 64px 32px 28px; min-height: min(100%, 100vh);
+    `;
     this.root.appendChild(stage);
-
-    // Recomputes stage's scale so its natural (untransformed) size always
-    // fits inside the current viewport, live on every resize.
-    const fitStage = () => {
-      const availW = this.root.clientWidth - 24;
-      const availH = this.root.clientHeight - 24;
-      const naturalW = stage.offsetWidth;
-      const naturalH = stage.offsetHeight;
-      if (naturalW === 0 || naturalH === 0) return;
-      const scale = Math.min(1, availW / naturalW, availH / naturalH);
-      stage.style.transform = `scale(${scale})`;
-    };
-    if (this.resizeHandler) window.removeEventListener('resize', this.resizeHandler);
-    this.resizeHandler = fitStage;
-    window.addEventListener('resize', this.resizeHandler);
 
     const quitBtn = document.createElement('button');
     quitBtn.textContent = 'QUIT GAME ✕';
@@ -138,7 +121,7 @@ export class ArmoryMenu {
     }
 
     const header = document.createElement('div');
-    header.style.cssText = 'text-align: center; margin-bottom: 28px;';
+    header.style.cssText = 'text-align: center; margin-bottom: 20px; flex-shrink: 0; width: 100%;';
     header.innerHTML = `
       <h1 style="margin:0; font-size: 44px; letter-spacing: 6px; font-weight: 800;">
         <span style="color:${TEXT}; text-shadow: 0 0 18px rgba(235,244,250,0.35);">HUSH</span><span style="color:${ORANGE}; text-shadow: 0 0 22px rgba(255,158,27,0.55);">FIRE</span>
@@ -150,7 +133,18 @@ export class ArmoryMenu {
     stage.appendChild(header);
 
     const layout = document.createElement('div');
-    layout.style.cssText = 'display: flex; gap: 28px; flex-wrap: wrap; justify-content: center; max-width: 900px;';
+    layout.id = 'armory-layout';
+    layout.style.cssText = `
+      flex: 1; display: grid; width: 100%; gap: 24px; align-items: stretch;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.12fr);
+    `;
+    const responsiveStyle = document.createElement('style');
+    responsiveStyle.textContent = `
+      @media (max-width: 960px) {
+        #armory-layout { grid-template-columns: 1fr !important; }
+      }
+    `;
+    this.root.appendChild(responsiveStyle);
     stage.appendChild(layout);
 
     // ---- Card 1: game mode & mission briefing ----
@@ -286,7 +280,6 @@ export class ArmoryMenu {
 
     // ---- Card 2: weapon loadout ----
     const loadoutCard = this.buildCard('[ 2. WEAPON LOADOUT & ATTACHMENTS ]', ORANGE);
-    loadoutCard.card.style.width = '380px';
     loadoutCard.body.appendChild(operativeSlotLabel);
     loadoutCard.body.appendChild(loadoutBody);
     layout.appendChild(loadoutCard.card);
@@ -413,9 +406,6 @@ export class ArmoryMenu {
       broadcastLoadout();
       // Every loadout or mode change ends up here, so this is the one place to persist.
       saveArmoryState({ mode, difficulty, loadouts });
-      // Loadout swaps can change this card's height (e.g. hidden vs. shown
-      // operative tabs), so re-fit on every re-render, not just on resize.
-      fitStage();
     };
 
     const updateDeployButton = () => {
@@ -483,9 +473,13 @@ export class ArmoryMenu {
       runModifier = pickSectorModifier();
       renderProtocol();
     };
-    stage.appendChild(rerollModifierBtn);
-    stage.appendChild(readyBtn);
-    stage.appendChild(deployBtn);
+
+    const actionsBar = document.createElement('div');
+    actionsBar.style.cssText = 'width: 100%; display: flex; flex-direction: column; align-items: center; flex-shrink: 0; margin-top: 20px;';
+    actionsBar.appendChild(rerollModifierBtn);
+    actionsBar.appendChild(readyBtn);
+    actionsBar.appendChild(deployBtn);
+    stage.appendChild(actionsBar);
 
     // Buttons must exist before setMode — it toggles readyBtn/deployBtn state.
     setDifficulty(difficulty);
@@ -526,13 +520,15 @@ export class ArmoryMenu {
       }
     }
 
-    fitStage();
     updateDeployButton();
   }
 
   private buildCard(label: string, accent: string): { card: HTMLDivElement; body: HTMLDivElement } {
     const card = document.createElement('div');
-    card.style.cssText = `background: ${PANEL_BG}; border: 1px solid ${PANEL_BORDER}; border-radius: 6px; padding: 22px; width: 320px; box-shadow: 0 8px 30px rgba(0,0,0,0.4);`;
+    card.style.cssText = `
+      background: ${PANEL_BG}; border: 1px solid ${PANEL_BORDER}; border-radius: 6px; padding: 22px;
+      width: 100%; min-width: 0; box-sizing: border-box; box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+    `;
 
     const heading = document.createElement('div');
     heading.textContent = label;
@@ -637,10 +633,6 @@ export class ArmoryMenu {
   }
 
   close() {
-    if (this.resizeHandler) {
-      window.removeEventListener('resize', this.resizeHandler);
-      this.resizeHandler = null;
-    }
     this.root.innerHTML = '';
     // Emptying the panel is not enough: the root itself carries `inset: 0` and a
     // near-opaque backdrop, so leaving the style behind veils the whole game in
