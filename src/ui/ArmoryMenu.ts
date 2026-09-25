@@ -81,13 +81,13 @@ export class ArmoryMenu {
     this.root.style.cssText = `
       position: absolute; inset: 0; background: rgba(5,6,9,0.97);
       display: flex; flex-direction: column;
-      font-family: 'Segoe UI', monospace; color: ${TEXT}; overflow: auto;
+      font-family: 'Segoe UI', monospace; color: ${TEXT}; overflow: hidden;
     `;
 
     const stage = document.createElement('div');
     stage.style.cssText = `
-      flex: 1; display: flex; flex-direction: column; width: 100%; box-sizing: border-box;
-      padding: 64px 32px 28px; min-height: min(100%, 100vh);
+      flex: 1; min-height: 0; display: flex; flex-direction: column; width: 100%; box-sizing: border-box;
+      padding: 56px 28px 16px;
     `;
     this.root.appendChild(stage);
 
@@ -121,9 +121,9 @@ export class ArmoryMenu {
     }
 
     const header = document.createElement('div');
-    header.style.cssText = 'text-align: center; margin-bottom: 20px; flex-shrink: 0; width: 100%;';
+    header.style.cssText = 'text-align: center; margin-bottom: 12px; flex-shrink: 0; width: 100%;';
     header.innerHTML = `
-      <h1 style="margin:0; font-size: 44px; letter-spacing: 6px; font-weight: 800;">
+      <h1 style="margin:0; font-size: clamp(28px, 4vw, 44px); letter-spacing: 6px; font-weight: 800;">
         <span style="color:${TEXT}; text-shadow: 0 0 18px rgba(235,244,250,0.35);">HUSH</span><span style="color:${ORANGE}; text-shadow: 0 0 22px rgba(255,158,27,0.55);">FIRE</span>
       </h1>
       <div style="margin-top:8px; font-size:13px; letter-spacing:4px; color:${MUTED}; text-transform:uppercase;">
@@ -135,13 +135,16 @@ export class ArmoryMenu {
     const layout = document.createElement('div');
     layout.id = 'armory-layout';
     layout.style.cssText = `
-      flex: 1; display: grid; width: 100%; gap: 24px; align-items: stretch;
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1.12fr);
+      flex: 1; min-height: 0; display: grid; width: 100%; gap: 20px; align-items: stretch;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.12fr); overflow: hidden;
     `;
     const responsiveStyle = document.createElement('style');
     responsiveStyle.textContent = `
       @media (max-width: 960px) {
-        #armory-layout { grid-template-columns: 1fr !important; }
+        #armory-layout {
+          grid-template-columns: 1fr !important;
+          grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+        }
       }
     `;
     this.root.appendChild(responsiveStyle);
@@ -430,7 +433,7 @@ export class ArmoryMenu {
     const readyBtn = document.createElement('button');
     readyBtn.textContent = 'READY';
     readyBtn.style.cssText = `
-      margin-top: 22px; padding: 10px 28px; font-size: 13px; letter-spacing: 2px; font-weight: bold;
+      margin-top: 10px; padding: 10px 28px; font-size: 13px; letter-spacing: 2px; font-weight: bold;
       background: ${FIELD_BG}; color: ${CYAN}; border: 1px solid ${PANEL_BORDER}; border-radius: 4px;
       cursor: pointer; font-family: inherit; display: none;
     `;
@@ -446,7 +449,8 @@ export class ArmoryMenu {
     const deployBtn = document.createElement('button');
     deployBtn.textContent = 'DEPLOY TO SECTOR 1';
     deployBtn.style.cssText = `
-      margin-top: 12px; padding: 16px 56px; font-size: 16px; letter-spacing: 3px; font-weight: bold;
+      margin-top: 8px; padding: clamp(10px, 1.5vh, 16px) clamp(32px, 6vw, 56px);
+      font-size: clamp(13px, 1.6vw, 16px); letter-spacing: 3px; font-weight: bold;
       background: linear-gradient(180deg, #FFB23E, ${ORANGE}); color: #1A0D00; border: none; border-radius: 4px;
       cursor: pointer; font-family: inherit; box-shadow: 0 0 24px rgba(255,158,27,0.45);
     `;
@@ -465,7 +469,7 @@ export class ArmoryMenu {
     const rerollModifierBtn = document.createElement('button');
     rerollModifierBtn.textContent = 'REROLL MODIFIER';
     rerollModifierBtn.style.cssText = `
-      margin-top: 18px; padding: 8px 20px; font-size: 12px; letter-spacing: 1px;
+      margin-top: 10px; padding: 8px 20px; font-size: 12px; letter-spacing: 1px;
       background: ${FIELD_BG}; color: ${CYAN}; border: 1px solid ${PANEL_BORDER}; border-radius: 4px;
       cursor: pointer; font-family: inherit;
     `;
@@ -475,7 +479,7 @@ export class ArmoryMenu {
     };
 
     const actionsBar = document.createElement('div');
-    actionsBar.style.cssText = 'width: 100%; display: flex; flex-direction: column; align-items: center; flex-shrink: 0; margin-top: 20px;';
+    actionsBar.style.cssText = 'width: 100%; display: flex; flex-direction: column; align-items: center; flex-shrink: 0; margin-top: 12px; padding-bottom: 4px;';
     actionsBar.appendChild(rerollModifierBtn);
     actionsBar.appendChild(readyBtn);
     actionsBar.appendChild(deployBtn);
@@ -526,8 +530,10 @@ export class ArmoryMenu {
   private buildCard(label: string, accent: string): { card: HTMLDivElement; body: HTMLDivElement } {
     const card = document.createElement('div');
     card.style.cssText = `
-      background: ${PANEL_BG}; border: 1px solid ${PANEL_BORDER}; border-radius: 6px; padding: 22px;
-      width: 100%; min-width: 0; box-sizing: border-box; box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+      background: ${PANEL_BG}; border: 1px solid ${PANEL_BORDER}; border-radius: 6px; padding: 18px;
+      width: 100%; min-width: 0; min-height: 0; height: 100%; box-sizing: border-box;
+      display: flex; flex-direction: column; overflow: hidden;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.4);
     `;
 
     const heading = document.createElement('div');
@@ -540,6 +546,7 @@ export class ArmoryMenu {
     card.appendChild(divider);
 
     const body = document.createElement('div');
+    body.style.cssText = 'flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden;';
     card.appendChild(body);
 
     return { card, body };
