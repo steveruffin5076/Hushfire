@@ -21,7 +21,7 @@ export class AISystem {
   /** `noticeMult` scales the close-range notice radii for the run's difficulty. */
   constructor(private noticeMult = 1) {}
 
-  update(dt: number, zombies: Zombie[], players: Player[], map: MapManager) {
+  update(dt: number, zombies: Zombie[], players: Player[], map: MapManager): Point[] {
     const livingPlayers = players.filter(p => p.alive && !p.isDowned);
 
     for (const zombie of zombies) {
@@ -52,7 +52,39 @@ export class AISystem {
       zombie.y = resolved.y;
     }
 
-    NoiseSystem.propagateScreams(zombies);
+    this.separateZombies(zombies);
+    for (const zombie of zombies) {
+      if (!zombie.alive) continue;
+      const resolved = map.resolveCircleCollision(zombie.position, zombie.radius);
+      zombie.x = resolved.x;
+      zombie.y = resolved.y;
+    }
+
+    return NoiseSystem.propagateScreams(zombies);
+  }
+
+  /** Soft push so horde zombies don't stack into a single sprite pile. */
+  private separateZombies(zombies: Zombie[]) {
+    for (let i = 0; i < zombies.length; i++) {
+      const a = zombies[i];
+      if (!a.alive) continue;
+      for (let j = i + 1; j < zombies.length; j++) {
+        const b = zombies[j];
+        if (!b.alive) continue;
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const dist = Math.hypot(dx, dy);
+        const minDist = a.radius + b.radius;
+        if (dist <= 0 || dist >= minDist) continue;
+        const push = (minDist - dist) * 0.5;
+        const nx = dx / dist;
+        const ny = dy / dist;
+        a.x -= nx * push;
+        a.y -= ny * push;
+        b.x += nx * push;
+        b.y += ny * push;
+      }
+    }
   }
 
   private senseLight(dt: number, zombie: Zombie, players: Player[], map: MapManager) {

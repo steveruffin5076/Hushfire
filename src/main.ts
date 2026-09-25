@@ -12,6 +12,7 @@ import { SectorModifierId } from './config/sectorModifiers';
 import { SessionManager } from './net/SessionManager';
 import { mulberry32 } from './core/seededRand';
 import { AnimationCatalog } from './graphics/animation/AnimationCatalog';
+import { recordRun, recordsForDifficulty } from './ui/RunRecords';
 
 window.addEventListener('DOMContentLoaded', async () => {
   const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
@@ -54,7 +55,8 @@ window.addEventListener('DOMContentLoaded', async () => {
         onMissionEnd: (stats: RunStats) => {
           pauseMenu.hide();
           sectorRewardMenu.hide();
-          extractionModal.show(stats, () => openArmory());
+          const newBest = recordRun(stats);
+          extractionModal.show(stats, () => openArmory(), newBest, recordsForDifficulty(stats.difficulty));
         },
         onPauseChange: (paused: boolean) => {
           if (paused) {

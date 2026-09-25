@@ -61,6 +61,16 @@ describe('NoiseSystem.propagate', () => {
     expect(z.state).toBe('ENRAGED');
   });
 
+  it('propagateScreams returns positions and alerts nearby dormant zombies', () => {
+    const screamer = new Zombie(400, 360, 0, 'lurker');
+    screamer.alert('ENRAGED', { x: 400, y: 360 });
+    const nearby = new Zombie(430, 360, 0, 'lurker');
+    const heard = NoiseSystem.propagateScreams([screamer, nearby]);
+    expect(heard).toHaveLength(1);
+    expect(heard[0]).toEqual({ x: 400, y: 360 });
+    expect(nearby.state).toBe('ENRAGED');
+  });
+
   it('ignores silent events and clears the queue after propagating', () => {
     const z = new Zombie(origin.x + 10, origin.y, 0, 'lurker');
     noise.emit({ ...origin, radius: 0, type: 'footstep' });

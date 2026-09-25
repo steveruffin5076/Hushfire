@@ -8,6 +8,14 @@ const MAX_HEARING_RANGE = 900;
  * noise buffers and oscillators, then panned/filtered relative to the
  * listener to fake spatial occlusion.
  */
+let sharedSound: SoundManager | null = null;
+
+/** One AudioContext for the page — Game instances share it so restarts don't leak contexts. */
+export function getSharedSoundManager(): SoundManager {
+  if (!sharedSound) sharedSound = new SoundManager();
+  return sharedSound;
+}
+
 export class SoundManager {
   private ctx: AudioContext | null = null;
   private masterGain: GainNode | null = null;
@@ -93,6 +101,31 @@ export class SoundManager {
       endFreq: 200,
       gain: 0.12
     });
+  }
+
+  /** Horde cascade / enraged zombie alert — louder than a groan so the player hears the punishment. */
+  playZombieScream(listener: Point, source: Point, wallsCrossed: number) {
+    this.playZombieGroan(listener, source, wallsCrossed, true);
+    const ctx = this.ensureContext();
+    if (!ctx || !this.masterGain) return;
+    const { volume, pan, occlusion } = this.spatialParams(source, listener, wallsCrossed);
+    if (volume <= 0.01) return;
+
+    const osc = ctx.createOscillator();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(320, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(90, ctx.currentTime + 0.35);
+
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.001, ctx.currentTime);
+    gain.gain.linearRampToValueAtTime(0.4 * volume * occlusion, ctx.currentTime + 0.04);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+
+    const panner = ctx.createStereoPanner();
+    panner.pan.value = pan;
+    osc.connect(gain).connect(panner).connect(this.masterGain);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.4);
   }
 
   playZombieGroan(listener: Point, source: Point, wallsCrossed: number, enraged: boolean) {

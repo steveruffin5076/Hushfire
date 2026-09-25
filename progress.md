@@ -1,6 +1,6 @@
 # HUSHFIRE — Progress & Handoff
 
-Last updated: 2026-09-25 (armory layout + online connection polish; §9 task list updated with walk-cycle animation tasks). Written as a handoff for another developer or AI assistant, e.g. Cursor. Read this first, then `CLAUDE.md`.
+Last updated: 2026-09-28 (stability + personal bests ported onto online `main`; §9 task list includes walk-cycle animation tasks). Written as a handoff for another developer or AI assistant, e.g. Cursor. Read this first, then `CLAUDE.md`.
 
 **Status in one line:** the full game is playable and deployed. Title → armory → 3 sectors → evac, **solo** (one operative) or **online co-op** (two operatives over PeerJS), on keyboard/mouse, gamepad or touch. **Phase 7 M1–M2 (lobby + host-authoritative gameplay sync) are wired.** Same-machine 2-player couch co-op was removed from the armory (legacy `coop` saves migrate to solo).
 
@@ -16,11 +16,11 @@ npm install        # after any pull that touched package.json
 npm run dev        # http://localhost:3000
 npm run typecheck  # tsc --noEmit (covers src/ and tests/)
 npm run lint       # ESLint + typescript-eslint; `any` is an error
-npm test           # Vitest, 290 tests in tests/
+npm test           # Vitest (see §6; count grows with each PR)
 npm run build      # tsc && vite build → dist/
 ```
 
-CI (`.github/workflows/deploy-pages.yml`) runs `npm ci` → `npm run lint` → `npm test` → `npm run build` on every push to `main`, then deploys to GitHub Pages. **A failing lint or test blocks the deploy.**
+CI (`.github/workflows/deploy-pages.yml`) runs `npm ci` → `npm run lint` → `npm test` → `npm run build` on push to `main` and on `pull_request`. Deploy to GitHub Pages runs only on push to `main`. **A failing lint or test blocks the deploy.**
 
 ---
 
@@ -125,7 +125,7 @@ images/                   Raw art uploads from the owner (source material, not l
 - **Layout shuffle:** every zombie and pickup has 2 alternative spots (`alts`), and one is picked per run. Types and counts never change, so sector HP stays 358 → 466 → 498.
 - **Evac horde waves:** every 10 s down to the difficulty minimum. Co-op waves are 2 zombies. Mix: lurker 40 / stalker 25 / bio 25 / brute 10%. Capped at 18 zombies. Spawns are validated so they never land inside Sector 3's off-roof blocker boxes (`MapManager.rollSurgeSpawn`).
 - **Warnings:** "HORDE INCOMING" banner 2 s before each evac wave and before sector-alert reinforcement waves.
-- **End screen:** difficulty, sector reached, time, kills, shots, silent kills, zombies alerted, stealth rating (GHOST 0 / SHADOW ≤3 / OPERATOR ≤8 / LOUD).
+- **End screen:** difficulty, sector reached, time, kills, shots, silent kills, zombies alerted, stealth rating (GHOST 0 / SHADOW ≤3 / OPERATOR ≤8 / LOUD). **Personal bests** per difficulty persist in `localStorage` (`RunRecords.ts`): longest survival, most kills, fewest alerts on a win.
 
 ### Sector modifiers (per-run twist)
 - Rolled in the armory with **REROLL MODIFIER**; shown on the protocol panel, HUD, and end screen.
@@ -176,6 +176,16 @@ images/                   Raw art uploads from the owner (source material, not l
   - **Sector reward picker is host-only** — only the host sees `SectorRewardMenu` between sectors; choice is not synced to guest over the wire yet.
   - **Two-browser playtest still needed** on localhost and GitHub Pages after connection/layout fixes.
 - **2026-09-25 playtest pass:** automated balance review (`tests/playtestBalance.test.ts`) confirms EASY/HARD contact DPS, evac pacing and sector HP scale as intended. Owner previously confirmed movement/firing on the live site and sector-alert horde behaviour.
+
+### Recently fixed (2026-09-25)
+
+- **Restart leaks:** `InputManager.dispose()` removes all window listeners; `getSharedSoundManager()` shares one `AudioContext` across games.
+- **Co-op downed hang:** `BLEEDOUT_SEC` (25 s) escalates downed → eliminated (`tests/bleedout.test.ts`).
+- **Co-op audio:** `Game.audioListener()` midpoint for spatial SFX.
+- **Scream SFX:** `playZombieScream` on horde cascade (`tests/noise.test.ts`).
+- **Zombie separation:** soft push in `AISystem` (`tests/aiSeparation.test.ts`).
+- **Personal bests:** `RunRecords.ts` + end-screen banner (`tests/runRecords.test.ts`).
+- **PR CI:** `pull_request` trigger on deploy workflow; deploy only on push to `main`.
 
 ---
 
@@ -239,6 +249,7 @@ images/                   Raw art uploads from the owner (source material, not l
 | 19 | Guest snapshot interpolation | ⏸ not started |
 | 20 | Walk-cycle art frames in `generate_assets.py` | ⏸ not started — extend the script with pose-parameterized SVG functions (e.g. 4-frame cycle: legs together / left-forward / legs together / right-forward) per player + zombie archetype, output as `<entity>_walk0..3.png` or one sprite sheet. Cursor can write the new pose functions; **running the script to regenerate `public/assets/sprites/*.png` is the owner's call**, per the "never run `generate_assets.py`" hard constraint. |
 | 21 | Frame-swap animation in renderer | ⏸ not started — once walk frames exist, update `AssetLoader.ts` to load the frame set per entity and the render code in `Game.ts` (currently draws one static sprite rotated with `ctx.rotate`) to pick a frame by distance traveled / elapsed time instead of a fixed image. Pure code, no art dependency once task 20 ships frames. |
+| 22 | Restart leaks + bleed-out + personal bests + PR CI | ✅ ported from `cursor/recommended-next-steps-e159` onto current `main` |
 
 ---
 
@@ -252,4 +263,6 @@ All work landed through PRs #1–#33 on `main`: deploy pipeline, art pipeline, a
 - Between-sector reward picker (`SectorRewardMenu.ts`, `Game.onSectorReward`).
 - Phase 7 lobby + M2 gameplay sync: `Protocol.ts`, `roomCode.ts`, `GameSnapshot.ts`, PeerJS `SessionManager`, `LobbyPanel`, armory online mode, title create/join (`peerjs@1.5.5`).
 - Sector modifiers, crossbow warm-up, AI pathing, recoil spread, ESLint CI fixes.
-- Armory polish: remove LOCAL mode, back button, ready-state fix, fixed Op slots, full-width equal columns, viewport scale-to-fit, connection timeout/retry, `iceConfig.ts` + `.env.example`. **290 tests** passing.
+- Armory polish: remove LOCAL mode, back button, ready-state fix, fixed Op slots, full-width equal columns, viewport scale-to-fit, connection timeout/retry, `iceConfig.ts` + `.env.example`.
+
+**2026-09-28:** Restart leak fixes (`InputManager.dispose`, shared `SoundManager`), online downed bleed-out (`BLEEDOUT_SEC`), spatial audio listener midpoint, scream SFX + zombie separation, `RunRecords` personal bests, `pull_request` CI — merged onto the online `main` tree.
