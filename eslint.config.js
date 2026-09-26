@@ -17,7 +17,9 @@ export default tseslint.config(
       // Agent skill tooling — not part of the shipped game bundle.
       '.claude/',
       // Vite dev-server cache artifacts (should not be committed).
-      'vite.config.ts.timestamp-*.mjs'
+      'vite.config.ts.timestamp-*.mjs',
+      // Reference copy; runtime uses src/graphics/TopDownWalkRig.ts
+      'walk_rig.js'
     ]
   },
   js.configs.recommended,

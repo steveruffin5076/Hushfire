@@ -19,6 +19,7 @@ import type { SectorReward } from '../ui/SectorRewardMenu';
 import { SECTORS } from '../config/sectors';
 import { SectorModifierId, getSectorModifier } from '../config/sectorModifiers';
 import { AssetLoader, AssetKey } from './AssetLoader';
+import { WALK_RIG_DEFAULTS } from '../graphics/TopDownWalkRig';
 import { WEAPON_REGISTRY, MUZZLE_MODIFIERS } from '../config/weapons';
 import { SessionManager } from '../net/SessionManager';
 import { inputToNet, netToInput } from '../net/Protocol';
@@ -627,6 +628,8 @@ export class Game {
     if (!this.p1.isEliminated) this.p1.update(dt, in1, this.map);
     if (!this.p2.isEliminated) this.p2.update(dt, in2, this.map);
 
+    this.updateOperative1WalkRig(dt);
+
     this.handleFootsteps(this.p1);
     this.handleFootsteps(this.p2);
 
@@ -704,6 +707,8 @@ export class Game {
     } else if (!this.p1.isEliminated) {
       this.p1.update(dt, in1, this.map);
     }
+
+    // Guest controls host P2 — no infiltrator walk rig on this client.
 
     for (const zombie of this.zombies) zombie.updateJuice(dt);
     this.zombies = this.zombies.filter(z => z.alive || z.isDying);
@@ -1371,6 +1376,27 @@ export class Game {
     }
   }
 
+  /** Operative 1 only (host/solo): procedural walk from `TopDownWalkRig`. */
+  private updateOperative1WalkRig(dt: number) {
+    const rig = this.assets.infiltratorWalkRig;
+    if (!rig || this.netRole === 'guest') return;
+    if (this.p1.isEliminated || this.p1.isDowned) return;
+    if (this.p1.noiseRadius <= 0) return;
+    const mult =
+      this.p1.movementState === 'sprint' ? 1.4 : this.p1.movementState === 'sneak' ? 0.72 : 1;
+    rig.o.stepsPerSec = WALK_RIG_DEFAULTS.stepsPerSec * mult;
+    rig.update(dt);
+  }
+
+  private usesInfiltratorWalkRig(p: Player): boolean {
+    return (
+      p.playerNumber === 1 &&
+      !p.isDowned &&
+      this.netRole !== 'guest' &&
+      this.assets.infiltratorWalkRig !== null
+    );
+  }
+
   private renderPlayers(ctx: CanvasRenderingContext2D) {
     for (const p of [this.p1, this.p2]) {
       if (p.isEliminated) continue;
@@ -1380,21 +1406,25 @@ export class Game {
         ? 'player_infiltrator'
         : 'player_breacher';
 
-      ctx.save();
-      ctx.translate(p.x, p.y);
-      ctx.rotate(p.angle);
+      if (this.usesInfiltratorWalkRig(p)) {
+        this.assets.infiltratorWalkRig!.draw(ctx, p.x, p.y, PLAYER_SPRITE_SIZE, p.angle);
+      } else {
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.angle);
 
-      if (!this.assets.drawCentered(ctx, key, PLAYER_SPRITE_SIZE)) {
-        ctx.fillStyle = p.playerNumber === 1 ? (p.isDowned ? '#8E3232' : '#4A5468') : p.isDowned ? '#8E3232' : '#53614C';
-        ctx.beginPath();
-        ctx.arc(0, 0, p.radius, 0, Math.PI * 2);
-        ctx.fill();
-        if (!p.isDowned) {
-          ctx.fillStyle = '#9AA6BE';
-          ctx.fillRect(8, -3, 16, 6);
+        if (!this.assets.drawCentered(ctx, key, PLAYER_SPRITE_SIZE)) {
+          ctx.fillStyle = p.playerNumber === 1 ? (p.isDowned ? '#8E3232' : '#4A5468') : p.isDowned ? '#8E3232' : '#53614C';
+          ctx.beginPath();
+          ctx.arc(0, 0, p.radius, 0, Math.PI * 2);
+          ctx.fill();
+          if (!p.isDowned) {
+            ctx.fillStyle = '#9AA6BE';
+            ctx.fillRect(8, -3, 16, 6);
+          }
         }
+        ctx.restore();
       }
-      ctx.restore();
 
       if (p.isDowned) {
         ctx.strokeStyle = '#FF5252';

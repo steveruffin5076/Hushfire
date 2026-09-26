@@ -1,3 +1,5 @@
+import { createTopDownWalkRig, TopDownWalkRig } from '../graphics/TopDownWalkRig';
+
 export type AssetKey =
   | 'player_infiltrator'
   | 'player_breacher'
@@ -53,6 +55,8 @@ const ASSET_PATHS: Record<AssetKey, string> = {
  */
 export class AssetLoader {
   private images = new Map<AssetKey, HTMLImageElement>();
+  /** Procedural walk cycle for Operative 1 (infiltrator), built from the static sprite. */
+  infiltratorWalkRig: TopDownWalkRig | null = null;
 
   async loadAll(): Promise<void> {
     const entries = Object.entries(ASSET_PATHS) as [AssetKey, string][];
@@ -73,6 +77,20 @@ export class AssetLoader {
           })
       )
     );
+
+    const infiltrator = this.images.get('player_infiltrator');
+    if (infiltrator) {
+      try {
+        this.infiltratorWalkRig = createTopDownWalkRig(infiltrator);
+      } catch (err) {
+        console.warn('[assets] failed to build infiltrator walk rig', err);
+        this.infiltratorWalkRig = null;
+      }
+    }
+  }
+
+  getImage(key: AssetKey): HTMLImageElement | undefined {
+    return this.images.get(key);
   }
 
   has(key: AssetKey): boolean {
