@@ -19,7 +19,8 @@ export default tseslint.config(
       // Vite dev-server cache artifacts (should not be committed).
       'vite.config.ts.timestamp-*.mjs',
       // Reference copy; runtime uses src/graphics/TopDownWalkRig.ts
-      'walk_rig.js'
+      'walk_rig.js',
+      'downed_rig.js'
     ]
   },
   js.configs.recommended,

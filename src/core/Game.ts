@@ -193,6 +193,8 @@ export class Game {
   private guestRemoteInput: PlayerInputState | null = null;
   private pendingSnapshot: NetSnapshotMessage | null = null;
   private guestMissionEnded = false;
+  /** Tracks Operative 1 downed rig so collapse plays once per knockdown. */
+  private p1DownedRigActive = false;
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -628,7 +630,7 @@ export class Game {
     if (!this.p1.isEliminated) this.p1.update(dt, in1, this.map);
     if (!this.p2.isEliminated) this.p2.update(dt, in2, this.map);
 
-    this.updateOperative1WalkRig(dt);
+    this.updateOperative1Rigs(dt);
 
     this.handleFootsteps(this.p1);
     this.handleFootsteps(this.p2);
@@ -1376,16 +1378,41 @@ export class Game {
     }
   }
 
-  /** Operative 1 only (host/solo): procedural walk from `TopDownWalkRig`. */
-  private updateOperative1WalkRig(dt: number) {
-    const rig = this.assets.infiltratorWalkRig;
-    if (!rig || this.netRole === 'guest') return;
-    if (this.p1.isEliminated || this.p1.isDowned) return;
-    if (this.p1.noiseRadius <= 0) return;
+  /** Operative 1 only (host/solo): walk + downed procedural rigs. */
+  private updateOperative1Rigs(dt: number) {
+    if (this.netRole === 'guest' || this.p1.isEliminated) return;
+
+    const walk = this.assets.infiltratorWalkRig;
+    const downed = this.assets.infiltratorDownedRig;
+
+    if (this.p1.isDowned && downed) {
+      if (!this.p1DownedRigActive) {
+        downed.trigger();
+        this.p1DownedRigActive = true;
+      }
+      downed.update(dt);
+      return;
+    }
+
+    if (this.p1DownedRigActive && downed) {
+      downed.standUp();
+      this.p1DownedRigActive = false;
+    }
+
+    if (!walk || this.p1.noiseRadius <= 0) return;
     const mult =
       this.p1.movementState === 'sprint' ? 1.4 : this.p1.movementState === 'sneak' ? 0.72 : 1;
-    rig.o.stepsPerSec = WALK_RIG_DEFAULTS.stepsPerSec * mult;
-    rig.update(dt);
+    walk.o.stepsPerSec = WALK_RIG_DEFAULTS.stepsPerSec * mult;
+    walk.update(dt);
+  }
+
+  private usesInfiltratorDownedRig(p: Player): boolean {
+    return (
+      p.playerNumber === 1 &&
+      p.isDowned &&
+      this.netRole !== 'guest' &&
+      this.assets.infiltratorDownedRig !== null
+    );
   }
 
   private usesInfiltratorWalkRig(p: Player): boolean {
@@ -1406,7 +1433,9 @@ export class Game {
         ? 'player_infiltrator'
         : 'player_breacher';
 
-      if (this.usesInfiltratorWalkRig(p)) {
+      if (this.usesInfiltratorDownedRig(p)) {
+        this.assets.infiltratorDownedRig!.draw(ctx, p.x, p.y, PLAYER_SPRITE_SIZE, p.angle);
+      } else if (this.usesInfiltratorWalkRig(p)) {
         this.assets.infiltratorWalkRig!.draw(ctx, p.x, p.y, PLAYER_SPRITE_SIZE, p.angle);
       } else {
         ctx.save();
