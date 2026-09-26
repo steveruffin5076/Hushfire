@@ -1,8 +1,8 @@
 # HUSHFIRE — Progress & Handoff
 
-Last updated: 2026-09-25 (playtest pass, sector rewards, Phase 7 lobby; added §9 Cursor task list). Written as a handoff for another developer or AI assistant, e.g. Cursor. Read this first, then `CLAUDE.md`.
+Last updated: 2026-09-25 (modifiers, rewards, playtest balance; expanded §7 Phase 7 sync steps). Written as a handoff for another developer or AI assistant, e.g. Cursor. Read this first, then `CLAUDE.md`.
 
-**Status in one line:** the full single-machine game is playable and deployed. Title → armory → 3 sectors → evac, solo or 2-player local co-op, on keyboard/mouse, gamepad or touch. **Online co-op: lobby + host-authoritative gameplay sync (Phase 7 M1–M2) are wired via PeerJS.**
+**Status in one line:** the full single-machine game is playable and deployed. Title → armory → 3 sectors → evac, solo or 2-player local co-op, on keyboard/mouse, gamepad or touch. Per-run sector modifiers and between-sector rewards are live. **Phase 7 gameplay sync is still not built** (online lobby code exists but each peer runs its own sim after deploy).
 
 - Live site: https://steveruffin5076.github.io/Hushfire/
 - Repo: https://github.com/steveruffin5076/Hushfire (default branch `main`)
@@ -16,7 +16,7 @@ npm install        # after any pull that touched package.json
 npm run dev        # http://localhost:3000
 npm run typecheck  # tsc --noEmit (covers src/ and tests/)
 npm run lint       # ESLint + typescript-eslint; `any` is an error
-npm test           # Vitest, 287 tests in tests/
+npm test           # Vitest, 282 tests in tests/
 npm run build      # tsc && vite build → dist/
 ```
 
@@ -43,6 +43,7 @@ src/
   config/
     constants.ts          Speeds, noise radii, thresholds, flashlight battery, sector-alert constants
     difficulty.ts         EASY/NORMAL/HARD table (HP, contact dmg, notice, evac hold, wave speed)
+    sectorModifiers.ts    Per-run twists: blackout, scavenger, hush, heavy
     sectors.ts            3 sector definitions: wall boxes, doors, spawns, zombies+alts, pickups+alts, objective, exit/evac
     sectorLayout.ts       Per-run shuffle: picks one spot per zombie/pickup from its alts
     weapons.ts            Weapons + muzzle/rail/ammo modifiers
@@ -65,15 +66,10 @@ src/
     NavGrid.ts            A* grid pathfinding
     Geometry.ts           Segment math, angleBetween
     HordeSurge.ts         Evac wave pacing, isSectorAlertingShot, mix, raw edge spawn points
-  net/
-    Protocol.ts           Re-exports NetMessage + PROTO_VERSION from GameSnapshot
-    GameSnapshot.ts       input/snapshot wire types, inputToNet/netToInput
-    roomCode.ts           generateRoomCode, peerIdForRoom, hash parsing
-    SessionManager.ts     PeerJS transport: lobby + gameplay input/snapshot relay
-  ui/                     HUD, ArmoryMenu (+ online lobby), MainMenu (+ create/join), PauseMenu,
-                          SectorRewardMenu, ExtractionModal, LobbyPanel, QuitScreen,
-                          LoadoutStorage (localStorage), MenuGamepadNav, StealthRating, theme
-tests/                    24 Vitest files (see §6)
+  net/                    Protocol, roomCode, SessionManager (PeerJS lobby — gameplay sync not wired)
+  ui/                     HUD, ArmoryMenu, MainMenu, PauseMenu, SectorRewardMenu, ExtractionModal,
+                          LobbyPanel, LoadoutStorage, MenuGamepadNav, StealthRating, theme
+tests/                    21 Vitest files (see §6)
 docs/                     Design specs + PHASE7_ONLINE_LOBBY_PLAN.md
 public/assets/            Processed game art (sprites, backgrounds, branding, items, fx)
 images/                   Raw art uploads from the owner (source material, not loaded by the game)
@@ -84,12 +80,17 @@ images/                   Raw art uploads from the owner (source material, not l
 ## 4. What's done
 
 ### Core loop
-- Title screen (key art) → armory (mode, difficulty, loadouts) → Sector 1 Transit → Sector 2 Bio-Lab → Sector 3 Helipad → end screen.
+- Title screen (key art) → armory (mode, difficulty, loadouts, run modifier) → Sector 1 Transit → Sector 2 Bio-Lab → Sector 3 Helipad → end screen.
 - **Sector objectives:**
   - S1: find the keycard, override the blast door.
   - S2: hold the lockdown terminal for 3.5 s.
   - S3: hold the radio in the annex for 2.5 s, then hold the evac pad through the horde.
-- **Between-sector reward (S1→S2, S2→S3):** clearing a sector's exit zone pauses the game and shows a supply-drop picker — field medkit (+50 HP each operative), ammo crate (+2 mags per weapon), or tactical battery (+50 charge). Gamepad-navigable via `MenuGamepadNav`.
+- **Between-sector reward (S1→S2, S2→S3):** clearing a sector's exit zone pauses the game and offers a supply drop — field medkit (+50 HP), ammo crate (+2 mags per weapon), or tactical battery (+50 charge). Gamepad-navigable.
+- **Per-run sector modifiers** (`config/sectorModifiers.ts`), rolled in the armory (reroll button), shown on the armory protocol panel and in-game HUD:
+  - *Blackout:* 50% battery at deploy; battery pickups stripped from every sector.
+  - *Scavenger:* half the pickups each sector.
+  - *Hush:* sector-alert reinforcement cooldown halved (4 s instead of 8 s).
+  - *Heavy:* +1 armored brute spawns in each sector.
 - Solo (P2 never spawns; going down = elimination) or 2-player local co-op (downed players can be revived by holding interact nearby).
 - Every living operative must reach the exit, and downed partners must be revived first. The evac clock only runs while someone is on the pad.
 - Health, ammo and battery carry over between sectors. There are no checkpoints; a run is about 6–10 min.
@@ -98,137 +99,60 @@ images/                   Raw art uploads from the owner (source material, not l
 - Darkness mask `rgba(5,5,8,0.96)`. Flashlight cones are raycast against walls.
 - **Flashlight battery:** 100 charge lasts 300 s of on-time and only drains while on. At empty the light forces off and can't be relit. A battery pickup gives +50. There's a HUD bar and a clickable ON/OFF button for P1.
 - **Noise:** footsteps (sneak 20 / walk 90 / sprint 260 px) and gunshots emit sound. Each wall crossed multiplies the radius by 0.28. The suspicious threshold is 0.38. Enraged needs 0.8, or 0.55 for gunshots.
-- **Sector-alert gunfire:** any shot louder than 150 px wakes **every** zombie in the sector, ignoring walls. After a 2 s "HORDE INCOMING" warning, 1 zombie (2 in co-op) spawns from a map edge; 8 s cooldown between reinforcement waves; capped at 18 zombies total. Silent weapons (knife, crossbow) never trigger this. Suppressed MPX/Glock stay under the threshold; suppressed M4/shotgun/revolver still alert the sector.
+- **Sector-alert gunfire:** any shot louder than 150 px wakes **every** zombie in the sector, ignoring walls. After a 2 s "HORDE INCOMING" warning, 1 zombie (2 in co-op) spawns from a map edge; 8 s cooldown between reinforcement waves (4 s under *Hush*); capped at 18 zombies total.
 - **Close-range notice:** a zombie that can see a player moving faster than a sneak turns ENRAGED within 40 px (dormant) or 100 px (suspicious). Sneaking or standing still stays hidden.
-- The flood light and spotlight alert zombies they shine on. The UV light and laser don't.
-- Knife backstab (400 dmg) from the zombie's rear 120°. The knife never uses ammo.
-- Brute front armour ×0.25 unless armour-piercing.
-- **Bio-carrier:** a pulsing green ring. On death its 400 px blast enrages everything in range, shown by a shockwave ring.
-- **Suppressor:** sound ×0.35. The MPX and Glock stay "stealth ready" (≤150 px); the M4, shotgun and revolver don't.
-
-### Combat & items
-- **Weapons:** MPX, M4A1, shotgun, crossbow (primary); Glock 17, revolver, knife (secondary).
-- **Attachments:** muzzle, rail/light and ammo type are chosen per weapon.
-- **Ammo crate:** +2 mags per gun, capped at the starting reserve. It stays on the floor if both guns are full.
-- **Crossbow bolts:** walking over a stuck bolt returns it to reserve.
-- **Pickups:** ammo, medkit (+50 HP), battery (+50), keycard.
+- Knife backstab (400 dmg) from the zombie's rear 120°. Suppressor keeps MPX/Glock stealth-ready (≤150 px).
 
 ### Difficulty & replayability
-- **Difficulty** (`config/difficulty.ts`), chosen in the armory:
-
-  | | Zombie HP | Contact dmg | Notice radius | Evac hold | Fastest wave |
-  |---|---|---|---|---|---|
-  | EASY | ×0.8 | 11/s | ×0.75 | 90 s | 6 s |
-  | NORMAL | ×1 | 15/s | ×1 | 120 s | 4 s |
-  | HARD | ×1.25 | 22/s | ×1.4 | 150 s | 3 s |
-
-- **Layout shuffle:** every zombie and pickup has 2 alternative spots (`alts`), and one is picked per run. Types and counts never change, so sector HP stays 358 → 466 → 498.
-- **Evac horde waves:** every 10 s down to the difficulty minimum. Co-op waves are 2 zombies. Mix: lurker 40 / stalker 25 / bio 25 / brute 10%. Capped at 18 zombies. Spawns are validated so they never land inside Sector 3's off-roof blocker boxes (`MapManager.rollSurgeSpawn`).
-- **Warnings:** "HORDE INCOMING" banner 2 s before each evac wave and before sector-alert reinforcement waves.
-- **End screen:** difficulty, sector reached, time, kills, shots, silent kills, zombies alerted, stealth rating (GHOST 0 / SHADOW ≤3 / OPERATOR ≤8 / LOUD).
-
-### Sector modifiers (per-run twist)
-- Rolled in the armory with **REROLL MODIFIER**; shown on the protocol panel, HUD, and end screen.
-- **Blackout:** 50% battery at deploy; battery pickups stripped.
-- **Scavenger:** half the sector pickups.
-- **Hush:** sector-alert reinforcement cooldown halved (4 s vs 8 s).
-- **Heavy:** +1 armored brute per sector.
-- Tests: `tests/sectorModifiers.test.ts`.
-
-### Online co-op — Phase 7 (lobby + gameplay sync)
-- **Title screen:** START GAME (local), CREATE CO-OP SESSION, JOIN SESSION (code input).
-- **Invite link:** `#HUSH-XXXXX` hash in the URL; guest auto-enters the armory lobby.
-- **PeerJS transport** (`peerjs@1.5.5`): room code maps to peer id `hushfire-HUSH-XXXXX`. STUN via Google. Outbound queue while the DataChannel opens.
-- **Armory online mode:** room code + copy-link, connection status, ready pills, debounced loadout broadcast (120 ms), host-gated deploy with shared seed.
-- **Gameplay sync (M2):** host runs the authoritative `Game`; guest sends input at 60 Hz and renders ~30 Hz snapshots. Slot remap: guest's local P1 = host's P2. Shared layout seed via `mulberry32(seed)` on deploy. Wire format: `src/net/GameSnapshot.ts`.
-- **Dependency:** `peerjs` in `package.json`.
+- **Difficulty** (`config/difficulty.ts`): EASY / NORMAL / HARD — zombie HP, contact DPS, notice radius, evac holdout length, fastest wave interval.
+- **Layout shuffle:** every zombie and pickup has 2 alternative spots per run.
+- **Evac horde waves** during Sector 3 holdout with "HORDE INCOMING" warnings.
+- **End screen:** difficulty, run modifier, sector reached, time, kills, shots, silent kills, zombies alerted, stealth rating.
 
 ### Controls
-- **Keyboard/mouse** (P1 WASD + mouse, P2 arrows + IJKL). The full table is in `docs/COOP_SESSION_GUIDE.md` §5.
-- **Gamepad** (standard layout):
-  - Solo → the first pad is P1. Co-op with one pad → P2. Two pads → one each.
-  - The menus are pad-navigable too: a cyan highlight moves between buttons, A presses, and B resumes from pause.
-- **Touch:**
-  - On-screen twin-stick controls for P1 appear after the first touch.
-  - Pushing the aim stick past its ring fires.
-  - Buttons: SPRINT/SNEAK toggles, RELOAD, USE, SWAP, LIGHT, pause.
-  - Upright phones get a "rotate to landscape" prompt.
-- The armory remembers mode, difficulty and both loadouts in `localStorage`. Saves from older builds are checked field by field.
+- Keyboard/mouse, gamepad (menus + gameplay), touch (P1 only). Armory remembers mode, difficulty and loadouts in `localStorage`.
 
 ### Art
-- P1, P2 and all zombie archetypes, including the lurker aggro variant, use the owner's uploaded top-down art.
-- Each sector has a background image.
-- **Sector 3:** off-roof blocker walls stop anyone walking over the sky. Horde surge spawns use the same box set — raw map-edge rolls can land inside a blocker, so `rollSurgeSpawn` rejects them and `resolveCircleCollision` ejects any circle trapped in a box interior.
-- **Sector 2:** no door, because nothing in the art anchors one.
+- P1, P2, all zombie archetypes, sector background images. Sector 3 off-roof blocker walls validated for horde spawns.
 
 ---
 
 ## 5. Known issues, quirks & doc drift
 
-- **Split HUD button:** the HUD flashlight button only takes clicks for P1, since local co-op shares one mouse.
-- **Touch is P1 only:** two players on one phone isn't supported.
-- **Online co-op limits:** no TURN relay (strict NAT pairs may fail to connect); free `0.peerjs.com` PeerServer has no SLA; guest has no client-side prediction beyond applying snapshots (may feel laggy on high-latency links).
-- **2026-09-25 playtest pass:** automated balance review (`tests/playtestBalance.test.ts`) confirms EASY/HARD contact DPS, evac pacing and sector HP scale as intended. Owner previously confirmed movement/firing on the live site and sector-alert horde behaviour.
+- **`CLAUDE.md` is partly out of date** — noise numbers and file tree; §3 above is current.
+- **`recoilMult` is unused** — no spread model yet.
+- **Zombies can still grind corners** when A* fails.
+- **Online lobby exists but gameplay is not synchronized** — each browser runs its own `Game` after deploy (Phase 7 milestone 2).
+- **2026-09-25:** automated playtest balance review passed (`tests/playtestBalance.test.ts`); owner previously confirmed movement, firing, and sector-alert horde behaviour on the live site.
 
 ---
 
 ## 6. How things were tested (reuse these)
 
-- **Unit tests** (`tests/*.test.ts`). Game logic runs in Node. Examples:
-  - `new MapManager()`, `new AISystem()`, `new CombatSystem(map, noise)`
-  - `new Player(...)`, `new Zombie(...)`
-  - `InputManager` with stubbed `window` and `navigator.getGamepads` (see `tests/gamepad.test.ts`, `tests/touch.test.ts`)
-- **Mutation check:** for important rules, temporarily break the code and confirm a test fails before trusting it.
-- **Browser checks:** Playwright drives `npm run dev`.
-  - Title → armory → deploy.
-  - Simulated gamepads via an init script that overrides `navigator.getGamepads`.
-  - Phone emulation (`hasTouch`, 844×390) with CDP `Input.dispatchTouchEvent` for multi-touch.
-- **Art alignment:** plot every spot (spawns, zombie/pickup alts, boxes) over the sector's background image with PIL and look at it. This caught spots in the sky that the tests couldn't.
-- **Surge spawn safety** (`tests/hordeSurge.test.ts`): Monte-Carlo `rollSurgeSpawn` on Sector 3 — every point must be `isFreePosition` and have a nav path to the evac pad. `tests/collision.test.ts` also checks `ejectFromBoxes` for a point deep inside a blocker.
-- **Sector alert** (`tests/sectorAlert.test.ts`): `isSectorAlertingShot` threshold, `CombatSystem` callback, sector-wide ENRAGE.
-- **Sector rewards** (`tests/sectorReward.test.ts`): medkit/ammo/battery math mirrors pickup behaviour.
-- **Playtest balance** (`tests/playtestBalance.test.ts`): cross-difficulty DPS, HP totals, evac pacing, sector-horde cooldown sanity.
-- **Online room codes** (`tests/roomCode.test.ts`): `generateRoomCode`, `peerIdForRoom`, hash detection.
-- **Network input codec** (`tests/snapshotCodec.test.ts`): `inputToNet` / `netToInput` round-trip.
-- **Crossbow warm-up** (`tests/crossbowWarmup.test.ts`): first-shot readiness after deploy.
-- **AI pathing** (`tests/aiPathing.test.ts`): no straight-line grind when A* returns no route.
-- **Deterministic Playwright loop:** `Game.renderGameToText()` + `Game.advanceTime()` wired in `main.ts`. Example: `node scripts/dev-playtest.mjs http://localhost:3000/`.
+- **Unit tests** (`tests/*.test.ts`) — game logic in Node without a browser.
+- **Playtest balance** (`tests/playtestBalance.test.ts`) — cross-difficulty DPS, HP totals, evac pacing.
+- **Sector modifiers** (`tests/sectorModifiers.test.ts`) — pickup filtering, modifier pick pool.
+- **Sector rewards** (`tests/sectorReward.test.ts`) — medkit/ammo/battery math.
+- **Sector alert** (`tests/sectorAlert.test.ts`) — loud gun sector frenzy.
+- **Deterministic Playwright loop:** `window.render_game_to_text()` + `window.advanceTime()` in `main.ts`; `node scripts/dev-playtest.mjs http://localhost:3000/`.
 
 ---
 
 ## 7. What's next (recommended order)
 
-1. **Human playtest a full run** on NORMAL, then EASY and HARD — tune feel from notes (automated balance tests passed; human feel pass still valuable).
-2. **Online co-op polish:** guest client prediction + snapshot interpolation; sector-reward menu on guest; two-browser playtest on localhost and GitHub Pages.
-3. **Smaller ideas:** more sectors on existing art; a survival mode on the Sector 3 map; self-hosted PeerServer for production reliability; TURN relay (owner must pick a provider first).
-
----
-
-## 9. Cursor task list (2026-09-25) — completed
-
-All implementable items from the original list are done. Remaining items need owner input (TURN provider, PeerServer hosting) or human playtest.
-
-| # | Task | Status |
-|---|------|--------|
-| 1 | Crossbow warm-up | ✅ `Player.lastShotTime = -Infinity`, `tests/crossbowWarmup.test.ts` |
-| 2 | Zombie corner-grinding | ✅ `AISystem.steer` holds when pathless, `tests/aiPathing.test.ts` |
-| 3 | Stale docs | ✅ `CLAUDE.md`, `PHASE7_ONLINE_LOBBY_PLAN.md` updated |
-| 4 | Phase 7 M2 gameplay sync | ✅ `GameSnapshot.ts`, host/guest paths in `Game.ts`, `SessionManager` relay |
-| 5 | Sector modifiers | ✅ `config/sectorModifiers.ts` (pre-existing), tests pass |
-| 6 | Recoil/spread model | ✅ `CombatSystem` reads `recoilMult`, `tests/weaponBalance.test.ts` |
-| 7 | TURN relay | ⏸ TBD — owner must pick provider |
-| 8 | Self-hosted PeerServer | ⏸ TBD — owner must pick hosting |
-| — | Human playtest | Owner task |
+1. **Human playtest a full run** on NORMAL, then EASY and HARD — tune feel from notes (automated balance tests already pass).
+2. **Phase 7 milestone 2 — gameplay sync** (large). Verified against current code (`docs/PHASE7_ONLINE_LOBBY_PLAN.md` §14/§7.5, cross-checked live): the seam is `Game.ts:411` (`this.input.getPlayer2Input(...)`). Do in this order:
+   1. **`net/Protocol.ts`:** add `{ t: 'input'; seq: number; state: PlayerInputState }` and `{ t: 'snapshot'; ... }` to `NetMessage` (currently only `hello`/`loadout`/`deploy`/`bye`). `PlayerInputState` already has every field needed (`moveX, moveY, aimAngle, isFiring, isSprinting, isSneaking, isReloading, isInteracting, isSwitchingWeapon, selectPrimary, selectSecondary, isTogglingFlashlight`) — just add `seq`.
+   2. **Slot-identity remap (§7.5) — do this before wiring sync, not after.** Host is always sim-p1, guest is sim-p2; the guest needs a render/input remap so their own mouse drives sim-p2 while their HUD still shows themselves on the left.
+   3. **Host side:** `SessionManager` buffers incoming `input` messages; `Game.ts:411` reads from that buffer instead of local input when running as host with a connected guest.
+   4. **Snapshot broadcast:** host sends a ~250-byte snapshot at 30 Hz (player/zombie/bolt/pickup/objective/evac + sound/FX events); guest renders with interpolation and predicts its own movement locally. Guest sends input at 60 Hz.
+   5. **No deterministic lockstep** — `Math.sin`/`atan2` are implementation-defined per spec; `CombatSystem`/`Camera` lean on them every tick, so Chrome/Safari would diverge within seconds. Host-authoritative + client prediction only.
+3. **Smaller ideas:** spread model so `recoilMult` matters; more sectors on existing art; survival mode on Sector 3; self-hosted PeerServer for production reliability.
 
 ---
 
 ## 8. History
 
-All work landed through PRs #1–#33 on `main`: deploy pipeline, art pipeline, asset-path fix, title screen, sprite and background replacements, wall alignment, lighting, flashlight battery, `.gitignore`, test suite, lint, loadout saving, gamepad, touch, gamepad menus, design-review bug fixes and tuning, layout shuffle, difficulty levels, Sector 3 roof edge, bolts/radio/door cleanup, progress handoff rewrite (PR #32), horde surge spawn-in-wall fix (PR #33). See `git log --merges` for details.
+PRs #1–#33 on `main`: full game loop, art, tests, gamepad, touch, difficulty, sector-alert horde frenzy, horde spawn safety (PR #33).
 
-**2026-09-25 sessions (local, not yet merged):**
-- Sector-alert horde frenzy — loud gunfire (>150 px) wakes every zombie and calls edge reinforcements. Owner playtested and confirmed.
-- Automated playtest balance review (`tests/playtestBalance.test.ts`).
-- Between-sector reward picker (`SectorRewardMenu.ts`, `Game.onSectorReward`).
-- Phase 7 lobby: `Protocol.ts`, `roomCode.ts`, PeerJS `SessionManager`, `LobbyPanel`, armory online mode, title create/join buttons (`peerjs@1.5.5`).
-- Sector modifiers (`sectorModifiers.ts`), Cursor task list bugs/features: crossbow fix, AI pathing fix, recoil spread, gameplay sync (`GameSnapshot.ts`), doc updates. **287 tests** passing.
+**2026-09-25 session (local):** between-sector reward picker, per-run sector modifiers (blackout/scavenger/hush/heavy), automated playtest balance suite, progress handoff update. Sector-alert horde and online lobby code from earlier in the day are in the tree but gameplay sync is explicitly deferred.
