@@ -56,7 +56,7 @@ Draw sizes are the values in `ZOMBIE_SPRITE_SIZE` (`src/core/Game.ts`). All four
 | **Lurker** | $86 \times 86\text{ px}$ | Slumped posture against wall, head down, dull glowing eyes | Snaps upright, unhinges jaw, eyes flare red | Collapses forward, dark blood decal pools on floor |
 | **Audio-Stalker** | $78 \times 78\text{ px}$ | Blind, bulbous mutated auditory horns on head, pale skin | Head twitches erratically toward sound sources | Disintegrates into bone splinters on high-caliber impact |
 | **Bio-Carrier** | $102 \times 102\text{ px}$ | Swollen belly with translucent skin and glowing green fluid | Spews acidic puddle ($3\text{m}$ radius) when alerted | Explodes into toxic cloud that damages vision for 8s |
-| **Armored Sentry**| $36\text{ px}$ width scale ($\approx 72\text{ px}$ tall on screen; rotated bake) | Former SWAT with riot shield, ballistic vest, cracked helmet | Charges forward, deflects frontal bullets with sparks | Staggers when flanked; back spine glows exposed |
+| **Armored Sentry**| $48\text{ px}$ width scale ($\approx 97\text{ px}$ tall on screen; rotated bake) | Former SWAT with riot shield, ballistic vest, cracked helmet | Charges forward, deflects frontal bullets with sparks | Staggers when flanked; back spine glows exposed |
 
 The sensory-state eye tell is drawn on top of the sprite as two dots offset along the facing vector, scaled as ratios of that archetype's draw size ($0.17$ forward, $\pm 0.06$ lateral, radius $0.0375$): dull green when `DORMANT`, yellow when `SUSPICIOUS`, red when `ENRAGED`.
 

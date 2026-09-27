@@ -245,7 +245,8 @@ export class ArmoryMenu {
       onlineBtn.style.cssText = modeButtonBase + (mode === 'online' ? active : inactive);
       applyOnlineOperativeSlot();
       lobbyMount.style.display = mode === 'online' ? 'block' : 'none';
-      readyBtn.style.display = mode === 'online' && session ? 'inline-block' : 'none';
+      readyBtn.style.display =
+        mode === 'online' && session && session.role !== 'LOCAL' ? 'inline-block' : 'none';
       renderProtocol();
       renderLoadout();
       updateDeployButton();
@@ -508,7 +509,8 @@ export class ArmoryMenu {
     if (session) {
       lobbyPanel = new LobbyPanel(session);
       lobbyPanel.mount(lobbyMount);
-      readyBtn.style.display = 'inline-block';
+      readyBtn.style.display =
+        mode === 'online' && session.role !== 'LOCAL' ? 'inline-block' : 'none';
       session.onStateChange = () => {
         lobbyPanel?.refresh();
         readyBtn.textContent = session.localReady ? 'UNREADY' : 'READY';
