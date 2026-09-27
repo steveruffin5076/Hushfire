@@ -25,7 +25,7 @@
 
 ### Sprite Dimensions & Frame Rates
 * **Authored Size:** $128 \times 128\text{ px}$ transparent PNG per character (top-down view looking down at helmet/shoulders). This is the source resolution the art ships at, and therefore the ceiling on draw size — past $128\text{ px}$ the sprite upscales, and `index.html` sets `image-rendering: pixelated`, so it goes crunchy rather than soft.
-* **Draw Size:** Operatives render at $94\text{ px}$ (`PLAYER_SPRITE_SIZE` in `src/core/Game.ts`); infected render per-archetype at $78$–$108\text{ px}$ (see §3). All are down-scales of the $128\text{ px}$ art.
+* **Draw Size:** Operatives render at $94\text{ px}$ (`PLAYER_SPRITE_SIZE` in `src/core/Game.ts`); infected render per-archetype (see §3). Sheet width targets are $78$–$102\text{ px}$ for standard bakes; the armored brute uses a lower width scale because its cells are pre-rotated ($275 \times 556$).
 * **Pivot Point:** Exact center $(64, 64)$ of the source art, drawn centered so it stays the rotation origin for smooth 360-degree rotation toward the mouse cursor.
 * **Format:** Transparent PNG spritesheet or procedural Canvas 2D vector drawing.
 * **Draw size is not hitbox size.** Collision uses a separate $16\text{ px}$ radius for both operatives and infected (`PLAYER_RADIUS`, `ZOMBIE_RADIUS`), so sprites render roughly $2.9\times$ their collision circle. Resizing sprites is therefore a purely visual change with no effect on hit detection, contact damage, collision resolution or pathfinding — keep it that way unless a difficulty change is actually intended.
@@ -56,7 +56,7 @@ Draw sizes are the values in `ZOMBIE_SPRITE_SIZE` (`src/core/Game.ts`). All four
 | **Lurker** | $86 \times 86\text{ px}$ | Slumped posture against wall, head down, dull glowing eyes | Snaps upright, unhinges jaw, eyes flare red | Collapses forward, dark blood decal pools on floor |
 | **Audio-Stalker** | $78 \times 78\text{ px}$ | Blind, bulbous mutated auditory horns on head, pale skin | Head twitches erratically toward sound sources | Disintegrates into bone splinters on high-caliber impact |
 | **Bio-Carrier** | $102 \times 102\text{ px}$ | Swollen belly with translucent skin and glowing green fluid | Spews acidic puddle ($3\text{m}$ radius) when alerted | Explodes into toxic cloud that damages vision for 8s |
-| **Armored Sentry**| $108 \times 108\text{ px}$ | Former SWAT with riot shield, ballistic vest, cracked helmet | Charges forward, deflects frontal bullets with sparks | Staggers when flanked; back spine glows exposed |
+| **Armored Sentry**| $36\text{ px}$ width scale ($\approx 72\text{ px}$ tall on screen; rotated bake) | Former SWAT with riot shield, ballistic vest, cracked helmet | Charges forward, deflects frontal bullets with sparks | Staggers when flanked; back spine glows exposed |
 
 The sensory-state eye tell is drawn on top of the sprite as two dots offset along the facing vector, scaled as ratios of that archetype's draw size ($0.17$ forward, $\pm 0.06$ lateral, radius $0.0375$): dull green when `DORMANT`, yellow when `SUSPICIOUS`, red when `ENRAGED`.
 
