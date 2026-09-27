@@ -36,6 +36,9 @@ npm run build
 
 # Preview production build locally
 npm run preview
+
+# Re-import baked animation sheets (after extracting pack to .tmp_anim_pack_v2)
+npm run import-anim-pack
 ```
 
 ---
@@ -46,16 +49,18 @@ See `progress.md` §3 for the current code map (config, core, entities, lighting
 
 ```text
 src/
-  main.ts              Bootstrap: SessionManager → MainMenu → ArmoryMenu → Game
+  main.ts              Bootstrap: AnimationCatalog → SessionManager → MainMenu → ArmoryMenu → Game
   config/              constants, difficulty, sectors, weapons, zombies, sectorModifiers
   core/                Game, Input, Camera, AssetLoader, SoundManager, seededRand
+  graphics/animation/  AnimationCatalog, CharacterAnimController, sheet draw helpers
   entities/            Player, Zombie, Projectile, Pickup, Entity
   lighting/            Raycaster, Flashlight, ShadowRenderer
   systems/             AISystem, CombatSystem, MapManager, NoiseSystem, HordeSurge, NavGrid
-  net/                 Protocol, GameSnapshot, SessionManager (PeerJS), roomCode
+  net/                 Protocol, GameSnapshot, iceConfig (optional TURN), SessionManager, roomCode
   ui/                  HUD, ArmoryMenu, MainMenu, LobbyPanel, SectorRewardMenu, …
-docs/                  Design specs + PHASE7_ONLINE_LOBBY_PLAN.md
-public/assets/         Game art (sprites, backgrounds, items, fx)
+scripts/               import-anim-pack.mjs (sharp → WebP), dev-playtest.mjs
+docs/                  Design specs, ANIMATION_IMPORT.md, PHASE7_ONLINE_LOBBY_PLAN.md
+public/assets/         sprites, backgrounds, fx, animations/ (per-character WebP+JSON sheets)
 ```
 
 ---
@@ -80,12 +85,13 @@ public/assets/         Game art (sprites, backgrounds, items, fx)
 ### 4. Deployed Asset Paths (GitHub Pages)
 * This site deploys under a subpath (`vite.config.ts`'s `base: '/Hushfire/'` on GitHub Actions, `/` locally). Vite only rewrites actual imports and the `index.html` entry script for that base — it does **not** rewrite runtime string literals.
 * Never hardcode a leading-slash asset path like `'/assets/sprites/foo.png'` anywhere in `src/` — it resolves at the domain root and 404s under the Pages subpath, silently dropping to placeholder art with no error surfaced in the UI. Build every asset URL from `` `${import.meta.env.BASE_URL}assets/...` `` instead (see `src/core/AssetLoader.ts`).
-* After touching `AssetLoader.ts`, `vite.config.ts`'s `base`, or adding any new asset reference, verify by building with `GITHUB_ACTIONS=true npm run build`, serving `dist/` under a `/Hushfire/` subpath, and confirming the sprite/item/fx requests return 200 — not just that `npm run dev` looks fine, since dev always serves from `/` and won't catch this class of bug.
+* After touching `AssetLoader.ts`, `AnimationCatalog.ts`, `vite.config.ts`'s `base`, or adding any new asset reference, verify by building with `GITHUB_ACTIONS=true npm run build`, serving `dist/` under a `/Hushfire/` subpath, and confirming the sprite/item/fx/**animations** requests return 200 — not just that `npm run dev` looks fine, since dev always serves from `/` and won't catch this class of bug. See `docs/ANIMATION_IMPORT.md` for sheet updates.
 
 ### 5. Multiplayer Synchronization
 * **Lobby (Phase 7 M1):** PeerJS room codes, loadout mirror, host-gated deploy — see `src/net/SessionManager.ts`.
-* **Gameplay sync (Phase 7 M2):** Host-authoritative `Game` simulates both operatives; guest sends `PlayerInputState` at 60 Hz (`{t:'input'}`); host broadcasts `{t:'snapshot'}` at ~30 Hz. Guest remaps slots (local P1 = host P2). Wire format in `src/net/GameSnapshot.ts`. Shared layout seed via `mulberry32` in `src/core/seededRand.ts`.
+* **Gameplay sync (Phase 7 M2):** Host-authoritative `Game` simulates both operatives; guest sends `PlayerInputState` at 60 Hz (`{t:'input'}`); host broadcasts `{t:'snapshot'}` at ~30 Hz. Guest remaps slots (local P1 = host P2). Wire format in `src/net/GameSnapshot.ts`. Shared layout seed via `mulberry32` in `src/core/seededRand.ts`. Guest draws operatives with snapshot blending between updates; local input still predicts between snapshots.
 * No deterministic lockstep — `Math.random` / trig are not cross-browser-safe.
+* **NAT / TURN:** Optional `VITE_TURN_CREDENTIALS_URL` in `.env` (see `.env.example`, `src/net/iceConfig.ts`) for symmetric NAT or strict firewalls. Lobby shows a hint on connection errors.
 
 ---
 

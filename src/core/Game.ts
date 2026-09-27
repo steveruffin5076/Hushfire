@@ -1,4 +1,14 @@
-import { CANVAS_WIDTH, CANVAS_HEIGHT, REVIVE_RANGE_PX, FLASHLIGHT_BATTERY_MAX, BATTERY_PICKUP_CHARGE, SECTOR_HORDE_COOLDOWN_SEC } from '../config/constants';
+import {
+  CANVAS_WIDTH,
+  CANVAS_HEIGHT,
+  REVIVE_RANGE_PX,
+  FLASHLIGHT_BATTERY_MAX,
+  BATTERY_PICKUP_CHARGE,
+  SECTOR_HORDE_COOLDOWN_SEC,
+  SNEAK_NOISE_RADIUS,
+  WALK_NOISE_RADIUS,
+  SPRINT_NOISE_RADIUS
+} from '../config/constants';
 import { InputManager, PlayerInputState } from './Input';
 import { Camera } from './Camera';
 import { SoundManager } from './SoundManager';
@@ -41,6 +51,17 @@ const HORDE_MAX_ZOMBIES = 18;
 const BLAST_RING_SEC = 0.7;
 /** "HORDE INCOMING" shows for this long before each evac wave. */
 const SURGE_WARNING_SEC = 2;
+/** Guest render blend between ~30 Hz snapshots (not sim state). */
+const GUEST_SNAP_BLEND_SPEED = 22;
+
+type GuestPoseBlend = { fx: number; fy: number; fa: number; tx: number; ty: number; ta: number; t: number };
+
+function lerpAngleRad(a: number, b: number, t: number): number {
+  let d = b - a;
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d < -Math.PI) d += Math.PI * 2;
+  return a + d * t;
+}
 
 // Draw sizes, per docs/ART_SPECIFICATION.md §2-3. Sprites are authored at
 // 128x128, so these are all still *down*scales — 128 is the ceiling before the
@@ -202,6 +223,9 @@ export class Game {
   private guestRemoteInput: PlayerInputState | null = null;
   private pendingSnapshot: NetSnapshotMessage | null = null;
   private guestMissionEnded = false;
+  private guestBlendP1: GuestPoseBlend = { fx: 0, fy: 0, fa: 0, tx: 0, ty: 0, ta: 0, t: 1 };
+  private guestBlendP2: GuestPoseBlend = { fx: 0, fy: 0, fa: 0, tx: 0, ty: 0, ta: 0, t: 1 };
+  private readonly guestZombieBlend = new Map<number, GuestPoseBlend>();
   private readonly animations: AnimationCatalog | null;
   private readonly p1Anim: CharacterAnimController | null;
   private readonly p2Anim: CharacterAnimController | null;
@@ -256,6 +280,8 @@ export class Game {
     // makes every system that already filters on isEliminated/alive (AI targeting,
     // camera framing, HUD, revive, combat) treat it as if it were never there.
     if (this.solo) this.p2.eliminate();
+    this.wireSheetFootfalls(this.p1, this.p1Anim);
+    this.wireSheetFootfalls(this.p2, this.p2Anim);
 
     this.map.loadSector(0, this.layoutRand, this.runModifier);
     if (this.runModifier === 'blackout') {
@@ -391,6 +417,105 @@ export class Game {
     };
   }
 
+  private guestPlayerDrawPose(player: Player, blend: GuestPoseBlend): { x: number; y: number; angle: number } {
+    if (this.netRole !== 'guest' || blend.t >= 1) {
+      return { x: player.x, y: player.y, angle: player.angle };
+    }
+    const t = blend.t;
+    return {
+      x: blend.fx + (blend.tx - blend.fx) * t,
+      y: blend.fy + (blend.ty - blend.fy) * t,
+      angle: lerpAngleRad(blend.fa, blend.ta, t)
+    };
+  }
+
+  private markGuestSnapBlendFrom() {
+    if (this.netRole !== 'guest') return;
+    const p1 = this.guestPlayerDrawPose(this.p1, this.guestBlendP1);
+    const p2 = this.guestPlayerDrawPose(this.p2, this.guestBlendP2);
+    this.guestBlendP1.fx = p1.x;
+    this.guestBlendP1.fy = p1.y;
+    this.guestBlendP1.fa = p1.angle;
+    this.guestBlendP2.fx = p2.x;
+    this.guestBlendP2.fy = p2.y;
+    this.guestBlendP2.fa = p2.angle;
+  }
+
+  private markGuestSnapBlendTo() {
+    if (this.netRole !== 'guest') return;
+    this.guestBlendP1.tx = this.p1.x;
+    this.guestBlendP1.ty = this.p1.y;
+    this.guestBlendP1.ta = this.p1.angle;
+    this.guestBlendP1.t = 0;
+    this.guestBlendP2.tx = this.p2.x;
+    this.guestBlendP2.ty = this.p2.y;
+    this.guestBlendP2.ta = this.p2.angle;
+    this.guestBlendP2.t = 0;
+  }
+
+  private guestZombieDrawPose(z: Zombie): { x: number; y: number; angle: number } {
+    const blend = this.guestZombieBlend.get(z.id);
+    if (this.netRole !== 'guest' || !blend || blend.t >= 1) {
+      return { x: z.x, y: z.y, angle: z.angle };
+    }
+    const t = blend.t;
+    return {
+      x: blend.fx + (blend.tx - blend.fx) * t,
+      y: blend.fy + (blend.ty - blend.fy) * t,
+      angle: lerpAngleRad(blend.fa, blend.ta, t)
+    };
+  }
+
+  private markGuestZombieBlendFrom() {
+    if (this.netRole !== 'guest') return;
+    for (const z of this.zombies) {
+      const pose = this.guestZombieDrawPose(z);
+      const b = this.guestZombieBlend.get(z.id) ?? {
+        fx: pose.x,
+        fy: pose.y,
+        fa: pose.angle,
+        tx: pose.x,
+        ty: pose.y,
+        ta: pose.angle,
+        t: 1
+      };
+      b.fx = pose.x;
+      b.fy = pose.y;
+      b.fa = pose.angle;
+      this.guestZombieBlend.set(z.id, b);
+    }
+  }
+
+  private markGuestZombieBlendTo() {
+    if (this.netRole !== 'guest') return;
+    const live = new Set<number>();
+    for (const z of this.zombies) {
+      live.add(z.id);
+      let b = this.guestZombieBlend.get(z.id);
+      if (!b) {
+        b = { fx: z.x, fy: z.y, fa: z.angle, tx: z.x, ty: z.y, ta: z.angle, t: 1 };
+        this.guestZombieBlend.set(z.id, b);
+        continue;
+      }
+      b.tx = z.x;
+      b.ty = z.y;
+      b.ta = z.angle;
+      b.t = 0;
+    }
+    for (const id of this.guestZombieBlend.keys()) {
+      if (!live.has(id)) this.guestZombieBlend.delete(id);
+    }
+  }
+
+  private advanceGuestBlends(dt: number) {
+    if (this.netRole !== 'guest') return;
+    this.guestBlendP1.t = Math.min(1, this.guestBlendP1.t + dt * GUEST_SNAP_BLEND_SPEED);
+    this.guestBlendP2.t = Math.min(1, this.guestBlendP2.t + dt * GUEST_SNAP_BLEND_SPEED);
+    for (const b of this.guestZombieBlend.values()) {
+      b.t = Math.min(1, b.t + dt * GUEST_SNAP_BLEND_SPEED);
+    }
+  }
+
   private applyGuestSnapshot(snap: NetSnapshotMessage) {
     this.missionTime = snap.missionTime;
     this.paused = snap.paused;
@@ -411,10 +536,13 @@ export class Game {
       zone.isComplete = snap.evac.complete;
     }
 
+    this.markGuestSnapBlendFrom();
     // Guest's local P1 is the host's P2; partner is host's P1.
     this.applyPlayerSnap(this.p1, snap.p2);
     this.applyPlayerSnap(this.p2, snap.p1);
+    this.markGuestSnapBlendTo();
 
+    this.markGuestZombieBlendFrom();
     this.zombies = snap.zombies.map(
       z => {
         const zombie = new Zombie(z.x, z.y, z.angle, z.archetype, this.difficultyDef.zombieHpMult);
@@ -423,6 +551,7 @@ export class Game {
         return zombie;
       }
     );
+    this.markGuestZombieBlendTo();
 
     this.map.pickups = snap.pickups.map(p => new Pickup(p.x, p.y, p.type));
     this.projectiles = snap.projectiles.map(p => {
@@ -666,6 +795,7 @@ export class Game {
 
     this.combat.updateProjectiles(dt, this.projectiles, this.zombies, [this.p1, this.p2], this.decals);
     this.projectiles = collectStuckBolts(this.projectiles, [this.p1, this.p2]);
+    this.tickDecals(dt);
 
     this.ai.update(dt, this.zombies, [this.p1, this.p2], this.map);
     this.noise.propagate(this.zombies, this.map);
@@ -780,25 +910,60 @@ export class Game {
       this.p1.update(dt, in1, this.map);
     }
 
+    this.advanceGuestBlends(dt);
+
     this.updateCharacterAnimations(dt);
+    this.tickDecals(dt);
 
     for (const zombie of this.zombies) zombie.updateJuice(dt);
     this.zombies = this.zombies.filter(z => z.alive || z.isDying);
+    const p1Pose = this.guestPlayerDrawPose(this.p1, this.guestBlendP1);
+    const p2Pose = this.guestPlayerDrawPose(this.p2, this.guestBlendP2);
     this.camera.update(
       [
-        { x: this.p1.x, y: this.p1.y, alive: !this.p1.isEliminated },
-        { x: this.p2.x, y: this.p2.y, alive: !this.p2.isEliminated }
+        { x: p1Pose.x, y: p1Pose.y, alive: !this.p1.isEliminated },
+        { x: p2Pose.x, y: p2Pose.y, alive: !this.p2.isEliminated }
       ],
       dt
     );
     this.damageFlashAlpha = Math.max(0, this.damageFlashAlpha - dt * 2.5);
   }
 
+  private footstepNoiseRadius(player: Player): number {
+    if (player.movementState === 'sneak') return SNEAK_NOISE_RADIUS;
+    if (player.movementState === 'sprint') return SPRINT_NOISE_RADIUS;
+    return WALK_NOISE_RADIUS;
+  }
+
+  private wireSheetFootfalls(player: Player, anim: CharacterAnimController | null) {
+    if (!anim) return;
+    anim.onFootfall = () => {
+      if (player.isEliminated || player.isDowned || player.noiseRadius <= 0) return;
+      const radius = this.footstepNoiseRadius(player);
+      this.noise.emit({ x: player.x, y: player.y, radius, type: 'footstep' });
+      const wallsToP1 = this.map.countWallsCrossed(player.position, this.p1.position);
+      this.sound.playFootstep(this.p1.position, player.position, wallsToP1);
+    };
+  }
+
   private handleFootsteps(player: Player) {
+    if (this.animations?.ready && this.animForPlayer(player)) return;
     if (!player.justStepped) return;
     this.noise.emit({ x: player.x, y: player.y, radius: player.noiseRadius, type: 'footstep' });
     const wallsToP1 = this.map.countWallsCrossed(player.position, this.p1.position);
     this.sound.playFootstep(this.p1.position, player.position, wallsToP1);
+  }
+
+  private tickDecals(dt: number) {
+    for (const d of this.decals) {
+      if (d.life === undefined) continue;
+      d.life -= dt;
+      if (d.vx) d.x += d.vx * dt;
+      if (d.vy) d.y += d.vy * dt;
+      d.vx = (d.vx ?? 0) * 0.92;
+      d.vy = (d.vy ?? 0) * 0.92;
+    }
+    this.decals = this.decals.filter(d => d.life === undefined || d.life > 0);
   }
 
   private handleReload(player: Player, input: PlayerInputState) {
@@ -1269,6 +1434,15 @@ export class Game {
 
   private renderDecals(ctx: CanvasRenderingContext2D) {
     for (const d of this.decals) {
+      if (d.kind === 'casing') {
+        ctx.save();
+        ctx.translate(d.x, d.y);
+        ctx.rotate(d.angle);
+        ctx.fillStyle = d.color;
+        ctx.fillRect(-3, -1.2, 6, 2.4);
+        ctx.restore();
+        continue;
+      }
       if (d.kind === 'blood' && this.assets.draw(ctx, 'blood_splatter', d.x, d.y, d.angle, d.r * 3.2, 0.85)) continue;
       ctx.fillStyle = d.color;
       ctx.beginPath();
@@ -1377,6 +1551,7 @@ export class Game {
 
   private renderZombies(ctx: CanvasRenderingContext2D) {
     for (const z of this.zombies) {
+      const pose = this.guestZombieDrawPose(z);
       const aggro = z.state === 'ENRAGED';
       const key: AssetKey =
         z.archetype === 'lurker' && aggro ? 'zombie_lurker_aggro' : (`zombie_${z.archetype}` as AssetKey);
@@ -1394,17 +1569,17 @@ export class Game {
       if (zAnim && !z.isDying) {
         ctx.save();
         if (scale !== 1) {
-          ctx.translate(z.x, z.y);
+          ctx.translate(pose.x, pose.y);
           ctx.scale(scale, scale);
-          zAnim.draw(ctx, size, z.angle, 0, 0);
+          zAnim.draw(ctx, size, pose.angle, 0, 0);
         } else {
-          zAnim.draw(ctx, size, z.angle, z.x, z.y);
+          zAnim.draw(ctx, size, pose.angle, pose.x, pose.y);
         }
         ctx.restore();
       } else {
         ctx.save();
-        ctx.translate(z.x, z.y);
-        ctx.rotate(z.angle);
+        ctx.translate(pose.x, pose.y);
+        ctx.rotate(pose.angle);
         ctx.scale(scale, scale);
 
         if (!this.assets.drawCentered(ctx, key, size)) {
@@ -1421,8 +1596,8 @@ export class Game {
       // when grappling) — the art already reads state.
       if (!z.isDying && !zAnim) {
         ctx.save();
-        ctx.translate(z.x, z.y);
-        ctx.rotate(z.angle);
+        ctx.translate(pose.x, pose.y);
+        ctx.rotate(pose.angle);
         const eyeX = size * ZOMBIE_EYE_X;
         const eyeY = size * ZOMBIE_EYE_Y;
         const eyeR = size * ZOMBIE_EYE_R;
@@ -1460,7 +1635,7 @@ export class Game {
           // clears the top of it instead of landing across the chest.
           const barW = size * ZOMBIE_HEALTH_BAR_W;
           ctx.fillStyle = '#FF5252';
-          ctx.fillRect(z.x - barW / 2, z.y - size / 2 - ZOMBIE_HEALTH_BAR_GAP, barW * healthPct, 3);
+          ctx.fillRect(pose.x - barW / 2, pose.y - size / 2 - ZOMBIE_HEALTH_BAR_GAP, barW * healthPct, 3);
         }
       }
     }
@@ -1469,6 +1644,8 @@ export class Game {
   private renderPlayers(ctx: CanvasRenderingContext2D) {
     for (const p of [this.p1, this.p2]) {
       if (p.isEliminated) continue;
+      const blend = p.playerNumber === 1 ? this.guestBlendP1 : this.guestBlendP2;
+      const pose = this.guestPlayerDrawPose(p, blend);
       const key: AssetKey = p.isDowned
         ? 'player_downed'
         : p.playerNumber === 1
@@ -1477,11 +1654,11 @@ export class Game {
       const anim = this.animForPlayer(p);
 
       if (anim) {
-        anim.draw(ctx, PLAYER_SPRITE_SIZE, p.angle, p.x, p.y);
+        anim.draw(ctx, PLAYER_SPRITE_SIZE, pose.angle, pose.x, pose.y);
       } else {
         ctx.save();
-        ctx.translate(p.x, p.y);
-        ctx.rotate(p.angle);
+        ctx.translate(pose.x, pose.y);
+        ctx.rotate(pose.angle);
 
         if (!this.assets.drawCentered(ctx, key, PLAYER_SPRITE_SIZE)) {
           ctx.fillStyle = p.playerNumber === 1 ? (p.isDowned ? '#8E3232' : '#4A5468') : p.isDowned ? '#8E3232' : '#53614C';
@@ -1500,7 +1677,7 @@ export class Game {
         ctx.strokeStyle = '#FF5252';
         ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.arc(p.x, p.y, REVIVE_RING_RADIUS, -Math.PI / 2, -Math.PI / 2 + (p.reviveProgress / 3) * Math.PI * 2);
+        ctx.arc(pose.x, pose.y, REVIVE_RING_RADIUS, -Math.PI / 2, -Math.PI / 2 + (p.reviveProgress / 3) * Math.PI * 2);
         ctx.stroke();
       }
     }

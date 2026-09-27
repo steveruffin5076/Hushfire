@@ -18,9 +18,6 @@ export default tseslint.config(
       '.claude/',
       // Vite dev-server cache artifacts (should not be committed).
       'vite.config.ts.timestamp-*.mjs',
-      // Reference copy; runtime uses src/graphics/TopDownWalkRig.ts
-      'walk_rig.js',
-      'downed_rig.js',
       '.tmp_anim_pack/',
       '.tmp_anim_pack_v2/',
     ]

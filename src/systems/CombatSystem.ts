@@ -13,9 +13,33 @@ export interface Decal {
   y: number;
   r: number;
   color: string;
-  kind: 'blood' | 'toxic';
+  kind: 'blood' | 'toxic' | 'casing';
   /** Random rotation so repeat splatters don't look stamped. */
   angle: number;
+  /** Seconds until removed (casings only). */
+  life?: number;
+  vx?: number;
+  vy?: number;
+}
+
+const CASING_BARREL_OFFSET = 35;
+const CASING_EJECT_SPEED = 150;
+
+export function brassCasingDecal(player: Player): Decal {
+  const bx = player.x + Math.cos(player.angle) * CASING_BARREL_OFFSET;
+  const by = player.y + Math.sin(player.angle) * CASING_BARREL_OFFSET;
+  const eject = player.angle + (Math.random() > 0.5 ? 1 : -1) * (Math.PI / 2 + 0.25 + Math.random() * 0.35);
+  return {
+    x: bx,
+    y: by,
+    r: 2.5,
+    color: '#C4A035',
+    kind: 'casing',
+    angle: Math.random() * Math.PI * 2,
+    life: 2.8,
+    vx: Math.cos(eject) * CASING_EJECT_SPEED,
+    vy: Math.sin(eject) * CASING_EJECT_SPEED
+  };
 }
 
 export function bloodDecal(x: number, y: number, r: number, color: string): Decal {
@@ -99,6 +123,7 @@ export class CombatSystem {
       const angle = player.angle + jitter;
       this.hitscan(player, angle, damage / pelletCount, ammoMod.armorPen, zombies, decals);
     }
+    decals.push(brassCasingDecal(player));
   }
 
   private hitscan(player: Player, angle: number, damage: number, armorPen: number, zombies: Zombie[], decals: Decal[]) {

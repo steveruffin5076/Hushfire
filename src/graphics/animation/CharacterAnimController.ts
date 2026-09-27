@@ -60,6 +60,9 @@ export class CharacterAnimController {
   attackTime = 0;
   attackActive = false;
   wasDowned = false;
+  private lastWalkFrame = -1;
+  /** Fires when the walk sheet enters a `footfall_frames` index (pack JSON). */
+  onFootfall?: (frameIndex: number) => void;
 
   constructor(private readonly sheets: CharacterSheetSet) {}
 
@@ -125,11 +128,19 @@ export class CharacterAnimController {
       return;
     }
 
+    const frameCount = walk.meta.frames;
     if (opts.isMoving) {
       const steps = (walk.meta.steps_per_s ?? 1.9) * opts.moveSpeedMult;
       this.walkPhase += dt * steps;
+      const frame = Math.floor(this.walkPhase * frameCount) % frameCount;
+      if (frame !== this.lastWalkFrame) {
+        const hits = walk.meta.footfall_frames ?? [];
+        if (hits.includes(frame)) this.onFootfall?.(frame);
+        this.lastWalkFrame = frame;
+      }
     } else {
       this.walkPhase = 0;
+      this.lastWalkFrame = -1;
     }
   }
 

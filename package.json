@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "lint": "eslint .",
-    "import-anim-pack": "node scripts/import-anim-pack.mjs"
+    "import-anim-pack": "node scripts/import-anim-pack.mjs",
+    "verify-pages-assets": "node scripts/verify-pages-assets.mjs"
   },
   "dependencies": {
     "howler": "^2.2.4",

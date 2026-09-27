@@ -1,8 +1,8 @@
 # HUSHFIRE — Progress & Handoff
 
-Last updated: 2026-09-25 (modifiers, rewards, playtest balance; expanded §7 Phase 7 sync steps). Written as a handoff for another developer or AI assistant, e.g. Cursor. Read this first, then `CLAUDE.md`.
+Last updated: 2026-09-27 (baked animation sheets, online gameplay sync, armory/UX polish). Written as a handoff for another developer or AI assistant, e.g. Cursor. Read this first, then `CLAUDE.md`.
 
-**Status in one line:** the full single-machine game is playable and deployed. Title → armory → 3 sectors → evac, solo or 2-player local co-op, on keyboard/mouse, gamepad or touch. Per-run sector modifiers and between-sector rewards are live. **Phase 7 gameplay sync is still not built** (online lobby code exists but each peer runs its own sim after deploy).
+**Status in one line:** the full game is playable and deployed. Title → armory → 3 sectors → evac, solo or 2-player **local** co-op, or **online** co-op (PeerJS lobby + host-authoritative snapshots). Keyboard/mouse, gamepad or touch. Per-run sector modifiers and between-sector rewards are live. Characters use **baked WebP animation sheets** when `public/assets/animations/` loads successfully (static PNG fallback otherwise).
 
 - Live site: https://steveruffin5076.github.io/Hushfire/
 - Repo: https://github.com/steveruffin5076/Hushfire (default branch `main`)
@@ -16,7 +16,8 @@ npm install        # after any pull that touched package.json
 npm run dev        # http://localhost:3000
 npm run typecheck  # tsc --noEmit (covers src/ and tests/)
 npm run lint       # ESLint + typescript-eslint; `any` is an error
-npm test           # Vitest, 282 tests in tests/
+npm test           # Vitest, 291 tests in tests/
+npm run import-anim-pack   # PNG sheets from .tmp_anim_pack_v2 → public/assets/animations (WebP)
 npm run build      # tsc && vite build → dist/
 ```
 
@@ -30,7 +31,7 @@ CI (`.github/workflows/deploy-pages.yml`) runs `npm ci` → `npm run lint` → `
 2. **`node_modules/` and `dist/` are git-ignored.** Never commit them.
 3. **Keep lint, typecheck and tests green.** Add a test for every behaviour change. Most game logic is plain TypeScript and testable without a browser (see §6).
 4. **Walls must match the art.** Each sector's `boxes` in `src/config/sectors.ts` are hand-aligned to the background image. If you move walls, spawns or pickups, the tests in `tests/sectors.test.ts` check that every possible spot is in the map, not in a wall, and reachable. Also eyeball it: plot the spots over the background image (§6).
-5. **Sprites:** 128×128 PNG, transparent background, facing +X (right), rotation pivot at the canvas center. They're rotated live with `ctx.rotate(angle)`, so front-facing or 3/4-view art looks wrong. Draw size is cosmetic (`PLAYER_SPRITE_SIZE` / `ZOMBIE_SPRITE_SIZE` in `Game.ts`) and separate from the collision radius (16 px).
+5. **Sprites:** Static placeholders remain 128×128 PNG (`public/assets/sprites/`). **In-game characters** prefer baked sheets under `public/assets/animations/<id>/` (import via `scripts/import-anim-pack.mjs`). Sheets face +X; armored brute uses a **rotated bake** (275×556 cells) — its `ZOMBIE_SPRITE_SIZE` width scale (currently **56**, ~113 px tall) is **not** comparable to other archetypes' numbers. Draw size is cosmetic (`PLAYER_SPRITE_SIZE` / `ZOMBIE_SPRITE_SIZE` in `Game.ts`) and separate from collision (16 px). See `docs/ART_SPECIFICATION.md`.
 6. **Workflow the owner uses:** small PRs to `main`, one topic each, merged once checks pass. Update this file when something ships.
 
 ---
@@ -48,8 +49,9 @@ src/
     sectorLayout.ts       Per-run shuffle: picks one spot per zombie/pickup from its alts
     weapons.ts            Weapons + muzzle/rail/ammo modifiers
     zombies.ts            Zombie archetypes (lurker, audio_stalker, bio_carrier, armored_brute)
+  graphics/animation/     AnimationCatalog, CharacterAnimController, sheet draw helpers (walk/downed/recoil/attack)
   core/
-    Game.ts               Orchestrator (~1100 lines): fixed 60 Hz update, render, pickups, objectives, sector advance, evac, end
+    Game.ts               Orchestrator: fixed 60 Hz update, render, online host/guest paths, pickups, objectives, evac, end
     Input.ts              Keyboard/mouse for P1 and P2, merges gamepad + touch; poll()/endFrame()/resetEdges()
     Gamepad.ts            Pure gamepad mapping + pad assignment rules
     TouchControls.ts      On-screen twin-stick controls for P1 (drawn on canvas)
@@ -66,12 +68,13 @@ src/
     NavGrid.ts            A* grid pathfinding
     Geometry.ts           Segment math, angleBetween
     HordeSurge.ts         Evac wave pacing, isSectorAlertingShot, mix, raw edge spawn points
-  net/                    Protocol, roomCode, SessionManager (PeerJS lobby — gameplay sync not wired)
+  net/                    Protocol, roomCode, iceConfig (optional TURN), SessionManager, GameSnapshot codec
   ui/                     HUD, ArmoryMenu, MainMenu, PauseMenu, SectorRewardMenu, ExtractionModal,
                           LobbyPanel, LoadoutStorage, MenuGamepadNav, StealthRating, theme
-tests/                    21 Vitest files (see §6)
-docs/                     Design specs + PHASE7_ONLINE_LOBBY_PLAN.md
-public/assets/            Processed game art (sprites, backgrounds, branding, items, fx)
+tests/                    26 Vitest files (see §6)
+scripts/                  import-anim-pack.mjs (sharp → WebP), dev-playtest.mjs
+docs/                     Design specs + PHASE7_ONLINE_LOBBY_PLAN.md (M1+M2 implemented)
+public/assets/            sprites, backgrounds, fx + animations/ (per-character sheet WebP+JSON)
 images/                   Raw art uploads from the owner (source material, not loaded by the game)
 ```
 
@@ -111,19 +114,31 @@ images/                   Raw art uploads from the owner (source material, not l
 
 ### Controls
 - Keyboard/mouse, gamepad (menus + gameplay), touch (P1 only). Armory remembers mode, difficulty and loadouts in `localStorage`.
+- **Armory UX:** full-width two-column layout (no page scroll); online host/guest locked to Op1/Op2; **READY** only in online lobby (hidden in solo); guest connect timeout + optional `VITE_TURN_CREDENTIALS_URL` for NAT traversal.
 
-### Art
-- P1, P2, all zombie archetypes, sector background images. Sector 3 off-roof blocker walls validated for horde spawns.
+### Online co-op (Phase 7)
+- **Lobby (M1):** room code, share link, loadout mirror, ready gate, host deploy with shared layout seed.
+- **Gameplay sync (M2):** host simulates both operatives; guest sends `{t:'input'}` at 60 Hz; host broadcasts `{t:'snapshot'}` ~30 Hz; guest remaps slots (local UI = host's P2). Wire format in `src/net/GameSnapshot.ts`. Not deterministic lockstep.
+
+### Combat feel
+- Hitscan **spread** scales with muzzle `recoilMult` (`CombatSystem.ts`).
+
+### Art & animation
+- P1/P2 and all zombie archetypes: **top-down animation pack** (7 characters, walk/downed + player recoil/hit + zombie attack). Runtime loads via `AnimationCatalog` in `main.ts`.
+- Walk **footfall_frames** drive footstep SFX/noise when sheets are loaded (timer fallback otherwise).
+- Static PNG sprites still used as fallback if sheets 404. CI runs `verify-pages-assets` after Pages build; `tests/animationAssets.test.ts` guards `public/` sheets.
+- **Zombie contact hurt feedback:** brief screen vignette + shake on gated bites only (no persistent red `hit_sheet` overlay on operatives).
+- **Brass casings** eject on hitscan weapons (visual decals, ~3s fade).
 
 ---
 
 ## 5. Known issues, quirks & doc drift
 
-- **`CLAUDE.md` is partly out of date** — noise numbers and file tree; §3 above is current.
-- **`recoilMult` is unused** — no spread model yet.
-- **Zombies can still grind corners** when A* fails.
-- **Online lobby exists but gameplay is not synchronized** — each browser runs its own `Game` after deploy (Phase 7 milestone 2).
-- **2026-09-25:** automated playtest balance review passed (`tests/playtestBalance.test.ts`); owner previously confirmed movement, firing, and sector-alert horde behaviour on the live site.
+- **Online reliability** still depends on PeerJS + STUN; strict NAT needs `VITE_TURN_CREDENTIALS_URL` (`.env.example`, `tests/iceConfig.test.ts`). Lobby **ERROR** state now surfaces a TURN setup hint.
+- **Guest feel:** operatives and zombies render with snapshot blending on guest; projectiles/pickups still snap at ~30 Hz.
+- **Animation import:** documented in `docs/ANIMATION_IMPORT.md`; still a manual `npm run import-anim-pack` step before commit.
+- **2026-09-25:** automated playtest balance review passed (`tests/playtestBalance.test.ts`).
+- **2026-09-27:** `CLAUDE.md` + `progress.md` synced; legacy procedural rigs removed; guest pose blend; **290** unit tests (was 291 — dropped rig-only test).
 
 ---
 
@@ -134,20 +149,17 @@ images/                   Raw art uploads from the owner (source material, not l
 - **Sector modifiers** (`tests/sectorModifiers.test.ts`) — pickup filtering, modifier pick pool.
 - **Sector rewards** (`tests/sectorReward.test.ts`) — medkit/ammo/battery math.
 - **Sector alert** (`tests/sectorAlert.test.ts`) — loud gun sector frenzy.
+- **Snapshot codec** (`tests/snapshotCodec.test.ts`) — online snapshot round-trip.
+- **ICE/TURN config** (`tests/iceConfig.test.ts`) — optional TURN URL parsing.
 - **Deterministic Playwright loop:** `window.render_game_to_text()` + `window.advanceTime()` in `main.ts`; `node scripts/dev-playtest.mjs http://localhost:3000/`.
 
 ---
 
 ## 7. What's next (recommended order)
 
-1. **Human playtest a full run** on NORMAL, then EASY and HARD — tune feel from notes (automated balance tests already pass).
-2. **Phase 7 milestone 2 — gameplay sync** (large). Verified against current code (`docs/PHASE7_ONLINE_LOBBY_PLAN.md` §14/§7.5, cross-checked live): the seam is `Game.ts:411` (`this.input.getPlayer2Input(...)`). Do in this order:
-   1. **`net/Protocol.ts`:** add `{ t: 'input'; seq: number; state: PlayerInputState }` and `{ t: 'snapshot'; ... }` to `NetMessage` (currently only `hello`/`loadout`/`deploy`/`bye`). `PlayerInputState` already has every field needed (`moveX, moveY, aimAngle, isFiring, isSprinting, isSneaking, isReloading, isInteracting, isSwitchingWeapon, selectPrimary, selectSecondary, isTogglingFlashlight`) — just add `seq`.
-   2. **Slot-identity remap (§7.5) — do this before wiring sync, not after.** Host is always sim-p1, guest is sim-p2; the guest needs a render/input remap so their own mouse drives sim-p2 while their HUD still shows themselves on the left.
-   3. **Host side:** `SessionManager` buffers incoming `input` messages; `Game.ts:411` reads from that buffer instead of local input when running as host with a connected guest.
-   4. **Snapshot broadcast:** host sends a ~250-byte snapshot at 30 Hz (player/zombie/bolt/pickup/objective/evac + sound/FX events); guest renders with interpolation and predicts its own movement locally. Guest sends input at 60 Hz.
-   5. **No deterministic lockstep** — `Math.sin`/`atan2` are implementation-defined per spec; `CombatSystem`/`Camera` lean on them every tick, so Chrome/Safari would diverge within seconds. Host-authoritative + client prediction only.
-3. **Smaller ideas:** spread model so `recoilMult` matters; more sectors on existing art; survival mode on Sector 3; self-hosted PeerServer for production reliability.
+1. **Human playtest** — `docs/PLAYTEST_CHECKLIST.md` (solo + local co-op).
+2. **Online polish** (optional): reconnect UX, self-hosted PeerServer/TURN for production.
+3. **Content:** more sectors on existing art; survival mode on Sector 3; bolt casings on crossbow only if desired.
 
 ---
 
@@ -156,3 +168,5 @@ images/                   Raw art uploads from the owner (source material, not l
 PRs #1–#33 on `main`: full game loop, art, tests, gamepad, touch, difficulty, sector-alert horde frenzy, horde spawn safety (PR #33).
 
 **2026-09-25 session (local):** between-sector reward picker, per-run sector modifiers (blackout/scavenger/hush/heavy), automated playtest balance suite, progress handoff update. Sector-alert horde and online lobby code from earlier in the day are in the tree but gameplay sync is explicitly deferred.
+
+**2026-09-27 session (local):** integrated **topdown_animation_pack** (WebP import, `AnimationCatalog`, sheet playback in `Game.ts`); updated pack v2 (rotated brute bake, 556×304 cells); brute draw scale **56**; zombie hurt vignette without persistent red sprite overlay; armory solo hides READY; guest connect timeout + optional TURN; Phase 7 M2 gameplay sync reflected in code/docs; known-issues pass (`docs/ANIMATION_IMPORT.md`, guest pose blend, rig cleanup, lobby TURN hint).

@@ -77,6 +77,11 @@ export class LobbyPanel {
     this.root.appendChild(statusRow);
 
     if (state === 'ERROR') {
+      const hint = document.createElement('div');
+      hint.style.cssText = `font-size:11px;line-height:1.45;color:${MUTED};margin-bottom:10px;`;
+      hint.textContent =
+        'If this keeps failing on school Wi‑Fi or mobile hotspots, configure TURN: copy .env.example → .env and set VITE_TURN_CREDENTIALS_URL (Metered Open Relay or compatible).';
+      this.root.appendChild(hint);
       const retryBtn = document.createElement('button');
       retryBtn.textContent = 'RETRY CONNECTION';
       retryBtn.style.cssText = `display:block;margin-bottom:10px;padding:8px 12px;font-size:11px;letter-spacing:1px;background:${FIELD_BG};color:${CYAN};border:1px solid ${PANEL_BORDER};border-radius:3px;cursor:pointer;font-family:inherit;`;
