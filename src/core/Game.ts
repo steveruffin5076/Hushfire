@@ -50,12 +50,12 @@ const SURGE_WARNING_SEC = 2;
 // the art spec (stalker smallest, brute largest) is preserved.
 // Brute baked sheets are 275×556 (pre-rotated); width-scale makes them ~2× cell
 // aspect vs 556×304 zombies — use a lower width target so on-screen height lands
-// ~97px tall (operatives ~51px, bio-carrier ~56px) while still the largest infected.
+// ~113px tall (operatives ~51px, bio-carrier ~56px) while still the largest infected.
 const ZOMBIE_SPRITE_SIZE: Record<ZombieArchetype, number> = {
   lurker: 86,
   audio_stalker: 78,
   bio_carrier: 102,
-  armored_brute: 48
+  armored_brute: 56
 };
 const PLAYER_SPRITE_SIZE = 94;
 
