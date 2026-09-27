@@ -57,8 +57,6 @@ export class CharacterAnimController {
   downedTime = 0;
   recoilTime = 0;
   recoilActive = false;
-  hitTime = 0;
-  hitActive = false;
   attackTime = 0;
   attackActive = false;
   wasDowned = false;
@@ -69,14 +67,6 @@ export class CharacterAnimController {
     if (!this.sheets.recoil) return;
     this.recoilActive = true;
     this.recoilTime = 0;
-  }
-
-  triggerHit() {
-    if (!this.sheets.hit) return;
-    // Let the clip finish — retriggering during contact damage was pinning frame 0 red.
-    if (this.hitActive) return;
-    this.hitActive = true;
-    this.hitTime = 0;
   }
 
   triggerAttack() {
@@ -94,7 +84,7 @@ export class CharacterAnimController {
       isPlayer: boolean;
     }
   ) {
-    const { walk, downed, recoil, hit, attack } = this.sheets;
+    const { walk, downed, recoil, attack } = this.sheets;
 
     if (opts.isDowned && !this.wasDowned && downed) {
       this.downedMode = 'falling';
@@ -105,14 +95,6 @@ export class CharacterAnimController {
       this.downedTime = 0;
     }
     this.wasDowned = opts.isDowned;
-
-    if (this.hitActive && hit) {
-      const clip = hit.meta.clips[0];
-      const adv = advanceClip(clip, this.hitTime, dt);
-      this.hitTime = adv.time;
-      if (adv.done) this.hitActive = false;
-      return;
-    }
 
     if (this.recoilActive && recoil) {
       const clip = recoil.meta.clips[0];
@@ -181,35 +163,8 @@ export class CharacterAnimController {
   }
 
   draw(ctx: CanvasRenderingContext2D, drawSize: number, angle: number, cx: number, cy: number) {
-    const { walk, downed, recoil, hit, attack } = this.sheets;
+    const { walk, downed, recoil, attack } = this.sheets;
     const refW = walk.meta.frame_width;
-
-    if (this.hitActive && hit) {
-      const clip = hit.meta.clips[0];
-      const adv = advanceClip(clip, this.hitTime, 0);
-      this.drawWalkFrame(ctx, drawSize, angle, cx, cy);
-      // Pack note: only early frames are the red flash; last frame is untinted — never overlay it.
-      if (adv.frame < 2) {
-        ctx.save();
-        ctx.globalAlpha = adv.frame === 0 ? 0.42 : 0.28;
-        drawSheetFrame(
-          ctx,
-          hit.image,
-          adv.frame,
-          hit.meta.frame_width,
-          hit.meta.frame_height,
-          0,
-          pivotSimple(hit.meta, walk.meta),
-          drawSize,
-          refW,
-          angle,
-          cx,
-          cy
-        );
-        ctx.restore();
-      }
-      return;
-    }
 
     if (this.downedMode !== 'up' && downed) {
       const fall = downed.meta.clips.find(c => c.name === 'downed');

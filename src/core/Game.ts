@@ -48,11 +48,14 @@ const SURGE_WARNING_SEC = 2;
 // image-rendering: pixelated, which would make it crunchy rather than soft).
 // Sized up 1.35x from the previous 70/64/58/76/80; the archetype ordering from
 // the art spec (stalker smallest, brute largest) is preserved.
+// Brute baked sheets are 275×556 (pre-rotated); width-scale makes them ~2× cell
+// aspect vs 556×304 zombies — use a lower width target so on-screen height lands
+// ~72px (operatives ~51px, bio-carrier ~56px) while still the largest infected.
 const ZOMBIE_SPRITE_SIZE: Record<ZombieArchetype, number> = {
   lurker: 86,
   audio_stalker: 78,
   bio_carrier: 102,
-  armored_brute: 108
+  armored_brute: 36
 };
 const PLAYER_SPRITE_SIZE = 94;
 
@@ -189,8 +192,6 @@ export class Game {
   private blasts: { x: number; y: number; age: number }[] = [];
   private dryFireCooldown = new Map<number, number>();
   private hitSoundCooldown = new Map<number, number>();
-  /** Sprite hit flash — slower than bite SFX so grapples don't stay red-tinted. */
-  private playerHitAnimCooldown = new Map<number, number>();
   private readonly runModifier: SectorModifierId;
   private readonly layoutRand: () => number;
   private readonly netRole: 'local' | 'host' | 'guest' = 'local';
@@ -886,7 +887,7 @@ export class Game {
 
       if (player.isDowned) {
         player.eliminate();
-        this.triggerPlayerHitJuice(true);
+        this.triggerZombieContactFlash(true);
       } else {
         player.takeDamage(this.difficultyDef.contactDps * dt);
         // Gate the shake/flash on the same cooldown as the hit sound — contact
@@ -894,27 +895,25 @@ export class Game {
         // screen shake at max for the whole grapple instead of reading as hits.
         if (this.tryConsumeCooldown(this.hitSoundCooldown, player.id, 0.4)) {
           this.sound.playPlayerHit(this.p1.position, player.position);
-          this.triggerPlayerHitJuice(false);
-        }
-        if (this.tryConsumeCooldown(this.playerHitAnimCooldown, player.id, 1)) {
-          this.animForPlayer(player)?.triggerHit();
+          this.triggerZombieContactFlash(false);
         }
         if (player.health <= 0) {
           // Solo has no partner who could ever reach you — going down would just be
           // a helpless crawl until a zombie finishes the job, so skip straight there.
           if (this.solo) player.eliminate();
           else player.down();
-          this.triggerPlayerHitJuice(true);
+          this.triggerZombieContactFlash(true);
         }
       }
     }
   }
 
-  /** Camera shake + a red screen flash on either operative taking a hit — bigger for a down/elimination than a routine bite. */
-  private triggerPlayerHitJuice(big: boolean) {
+  /** Brief red vignette + shake when a zombie actually damages an operative (contact only). */
+  private triggerZombieContactFlash(big: boolean) {
     this.camera.addTrauma(big ? 0.7 : 0.22);
     if (big) this.triggerHitStop(0.1);
-    this.damageFlashAlpha = Math.min(1, this.damageFlashAlpha + (big ? 1 : 0.5));
+    // Pulse — do not stack during continuous contact DPS or the screen stays red.
+    this.damageFlashAlpha = big ? 0.75 : 0.38;
   }
 
   /** Idle groans, paced by how agitated each zombie is — the main audible cue for offscreen threats. */
