@@ -149,14 +149,45 @@ export class CharacterAnimController {
     }
   }
 
+  private drawWalkFrame(
+    ctx: CanvasRenderingContext2D,
+    drawSize: number,
+    angle: number,
+    cx: number,
+    cy: number
+  ) {
+    const { walk } = this.sheets;
+    const refW = walk.meta.frame_width;
+    const pivot = pivotWalk(walk.meta);
+    const frameCount = walk.meta.frames;
+    const frame =
+      this.walkPhase <= 0 ? 0 : Math.floor(this.walkPhase * frameCount) % frameCount;
+    drawSheetFrame(
+      ctx,
+      walk.image,
+      frame,
+      walk.meta.frame_width,
+      walk.meta.frame_height,
+      0,
+      pivot,
+      drawSize,
+      refW,
+      angle,
+      cx,
+      cy
+    );
+  }
+
   draw(ctx: CanvasRenderingContext2D, drawSize: number, angle: number, cx: number, cy: number) {
     const { walk, downed, recoil, hit, attack } = this.sheets;
     const refW = walk.meta.frame_width;
-    const pivot = pivotWalk(walk.meta);
 
     if (this.hitActive && hit) {
       const clip = hit.meta.clips[0];
       const adv = advanceClip(clip, this.hitTime, 0);
+      this.drawWalkFrame(ctx, drawSize, angle, cx, cy);
+      ctx.save();
+      ctx.globalAlpha = adv.frame < 2 ? 0.55 : 0.25;
       drawSheetFrame(
         ctx,
         hit.image,
@@ -171,6 +202,7 @@ export class CharacterAnimController {
         cx,
         cy
       );
+      ctx.restore();
       return;
     }
 
@@ -213,26 +245,7 @@ export class CharacterAnimController {
       return;
     }
 
-    const frameCount = walk.meta.frames;
-    const frame =
-      this.walkPhase <= 0
-        ? 0
-        : Math.floor(this.walkPhase * frameCount) % frameCount;
-
-    drawSheetFrame(
-      ctx,
-      walk.image,
-      frame,
-      walk.meta.frame_width,
-      walk.meta.frame_height,
-      0,
-      pivot,
-      drawSize,
-      refW,
-      angle,
-      cx,
-      cy
-    );
+    this.drawWalkFrame(ctx, drawSize, angle, cx, cy);
 
     if (this.recoilActive && recoil) {
       const clip = recoil.meta.clips[0];

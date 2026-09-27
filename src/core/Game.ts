@@ -203,6 +203,8 @@ export class Game {
   private readonly p1Anim: CharacterAnimController | null;
   private readonly p2Anim: CharacterAnimController | null;
   private readonly zombieAnims = new Map<number, { key: CharacterAnimId; ctrl: CharacterAnimController }>();
+  /** Previous zombie positions — walk sheets only advance when the sim actually moved them. */
+  private readonly zombiePrevWorld = new Map<number, { x: number; y: number }>();
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -738,16 +740,23 @@ export class Game {
         entry = { key, ctrl };
         this.zombieAnims.set(z.id, entry);
       }
+      const prev = this.zombiePrevWorld.get(z.id);
+      const moved =
+        prev !== undefined && Math.hypot(z.x - prev.x, z.y - prev.y) > 0.25;
       entry.ctrl.update(dt, {
         isDowned: false,
-        isMoving: z.state !== 'DORMANT',
+        isMoving: moved,
         moveSpeedMult: 1,
         isPlayer: false
       });
+      this.zombiePrevWorld.set(z.id, { x: z.x, y: z.y });
     }
     const live = new Set(this.zombies.filter(z => !z.isDying).map(z => z.id));
     for (const id of this.zombieAnims.keys()) {
       if (!live.has(id)) this.zombieAnims.delete(id);
+    }
+    for (const id of this.zombiePrevWorld.keys()) {
+      if (!live.has(id)) this.zombiePrevWorld.delete(id);
     }
   }
 
@@ -1404,7 +1413,10 @@ export class Game {
         ctx.restore();
       }
 
-      if (!z.isDying) {
+      // Legacy eye/bio tells were tuned for flat placeholder circles; on baked
+      // sheets they land on the wrong part of the silhouette (often on the player
+      // when grappling) — the art already reads state.
+      if (!z.isDying && !zAnim) {
         ctx.save();
         ctx.translate(z.x, z.y);
         ctx.rotate(z.angle);
