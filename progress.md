@@ -1,6 +1,6 @@
 # HUSHFIRE — Progress & Handoff
 
-Last updated: 2026-09-27 (baked animation sheets, online gameplay sync, armory/UX polish). Written as a handoff for another developer or AI assistant, e.g. Cursor. Read this first, then `CLAUDE.md`.
+Last updated: 2026-09-27 (animation pack, polish pass: guest blend, footfalls, casings, Pages asset CI). Written as a handoff for another developer or AI assistant, e.g. Cursor. Read this first, then `CLAUDE.md`.
 
 **Status in one line:** the full game is playable and deployed. Title → armory → 3 sectors → evac, solo or 2-player **local** co-op, or **online** co-op (PeerJS lobby + host-authoritative snapshots). Keyboard/mouse, gamepad or touch. Per-run sector modifiers and between-sector rewards are live. Characters use **baked WebP animation sheets** when `public/assets/animations/` loads successfully (static PNG fallback otherwise).
 
@@ -18,10 +18,11 @@ npm run typecheck  # tsc --noEmit (covers src/ and tests/)
 npm run lint       # ESLint + typescript-eslint; `any` is an error
 npm test           # Vitest, 291 tests in tests/
 npm run import-anim-pack   # PNG sheets from .tmp_anim_pack_v2 → public/assets/animations (WebP)
-npm run build      # tsc && vite build → dist/
+npm run build              # tsc && vite build → dist/  (use GITHUB_ACTIONS=true for Pages base)
+npm run verify-pages-assets  # after Pages build: dist/assets/animations present
 ```
 
-CI (`.github/workflows/deploy-pages.yml`) runs `npm ci` → `npm run lint` → `npm test` → `npm run build` on every push to `main`, then deploys to GitHub Pages. **A failing lint or test blocks the deploy.**
+CI (`.github/workflows/deploy-pages.yml`) runs `npm ci` → `npm run lint` → `npm test` → `GITHUB_ACTIONS=true npm run build` → `npm run verify-pages-assets`, then deploys to GitHub Pages. **A failing lint, test, or asset verify blocks the deploy.**
 
 ---
 
@@ -72,8 +73,8 @@ src/
   ui/                     HUD, ArmoryMenu, MainMenu, PauseMenu, SectorRewardMenu, ExtractionModal,
                           LobbyPanel, LoadoutStorage, MenuGamepadNav, StealthRating, theme
 tests/                    26 Vitest files (see §6)
-scripts/                  import-anim-pack.mjs (sharp → WebP), dev-playtest.mjs
-docs/                     Design specs + PHASE7_ONLINE_LOBBY_PLAN.md (M1+M2 implemented)
+scripts/                  import-anim-pack.mjs, verify-pages-assets.mjs, dev-playtest.mjs
+docs/                     ANIMATION_IMPORT.md, PLAYTEST_CHECKLIST.md, PHASE7_ONLINE_LOBBY_PLAN.md
 public/assets/            sprites, backgrounds, fx + animations/ (per-character sheet WebP+JSON)
 images/                   Raw art uploads from the owner (source material, not loaded by the game)
 ```
@@ -118,7 +119,7 @@ images/                   Raw art uploads from the owner (source material, not l
 
 ### Online co-op (Phase 7)
 - **Lobby (M1):** room code, share link, loadout mirror, ready gate, host deploy with shared layout seed.
-- **Gameplay sync (M2):** host simulates both operatives; guest sends `{t:'input'}` at 60 Hz; host broadcasts `{t:'snapshot'}` ~30 Hz; guest remaps slots (local UI = host's P2). Wire format in `src/net/GameSnapshot.ts`. Not deterministic lockstep.
+- **Gameplay sync (M2):** host simulates both operatives; guest sends `{t:'input'}` at 60 Hz; host broadcasts `{t:'snapshot'}` ~30 Hz; guest remaps slots (local UI = host's P2). Guest renders operatives + zombies with snapshot pose blending between updates. Wire format in `src/net/GameSnapshot.ts`. Not deterministic lockstep.
 
 ### Combat feel
 - Hitscan **spread** scales with muzzle `recoilMult` (`CombatSystem.ts`).
@@ -138,7 +139,7 @@ images/                   Raw art uploads from the owner (source material, not l
 - **Guest feel:** operatives and zombies render with snapshot blending on guest; projectiles/pickups still snap at ~30 Hz.
 - **Animation import:** documented in `docs/ANIMATION_IMPORT.md`; still a manual `npm run import-anim-pack` step before commit.
 - **2026-09-25:** automated playtest balance review passed (`tests/playtestBalance.test.ts`).
-- **2026-09-27:** `CLAUDE.md` + `progress.md` synced; legacy procedural rigs removed; guest pose blend; **290** unit tests (was 291 — dropped rig-only test).
+- **2026-09-27 (late):** guest zombie snapshot blend; sheet footfalls; brass casings; `tests/animationAssets.test.ts` + deploy `verify-pages-assets`; `docs/PLAYTEST_CHECKLIST.md`. **291** tests.
 
 ---
 
@@ -151,6 +152,8 @@ images/                   Raw art uploads from the owner (source material, not l
 - **Sector alert** (`tests/sectorAlert.test.ts`) — loud gun sector frenzy.
 - **Snapshot codec** (`tests/snapshotCodec.test.ts`) — online snapshot round-trip.
 - **ICE/TURN config** (`tests/iceConfig.test.ts`) — optional TURN URL parsing.
+- **Animation assets** (`tests/animationAssets.test.ts`) — every character has walk/downed WebP in `public/`.
+- **Manual playtest** — `docs/PLAYTEST_CHECKLIST.md` (solo + local co-op).
 - **Deterministic Playwright loop:** `window.render_game_to_text()` + `window.advanceTime()` in `main.ts`; `node scripts/dev-playtest.mjs http://localhost:3000/`.
 
 ---
@@ -169,4 +172,6 @@ PRs #1–#33 on `main`: full game loop, art, tests, gamepad, touch, difficulty, 
 
 **2026-09-25 session (local):** between-sector reward picker, per-run sector modifiers (blackout/scavenger/hush/heavy), automated playtest balance suite, progress handoff update. Sector-alert horde and online lobby code from earlier in the day are in the tree but gameplay sync is explicitly deferred.
 
-**2026-09-27 session (local):** integrated **topdown_animation_pack** (WebP import, `AnimationCatalog`, sheet playback in `Game.ts`); updated pack v2 (rotated brute bake, 556×304 cells); brute draw scale **56**; zombie hurt vignette without persistent red sprite overlay; armory solo hides READY; guest connect timeout + optional TURN; Phase 7 M2 gameplay sync reflected in code/docs; known-issues pass (`docs/ANIMATION_IMPORT.md`, guest pose blend, rig cleanup, lobby TURN hint).
+**2026-09-27 session (local):** integrated **topdown_animation_pack** (WebP import, `AnimationCatalog`, sheet playback in `Game.ts`); updated pack v2 (rotated brute bake, 556×304 cells); brute draw scale **56**; zombie hurt vignette without persistent red sprite overlay; armory solo hides READY; guest connect timeout + optional TURN; Phase 7 M2 gameplay sync reflected in code/docs; known-issues pass (`docs/ANIMATION_IMPORT.md`, guest operative blend, rig cleanup, lobby TURN hint).
+
+**2026-09-27 session (polish):** guest **zombie** snapshot blend; walk `footfall_frames` → footsteps; hitscan **brass casings**; CI `GITHUB_ACTIONS=true` build + `verify-pages-assets`; `docs/PLAYTEST_CHECKLIST.md`; `tests/animationAssets.test.ts` (**291** tests).
