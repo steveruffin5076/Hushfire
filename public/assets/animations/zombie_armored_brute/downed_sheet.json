@@ -1,6 +1,6 @@
 {
-  "cell_width": 585,
-  "cell_height": 592,
+  "cell_width": 594,
+  "cell_height": 587,
   "layout": "rows",
   "clips": [
     {
@@ -22,8 +22,8 @@
     }
   ],
   "pivot_cell_px": [
-    300.4,
-    283.5
+    297.7,
+    280.4
   ],
   "play": "play 'downed' once, then loop 'downed_idle'",
   "image": "downed_sheet.webp"

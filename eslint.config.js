@@ -22,6 +22,7 @@ export default tseslint.config(
       'walk_rig.js',
       'downed_rig.js',
       '.tmp_anim_pack/',
+      '.tmp_anim_pack_v2/',
     ]
   },
   js.configs.recommended,

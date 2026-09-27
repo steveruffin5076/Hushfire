@@ -9,7 +9,12 @@ import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const packRoot = process.argv[2] ?? path.join(root, '.tmp_anim_pack');
+const packCandidates = [
+  process.argv[2],
+  path.join(root, '.tmp_anim_pack_v2'),
+  path.join(root, '.tmp_anim_pack'),
+].filter(Boolean);
+const packRoot = packCandidates.find(p => fs.existsSync(p));
 const outRoot = path.join(root, 'public', 'assets', 'animations');
 
 const CHAR_DIRS = [
@@ -25,10 +30,11 @@ const CHAR_DIRS = [
 const SHEETS = ['walk_sheet', 'downed_sheet', 'attack_sheet', 'recoil_sheet', 'hit_sheet'];
 
 async function main() {
-  if (!fs.existsSync(packRoot)) {
-    console.error('Pack folder not found:', packRoot);
+  if (!packRoot) {
+    console.error('Pack folder not found. Extract the zip to .tmp_anim_pack_v2 or pass a path.');
     process.exit(1);
   }
+  console.log('Import from', packRoot);
 
   for (const char of CHAR_DIRS) {
     const srcDir = path.join(packRoot, 'sprites', char);

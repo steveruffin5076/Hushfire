@@ -25,7 +25,6 @@
     179.6,
     140.7
   ],
-  "world_scale": "matches infiltrator_walk_sheet.png (512px per 1092 src px)",
   "play": "play 'downed' once, then loop 'downed_idle'",
   "image": "downed_sheet.webp"
 }

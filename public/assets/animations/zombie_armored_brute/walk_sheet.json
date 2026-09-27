@@ -1,6 +1,6 @@
 {
-  "frame_width": 512,
-  "frame_height": 275,
+  "frame_width": 275,
+  "frame_height": 556,
   "frames": 8,
   "layout": "row",
   "stride_steps": 2,
@@ -10,12 +10,12 @@
   ],
   "pivots_cell_px": {
     "torso": [
-      277.4,
-      136.1
+      136.1,
+      278.2
     ],
     "part": [
-      437.2,
-      232.9
+      232.9,
+      118.4
     ]
   },
   "amplitudes_at_256w": {

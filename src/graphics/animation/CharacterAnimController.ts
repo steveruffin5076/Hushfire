@@ -73,6 +73,8 @@ export class CharacterAnimController {
 
   triggerHit() {
     if (!this.sheets.hit) return;
+    // Let the clip finish — retriggering during contact damage was pinning frame 0 red.
+    if (this.hitActive) return;
     this.hitActive = true;
     this.hitTime = 0;
   }
@@ -186,23 +188,26 @@ export class CharacterAnimController {
       const clip = hit.meta.clips[0];
       const adv = advanceClip(clip, this.hitTime, 0);
       this.drawWalkFrame(ctx, drawSize, angle, cx, cy);
-      ctx.save();
-      ctx.globalAlpha = adv.frame < 2 ? 0.55 : 0.25;
-      drawSheetFrame(
-        ctx,
-        hit.image,
-        adv.frame,
-        hit.meta.frame_width,
-        hit.meta.frame_height,
-        0,
-        pivotSimple(hit.meta, walk.meta),
-        drawSize,
-        refW,
-        angle,
-        cx,
-        cy
-      );
-      ctx.restore();
+      // Pack note: only early frames are the red flash; last frame is untinted — never overlay it.
+      if (adv.frame < 2) {
+        ctx.save();
+        ctx.globalAlpha = adv.frame === 0 ? 0.42 : 0.28;
+        drawSheetFrame(
+          ctx,
+          hit.image,
+          adv.frame,
+          hit.meta.frame_width,
+          hit.meta.frame_height,
+          0,
+          pivotSimple(hit.meta, walk.meta),
+          drawSize,
+          refW,
+          angle,
+          cx,
+          cy
+        );
+        ctx.restore();
+      }
       return;
     }
 

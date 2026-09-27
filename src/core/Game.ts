@@ -189,6 +189,8 @@ export class Game {
   private blasts: { x: number; y: number; age: number }[] = [];
   private dryFireCooldown = new Map<number, number>();
   private hitSoundCooldown = new Map<number, number>();
+  /** Sprite hit flash — slower than bite SFX so grapples don't stay red-tinted. */
+  private playerHitAnimCooldown = new Map<number, number>();
   private readonly runModifier: SectorModifierId;
   private readonly layoutRand: () => number;
   private readonly netRole: 'local' | 'host' | 'guest' = 'local';
@@ -893,6 +895,8 @@ export class Game {
         if (this.tryConsumeCooldown(this.hitSoundCooldown, player.id, 0.4)) {
           this.sound.playPlayerHit(this.p1.position, player.position);
           this.triggerPlayerHitJuice(false);
+        }
+        if (this.tryConsumeCooldown(this.playerHitAnimCooldown, player.id, 1)) {
           this.animForPlayer(player)?.triggerHit();
         }
         if (player.health <= 0) {

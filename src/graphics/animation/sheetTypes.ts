@@ -13,7 +13,7 @@ export interface WalkSheetMeta {
   layout: 'row';
   stride_steps?: number;
   footfall_frames?: number[];
-  pivots_cell_px: { torso: [number, number]; grip?: [number, number] };
+  pivots_cell_px: { torso: [number, number]; grip?: [number, number]; part?: [number, number] };
   steps_per_s?: number;
 }
 

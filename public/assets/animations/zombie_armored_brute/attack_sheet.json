@@ -1,6 +1,6 @@
 {
-  "cell_width": 601,
-  "cell_height": 285,
+  "cell_width": 309,
+  "cell_height": 565,
   "layout": "row",
   "clips": [
     {
@@ -14,8 +14,8 @@
     }
   ],
   "pivot_cell_px": [
-    278.5,
-    139.8
+    140.2,
+    283.5
   ],
   "note": "pivot matches walk/downed world anchor; play once per swing",
   "image": "attack_sheet.webp"
