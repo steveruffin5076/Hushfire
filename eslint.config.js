@@ -20,7 +20,8 @@ export default tseslint.config(
       'vite.config.ts.timestamp-*.mjs',
       // Reference copy; runtime uses src/graphics/TopDownWalkRig.ts
       'walk_rig.js',
-      'downed_rig.js'
+      'downed_rig.js',
+      '.tmp_anim_pack/',
     ]
   },
   js.configs.recommended,

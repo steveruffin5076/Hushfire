@@ -11,6 +11,7 @@ import { Difficulty } from './config/difficulty';
 import { SectorModifierId } from './config/sectorModifiers';
 import { SessionManager } from './net/SessionManager';
 import { mulberry32 } from './core/seededRand';
+import { AnimationCatalog } from './graphics/animation/AnimationCatalog';
 
 window.addEventListener('DOMContentLoaded', async () => {
   const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
@@ -21,7 +22,9 @@ window.addEventListener('DOMContentLoaded', async () => {
   }
 
   const assets = new AssetLoader();
+  const animations = new AnimationCatalog();
   await assets.loadAll();
+  await animations.loadAll();
 
   const session = new SessionManager();
   const mainMenu = new MainMenu(overlay);
@@ -79,7 +82,8 @@ window.addEventListener('DOMContentLoaded', async () => {
       difficulty,
       runModifier,
       layoutRand,
-      online
+      online,
+      animations.ready ? animations : null
     );
     activeGame.start();
   };

@@ -19,7 +19,13 @@ import type { SectorReward } from '../ui/SectorRewardMenu';
 import { SECTORS } from '../config/sectors';
 import { SectorModifierId, getSectorModifier } from '../config/sectorModifiers';
 import { AssetLoader, AssetKey } from './AssetLoader';
-import { WALK_RIG_DEFAULTS } from '../graphics/TopDownWalkRig';
+import {
+  AnimationCatalog,
+  playerAnimId,
+  zombieAnimId
+} from '../graphics/animation/AnimationCatalog';
+import type { CharacterAnimId } from '../graphics/animation/sheetTypes';
+import { CharacterAnimController } from '../graphics/animation/CharacterAnimController';
 import { WEAPON_REGISTRY, MUZZLE_MODIFIERS } from '../config/weapons';
 import { SessionManager } from '../net/SessionManager';
 import { inputToNet, netToInput } from '../net/Protocol';
@@ -193,8 +199,10 @@ export class Game {
   private guestRemoteInput: PlayerInputState | null = null;
   private pendingSnapshot: NetSnapshotMessage | null = null;
   private guestMissionEnded = false;
-  /** Tracks Operative 1 downed rig so collapse plays once per knockdown. */
-  private p1DownedRigActive = false;
+  private readonly animations: AnimationCatalog | null;
+  private readonly p1Anim: CharacterAnimController | null;
+  private readonly p2Anim: CharacterAnimController | null;
+  private readonly zombieAnims = new Map<number, { key: CharacterAnimId; ctrl: CharacterAnimController }>();
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -206,8 +214,12 @@ export class Game {
     difficulty: Difficulty = 'normal',
     runModifier: SectorModifierId = 'scavenger',
     layoutRand: () => number = Math.random,
-    online?: OnlineGameConfig
+    online?: OnlineGameConfig,
+    animations: AnimationCatalog | null = null
   ) {
+    this.animations = animations;
+    this.p1Anim = animations?.createController(playerAnimId(1)) ?? null;
+    this.p2Anim = animations?.createController(playerAnimId(2)) ?? null;
     this.runModifier = runModifier;
     this.layoutRand = layoutRand;
     this.difficultyDef = DIFFICULTIES[difficulty];
@@ -630,7 +642,7 @@ export class Game {
     if (!this.p1.isEliminated) this.p1.update(dt, in1, this.map);
     if (!this.p2.isEliminated) this.p2.update(dt, in2, this.map);
 
-    this.updateOperative1Rigs(dt);
+    this.updateCharacterAnimations(dt);
 
     this.handleFootsteps(this.p1);
     this.handleFootsteps(this.p2);
@@ -693,6 +705,52 @@ export class Game {
     }
   }
 
+  private animForPlayer(player: Player): CharacterAnimController | null {
+    return player.playerNumber === 1 ? this.p1Anim : this.p2Anim;
+  }
+
+  private playerMoveMult(player: Player): number {
+    if (player.movementState === 'sprint') return 1.4;
+    if (player.movementState === 'sneak') return 0.72;
+    return 1;
+  }
+
+  private updatePlayerAnim(player: Player, anim: CharacterAnimController | null, dt: number) {
+    if (!anim || player.isEliminated) return;
+    anim.update(dt, {
+      isDowned: player.isDowned,
+      isMoving: !player.isDowned && player.noiseRadius > 0,
+      moveSpeedMult: this.playerMoveMult(player),
+      isPlayer: true
+    });
+  }
+
+  private updateCharacterAnimations(dt: number) {
+    this.updatePlayerAnim(this.p1, this.p1Anim, dt);
+    if (!this.p2.isEliminated) this.updatePlayerAnim(this.p2, this.p2Anim, dt);
+    for (const z of this.zombies) {
+      if (z.isDying) continue;
+      const key = zombieAnimId(z.archetype, z.archetype === 'lurker' && z.state === 'ENRAGED');
+      let entry = this.zombieAnims.get(z.id);
+      if (!entry || entry.key !== key) {
+        const ctrl = this.animations?.createController(key) ?? null;
+        if (!ctrl) continue;
+        entry = { key, ctrl };
+        this.zombieAnims.set(z.id, entry);
+      }
+      entry.ctrl.update(dt, {
+        isDowned: false,
+        isMoving: z.state !== 'DORMANT',
+        moveSpeedMult: 1,
+        isPlayer: false
+      });
+    }
+    const live = new Set(this.zombies.filter(z => !z.isDying).map(z => z.id));
+    for (const id of this.zombieAnims.keys()) {
+      if (!live.has(id)) this.zombieAnims.delete(id);
+    }
+  }
+
   /** Guest sends local input and renders host-authoritative state from snapshots. */
   private updateGuestClient(dt: number) {
     const in1 = this.input.getPlayer1Input({ x: this.p1.x, y: this.p1.y });
@@ -710,7 +768,7 @@ export class Game {
       this.p1.update(dt, in1, this.map);
     }
 
-    // Guest controls host P2 — no infiltrator walk rig on this client.
+    this.updateCharacterAnimations(dt);
 
     for (const zombie of this.zombies) zombie.updateJuice(dt);
     this.zombies = this.zombies.filter(z => z.alive || z.isDying);
@@ -756,6 +814,7 @@ export class Game {
       const suppressed = player.activeMuzzle === 'suppressor';
       this.sound.playGunshot(this.p1.position, player.position, wallsToP1, suppressed);
       this.camera.addTrauma(suppressed ? 0.06 : 0.12);
+      this.animForPlayer(player)?.triggerRecoil();
       return;
     }
 
@@ -810,6 +869,10 @@ export class Game {
       const dist = Math.hypot(zombie.x - player.x, zombie.y - player.y);
       if (dist > zombie.radius + player.radius + ZOMBIE_CONTACT_RANGE_PAD) continue;
 
+      if (this.tryConsumeCooldown(this.hitSoundCooldown, zombie.id, 0.55)) {
+        this.zombieAnims.get(zombie.id)?.ctrl.triggerAttack();
+      }
+
       if (player.isDowned) {
         player.eliminate();
         this.triggerPlayerHitJuice(true);
@@ -821,6 +884,7 @@ export class Game {
         if (this.tryConsumeCooldown(this.hitSoundCooldown, player.id, 0.4)) {
           this.sound.playPlayerHit(this.p1.position, player.position);
           this.triggerPlayerHitJuice(false);
+          this.animForPlayer(player)?.triggerHit();
         }
         if (player.health <= 0) {
           // Solo has no partner who could ever reach you — going down would just be
@@ -1305,6 +1369,7 @@ export class Game {
       const key: AssetKey =
         z.archetype === 'lurker' && aggro ? 'zombie_lurker_aggro' : (`zombie_${z.archetype}` as AssetKey);
       const size = ZOMBIE_SPRITE_SIZE[z.archetype];
+      const zAnim = this.zombieAnims.get(z.id)?.ctrl;
 
       // Death: a quick squash-pop, then an eased shrink to nothing, rather than
       // just vanishing the instant health hits zero.
@@ -1314,23 +1379,35 @@ export class Game {
         scale = t < 0.3 ? 1 + (t / 0.3) * 0.25 : 1.25 * (1 - (t - 0.3) / 0.7) ** 2;
       }
 
-      ctx.save();
-      ctx.translate(z.x, z.y);
-      ctx.rotate(z.angle);
-      ctx.scale(scale, scale);
+      if (zAnim && !z.isDying) {
+        ctx.save();
+        if (scale !== 1) {
+          ctx.translate(z.x, z.y);
+          ctx.scale(scale, scale);
+          zAnim.draw(ctx, size, z.angle, 0, 0);
+        } else {
+          zAnim.draw(ctx, size, z.angle, z.x, z.y);
+        }
+        ctx.restore();
+      } else {
+        ctx.save();
+        ctx.translate(z.x, z.y);
+        ctx.rotate(z.angle);
+        ctx.scale(scale, scale);
 
-      if (!this.assets.drawCentered(ctx, key, size)) {
-        ctx.fillStyle = aggro ? '#7E9B6E' : z.state === 'SUSPICIOUS' ? '#6B7F58' : '#54654A';
-        ctx.beginPath();
-        ctx.arc(0, 0, z.radius, 0, Math.PI * 2);
-        ctx.fill();
+        if (!this.assets.drawCentered(ctx, key, size)) {
+          ctx.fillStyle = aggro ? '#7E9B6E' : z.state === 'SUSPICIOUS' ? '#6B7F58' : '#54654A';
+          ctx.beginPath();
+          ctx.arc(0, 0, z.radius, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
       }
 
       if (!z.isDying) {
-        // Eye tell reads the sensory state, which the base sprite can't convey.
-        // Offsets are ratios of this archetype's draw size so the eyes sit on the
-        // face at every size — they used to be shared absolutes tuned for the
-        // 64px lurker, which left the 80px brute's eyes floating off its head.
+        ctx.save();
+        ctx.translate(z.x, z.y);
+        ctx.rotate(z.angle);
         const eyeX = size * ZOMBIE_EYE_X;
         const eyeY = size * ZOMBIE_EYE_Y;
         const eyeR = size * ZOMBIE_EYE_R;
@@ -1340,8 +1417,6 @@ export class Game {
         ctx.arc(eyeX, eyeY, eyeR, 0, Math.PI * 2);
         ctx.fill();
 
-        // Bio-Carrier tell: a slow toxic pulse, so players learn before the
-        // kill that this one bursts and wakes everything nearby.
         if (z.archetype === 'bio_carrier') {
           const pulse = (Math.sin(performance.now() / 260) + 1) / 2;
           ctx.strokeStyle = `rgba(140, 230, 60, ${(0.35 + pulse * 0.45).toFixed(3)})`;
@@ -1350,19 +1425,17 @@ export class Game {
           ctx.arc(0, 0, size * (0.5 + pulse * 0.08), 0, Math.PI * 2);
           ctx.stroke();
         }
-      }
 
-      if (z.hitFlashTimer > 0) {
-        // Additive white pulse, not a mask — cheap way to sell "that connected" without needing sprite silhouettes.
-        ctx.globalCompositeOperation = 'lighter';
-        ctx.fillStyle = `rgba(255, 255, 255, ${((z.hitFlashTimer / HIT_FLASH_SEC) * 0.7).toFixed(3)})`;
-        ctx.beginPath();
-        ctx.arc(0, 0, z.radius, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.globalCompositeOperation = 'source-over';
+        if (z.hitFlashTimer > 0) {
+          ctx.globalCompositeOperation = 'lighter';
+          ctx.fillStyle = `rgba(255, 255, 255, ${((z.hitFlashTimer / HIT_FLASH_SEC) * 0.7).toFixed(3)})`;
+          ctx.beginPath();
+          ctx.arc(0, 0, z.radius, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.globalCompositeOperation = 'source-over';
+        }
+        ctx.restore();
       }
-
-      ctx.restore();
 
       if (!z.isDying) {
         const healthPct = z.health / z.maxHealth;
@@ -1378,52 +1451,6 @@ export class Game {
     }
   }
 
-  /** Operative 1 only (host/solo): walk + downed procedural rigs. */
-  private updateOperative1Rigs(dt: number) {
-    if (this.netRole === 'guest' || this.p1.isEliminated) return;
-
-    const walk = this.assets.infiltratorWalkRig;
-    const downed = this.assets.infiltratorDownedRig;
-
-    if (this.p1.isDowned && downed) {
-      if (!this.p1DownedRigActive) {
-        downed.trigger();
-        this.p1DownedRigActive = true;
-      }
-      downed.update(dt);
-      return;
-    }
-
-    if (this.p1DownedRigActive && downed) {
-      downed.standUp();
-      this.p1DownedRigActive = false;
-    }
-
-    if (!walk || this.p1.noiseRadius <= 0) return;
-    const mult =
-      this.p1.movementState === 'sprint' ? 1.4 : this.p1.movementState === 'sneak' ? 0.72 : 1;
-    walk.o.stepsPerSec = WALK_RIG_DEFAULTS.stepsPerSec * mult;
-    walk.update(dt);
-  }
-
-  private usesInfiltratorDownedRig(p: Player): boolean {
-    return (
-      p.playerNumber === 1 &&
-      p.isDowned &&
-      this.netRole !== 'guest' &&
-      this.assets.infiltratorDownedRig !== null
-    );
-  }
-
-  private usesInfiltratorWalkRig(p: Player): boolean {
-    return (
-      p.playerNumber === 1 &&
-      !p.isDowned &&
-      this.netRole !== 'guest' &&
-      this.assets.infiltratorWalkRig !== null
-    );
-  }
-
   private renderPlayers(ctx: CanvasRenderingContext2D) {
     for (const p of [this.p1, this.p2]) {
       if (p.isEliminated) continue;
@@ -1432,11 +1459,10 @@ export class Game {
         : p.playerNumber === 1
         ? 'player_infiltrator'
         : 'player_breacher';
+      const anim = this.animForPlayer(p);
 
-      if (this.usesInfiltratorDownedRig(p)) {
-        this.assets.infiltratorDownedRig!.draw(ctx, p.x, p.y, PLAYER_SPRITE_SIZE, p.angle);
-      } else if (this.usesInfiltratorWalkRig(p)) {
-        this.assets.infiltratorWalkRig!.draw(ctx, p.x, p.y, PLAYER_SPRITE_SIZE, p.angle);
+      if (anim) {
+        anim.draw(ctx, PLAYER_SPRITE_SIZE, p.angle, p.x, p.y);
       } else {
         ctx.save();
         ctx.translate(p.x, p.y);

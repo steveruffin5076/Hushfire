@@ -1,0 +1,33 @@
+{
+  "frame_width": 512,
+  "frame_height": 325,
+  "frames": 8,
+  "layout": "row",
+  "stride_steps": 2,
+  "footfall_frames": [
+    0,
+    4
+  ],
+  "pivots_cell_px": {
+    "torso": [
+      235.8,
+      173
+    ],
+    "part": [
+      325.3,
+      167.1
+    ]
+  },
+  "amplitudes_at_256w": {
+    "steps": 1.3,
+    "sway": 2.3,
+    "surge": 1.6,
+    "bob": 0.008,
+    "roll": 1.5,
+    "prot": 2.5,
+    "psway": 1.2,
+    "lag": 1.1
+  },
+  "steps_per_s": 1.3,
+  "image": "walk_sheet.webp"
+}

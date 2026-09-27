@@ -16,3 +16,4 @@ Thumbs.db
 
 # Vite dev-server cache (local only).
 vite.config.ts.timestamp-*.mjs
+.tmp_anim_pack/

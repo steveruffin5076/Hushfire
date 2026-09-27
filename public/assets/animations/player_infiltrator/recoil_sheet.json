@@ -1,0 +1,18 @@
+{
+  "frame_width": 512,
+  "frame_height": 304,
+  "layout": "row",
+  "clips": [
+    {
+      "name": "recoil",
+      "frames": 6,
+      "frame_ms": 50,
+      "loop": false,
+      "events": {
+        "muzzle": 0
+      }
+    }
+  ],
+  "note": "cell geometry identical to walk_sheet; loop=False, retrigger per shot",
+  "image": "recoil_sheet.webp"
+}

@@ -1,0 +1,30 @@
+{
+  "cell_width": 574,
+  "cell_height": 595,
+  "layout": "rows",
+  "clips": [
+    {
+      "name": "downed",
+      "row": 0,
+      "frames": 12,
+      "frame_ms": 75,
+      "loop": false,
+      "events": {
+        "impact": 5
+      }
+    },
+    {
+      "name": "downed_idle",
+      "row": 1,
+      "frames": 4,
+      "frame_ms": 500,
+      "loop": true
+    }
+  ],
+  "pivot_cell_px": [
+    253.9,
+    317.2
+  ],
+  "play": "play 'downed' once, then loop 'downed_idle'",
+  "image": "downed_sheet.webp"
+}
