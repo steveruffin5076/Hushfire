@@ -32,6 +32,8 @@ export class MapManager {
   /** This run's rolled zombie and pickup positions for the current sector. */
   public layout!: SectorLayout;
   private doorWalls: Segment[] = [];
+  /** Bumps when wall geometry changes (sector load, blast doors open) — invalidates flashlight beam cache. */
+  public wallsRevision = 0;
 
   constructor() {
     this.sector = SECTORS[0];
@@ -98,6 +100,7 @@ export class MapManager {
     };
 
     this.nav = new NavGrid(this.walls);
+    this.wallsRevision++;
   }
 
   /** Marks the sector objective done and opens any blast doors it was holding shut. */
@@ -110,6 +113,7 @@ export class MapManager {
       this.doorWalls = [];
       // The opened doorway is now walkable, so paths through it must be valid.
       this.nav = new NavGrid(this.walls);
+      this.wallsRevision++;
     }
   }
 

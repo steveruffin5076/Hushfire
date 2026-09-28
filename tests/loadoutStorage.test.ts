@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import { loadArmoryState, saveArmoryState, DEFAULT_LOADOUTS, KeyValueStorage } from '../src/ui/LoadoutStorage';
-
 const memoryStorage = (initial: Record<string, string> = {}): KeyValueStorage & { data: Record<string, string> } => {
   const data = { ...initial };
   return {
@@ -29,10 +28,28 @@ describe('armory persistence', () => {
     const state = loadArmoryState(storage);
     state.mode = 'online';
     state.difficulty = 'hard';
-    state.loadouts[0] = { ...state.loadouts[0], primaryWeapon: 'shotgun', primaryRail: 'green_laser', secondaryAmmoType: 'subsonic' };
+    state.loadouts[0] = { ...state.loadouts[0], primaryRail: 'green_laser', secondaryAmmoType: 'subsonic' };
     state.loadouts[1] = { ...state.loadouts[1], secondaryMuzzle: 'suppressor' };
     saveArmoryState(state, storage);
     expect(loadArmoryState(storage)).toEqual(state);
+  });
+
+  it('clamps locked weapons when loading saved armory state', () => {
+    const storage = memoryStorage();
+    storage.setItem(
+      'hushfire.armory.v1',
+      JSON.stringify({
+        mode: 'solo',
+        difficulty: 'normal',
+        loadouts: [
+          { ...DEFAULT_LOADOUTS[0], primaryWeapon: 'shotgun', secondaryWeapon: 'revolver' },
+          DEFAULT_LOADOUTS[1]
+        ]
+      })
+    );
+    const loaded = loadArmoryState(storage);
+    expect(loaded.loadouts[0].primaryWeapon).toBe('mpx');
+    expect(loaded.loadouts[0].secondaryWeapon).toBe('glock17');
   });
 
   it('migrates legacy coop saves to solo', () => {

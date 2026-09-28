@@ -172,9 +172,8 @@ images/                   Raw art uploads from the owner (source material, not l
 - **Online co-op limits:**
   - **TURN not configured on GitHub Pages** — strict NAT / school Wi‑Fi / VPN often blocks STUN-only P2P. Sign up at [Metered Open Relay](https://www.metered.ca/tools/openrelay/), set `VITE_TURN_CREDENTIALS_URL` in CI secrets, rebuild.
   - Free `0.peerjs.com` PeerServer has no SLA — consider self-hosted `peerjs-server` for production.
-  - Guest has no client-side prediction or snapshot interpolation (may feel laggy on high-latency links).
-  - **Sector reward picker is host-only** — only the host sees `SectorRewardMenu` between sectors; choice is not synced to guest over the wire yet.
-  - **Two-browser playtest still needed** on localhost and GitHub Pages after connection/layout fixes.
+  - Guest movement is lightly blended between snapshots; there is no full input prediction (may feel laggy on high-latency links).
+  - **Sector reward:** host picks the drop; guest sees a wait screen then a reveal (`sector_reward_open` / `sector_reward_pick`, `PROTO_VERSION` 3). Still needs a full two-browser playtest off-LAN once TURN is configured.
 - **2026-09-25 playtest pass:** automated balance review (`tests/playtestBalance.test.ts`) confirms EASY/HARD contact DPS, evac pacing and sector HP scale as intended. Owner previously confirmed movement/firing on the live site and sector-alert horde behaviour.
 
 ### Recently fixed (2026-09-25)
@@ -273,3 +272,5 @@ All work landed through PRs #1–#33 on `main`: deploy pipeline, art pipeline, a
 **2026-09-28:** Restart leak fixes (`InputManager.dispose`, shared `SoundManager`), online downed bleed-out (`BLEEDOUT_SEC`), spatial audio listener midpoint, scream SFX + zombie separation, `RunRecords` personal bests, `pull_request` CI — merged onto the online `main` tree (PR #36).
 
 **2026-09-28 (enhancement roadmap):** Mission letter grades + armory weapon unlocks (`PlayerProfile`), daily seeded runs, helipad survival loop, settings menu (volume / pause-on-blur), sector-reward net sync, Sector 1 `worldMaxX` tunnel, acoustic tutorial HUD, ambient tension bed, flashlight beam cache + decal cap, removed committed `*.tar.gz` bundles.
+
+**2026-09-28 (code review):** `clampLoadoutToUnlocks` on armory load + starter P2 default (no locked shotgun/revolver); flashlight cache keyed on `MapManager.wallsRevision` (blast doors); guest sector-advance snapshot clears stuck reward wait UI.

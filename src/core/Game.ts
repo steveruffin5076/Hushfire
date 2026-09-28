@@ -128,6 +128,8 @@ export interface GameCallbacks {
   ) => void;
   onSectorRewardGuestWait?: (info: { sectorName: string; nextSectorName: string }) => void;
   onSectorRewardGuestPick?: (reward: SectorReward) => void;
+  /** Guest sector advanced on the host before reward UI finished (snapshot resync). */
+  onSectorRewardGuestSync?: () => void;
 }
 
 export class Game {
@@ -564,6 +566,11 @@ export class Game {
     this.paused = snap.paused;
 
     if (snap.sectorIndex !== this.map.sectorIndex) {
+      if (this.waitingForReward) {
+        this.waitingForReward = false;
+        this.callbacks.onSectorRewardGuestSync?.();
+      }
+      Flashlight.clearCache();
       this.map.loadSector(snap.sectorIndex, this.layoutRand, this.runModifier);
       this.applyDifficultyToSector();
     }
@@ -1797,7 +1804,13 @@ export class Game {
 
     for (const p of [this.p1, this.p2]) {
       if (p.isEliminated || p.isDowned || !p.flashlightOn) continue;
-      const beam = Flashlight.build({ x: p.x, y: p.y }, p.angle, p.activeRail, this.map.walls);
+      const beam = Flashlight.build(
+        { x: p.x, y: p.y },
+        p.angle,
+        p.activeRail,
+        this.map.walls,
+        this.map.wallsRevision
+      );
       if (!beam) continue;
       beams.push(beam);
     }

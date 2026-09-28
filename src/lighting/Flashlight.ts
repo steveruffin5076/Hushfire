@@ -17,8 +17,14 @@ export class Flashlight {
     this.beamCache.clear();
   }
 
-  static build(origin: Point, angle: number, rail: RailType, walls: Segment[]): FlashlightBeam | null {
-    const key = `${Math.round(origin.x)}|${Math.round(origin.y)}|${angle.toFixed(3)}|${rail}|${walls.length}`;
+  static build(
+    origin: Point,
+    angle: number,
+    rail: RailType,
+    walls: Segment[],
+    wallsRevision = 0
+  ): FlashlightBeam | null {
+    const key = `${Math.round(origin.x)}|${Math.round(origin.y)}|${angle.toFixed(3)}|${rail}|${wallsRevision}`;
     const hit = this.beamCache.get(key);
     if (hit !== undefined) return hit;
 

@@ -107,6 +107,9 @@ window.addEventListener('DOMContentLoaded', async () => {
         },
         onSectorRewardGuestPick: reward => {
           sectorRewardMenu.showGuestReveal(reward);
+        },
+        onSectorRewardGuestSync: () => {
+          sectorRewardMenu.hide();
         }
       },
       solo,

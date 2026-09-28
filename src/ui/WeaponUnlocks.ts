@@ -1,5 +1,7 @@
 import { GRADE_RANK } from './LetterGrade';
 import { loadPlayerProfile, PlayerProfile } from './PlayerProfile';
+import { WeaponLoadout } from '../entities/Player';
+import { WEAPON_REGISTRY } from '../config/weapons';
 
 const ALWAYS = new Set(['mpx', 'glock17', 'knife']);
 
@@ -31,4 +33,21 @@ export function weaponUnlockHint(weaponId: string): string {
 export function listUnlockedWeaponIds(profile?: PlayerProfile): string[] {
   const p = profile ?? loadPlayerProfile();
   return Object.keys(UNLOCK_RULES).filter(id => UNLOCK_RULES[id](p)).concat([...ALWAYS]);
+}
+
+const STARTER_PRIMARY = 'mpx';
+const STARTER_SECONDARY = 'glock17';
+
+/** Ensures saved or default loadouts never reference locked weapons (e.g. fresh profile + legacy P2 defaults). */
+export function clampLoadoutToUnlocks(loadout: WeaponLoadout, profile?: PlayerProfile): WeaponLoadout {
+  const p = profile ?? loadPlayerProfile();
+  const primary =
+    isWeaponUnlocked(loadout.primaryWeapon, p) && WEAPON_REGISTRY[loadout.primaryWeapon]?.type === 'primary'
+      ? loadout.primaryWeapon
+      : STARTER_PRIMARY;
+  const secondary =
+    isWeaponUnlocked(loadout.secondaryWeapon, p) && WEAPON_REGISTRY[loadout.secondaryWeapon]?.type === 'secondary'
+      ? loadout.secondaryWeapon
+      : STARTER_SECONDARY;
+  return { ...loadout, primaryWeapon: primary, secondaryWeapon: secondary };
 }
