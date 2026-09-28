@@ -1,8 +1,8 @@
 # HUSHFIRE — Progress & Handoff
 
-Last updated: 2026-09-28 (`main`: PR #39 gameplay fixes, sector background render fix). Written as a handoff for another developer or AI assistant, e.g. Cursor. Read this first, then `CLAUDE.md`.
+Last updated: 2026-09-28 (`main`: through PR #43 mouse-aim fix; PR #44 NVG toggle open). Written as a handoff for another developer or AI assistant, e.g. Cursor. Read this first, then `CLAUDE.md`.
 
-**Status in one line:** the full game is playable and deployed. Title → **campaign**, **daily challenge**, or **survival** (or online co-op) → armory → up to 3 sectors → evac. **Solo** (one operative) or **online co-op** (PeerJS, `PROTO_VERSION` 3). Keyboard/mouse, gamepad, or touch. Retention: mission letter grades, armory weapon unlocks, personal bests. **Phase 7 M1–M2** (lobby + host-authoritative sync) are wired. Same-machine couch co-op was removed (legacy `coop` saves → solo).
+**Status in one line:** the full game is playable and deployed. Title → **campaign**, **daily challenge**, or **survival** (or online co-op) → armory (left tabs: briefing / loadout / profile) → up to 3 sectors → evac. **Solo** (one operative) or **online co-op** (PeerJS, `PROTO_VERSION` 3 on `main`; **4** when PR #44 NVG merges). Keyboard/mouse, gamepad, or touch. Retention: mission letter grades, career XP/level, armory weapon unlocks, personal bests. **Phase 7 M1–M2** (lobby + host-authoritative sync) are wired. Same-machine couch co-op was removed (legacy `coop` saves → solo).
 
 - Live site: https://steveruffin5076.github.io/Hushfire/
 - Repo: https://github.com/steveruffin5076/Hushfire (default branch `main`)
@@ -16,7 +16,7 @@ npm install        # after any pull that touched package.json
 npm run dev        # http://localhost:3000
 npm run typecheck  # tsc --noEmit (covers src/ and tests/)
 npm run lint       # ESLint + typescript-eslint; `any` is an error
-npm test           # Vitest, 317 tests in 34 files under tests/
+npm test           # Vitest, 336 tests in 38 files under tests/ (main; +NVG tests on PR #44)
 npm run build      # tsc && vite build → dist/
 ```
 
@@ -69,17 +69,20 @@ src/
     NavGrid.ts            A* grid pathfinding
     Geometry.ts           Segment math, angleBetween
     HordeSurge.ts         Evac wave pacing, isSectorAlertingShot, mix, raw edge spawn points
+    GearSystem.ts         NVG visibility bubbles (PR #44); flare TBD
   net/
     Protocol.ts           Re-exports NetMessage + PROTO_VERSION from GameSnapshot
     GameSnapshot.ts       input/snapshot wire types, inputToNet/netToInput
     roomCode.ts           generateRoomCode, peerIdForRoom, hash parsing
     SessionManager.ts     PeerJS transport: lobby + gameplay input/snapshot relay
-  ui/                     HUD (+ tutorial hints), ArmoryMenu (+ online lobby, weapon unlock gates),
+  ui/                     HUD (+ tutorial hints, flashlight + NVG buttons when equipped), ArmoryMenu
+                          (left-tab briefing / loadout / profile, online lobby, weapon unlock gates),
                           MainMenu (campaign / daily / survival / settings / online), SettingsMenu,
                           PauseMenu, SectorRewardMenu (host pick + guest wait/reveal), ExtractionModal,
                           LobbyPanel, QuitScreen, LoadoutStorage, WeaponUnlocks, PlayerProfile,
-                          LetterGrade, RunRecords, dailyChallenge, GameSettings, MenuGamepadNav, StealthRating, theme
-tests/                    34 Vitest files (see §6)
+                          PlayerProgress (career XP → level), LetterGrade, RunRecords, dailyChallenge,
+                          GameSettings, MenuGamepadNav, StealthRating, theme
+tests/                    38 Vitest files (see §6)
 docs/                     Design specs + PHASE7_ONLINE_LOBBY_PLAN.md
 public/assets/            Processed game art (sprites, backgrounds, branding, items, fx)
 images/                   Raw art uploads from the owner (source material, not loaded by the game)
@@ -90,7 +93,7 @@ images/                   Raw art uploads from the owner (source material, not l
 ## 4. What's done
 
 ### Core loop
-- Title screen (key art) → **START GAME** (campaign), **DAILY CHALLENGE** (UTC-seeded layout), **SURVIVAL** (Sector 3 helipad loop), **SETTINGS**, or online create/join → armory (mode, difficulty, loadouts) → Sector 1 Transit → Sector 2 Bio-Lab → Sector 3 Helipad → end screen (survival: waves cleared on helipad).
+- Title screen (key art) → **START GAME** (campaign), **DAILY CHALLENGE** (UTC-seeded layout), **SURVIVAL** (Sector 3 helipad loop), **SETTINGS**, or online create/join → armory (left tabs: **Mission Briefing**, **Weapon Loadout & Attachments**, **Player Profile** with career level/XP) → Sector 1 Transit → Sector 2 Bio-Lab → Sector 3 Helipad → end screen (survival: waves cleared on helipad).
 - **Sector objectives:**
   - S1: find the keycard, override the blast door.
   - S2: hold the lockdown terminal for 3.5 s.
@@ -110,10 +113,11 @@ images/                   Raw art uploads from the owner (source material, not l
 - Knife backstab (400 dmg) from the zombie's rear 120°. The knife never uses ammo.
 - Brute front armour ×0.25 unless armour-piercing.
 - **Bio-carrier:** a pulsing green ring. On death its 400 px blast enrages everything in range, shown by a shockwave ring.
-- **Suppressor:** sound ×0.35. The MPX and Glock stay "stealth ready" (≤150 px); the M4, shotgun and revolver don't.
+- **Suppressors:** tiered sound cut (see `MUZZLE_MODIFIERS`). Titanium (and legacy tuning) keeps MPX/Glock "stealth ready" (≤150 px); tactical suppressor on MPX/Glock can still sector-alert; loud primaries still alert when suppressed.
 
 ### Combat & items
-- **Weapons:** MPX, M4A1, shotgun, crossbow (primary); Glock 17, revolver, knife (secondary).
+- **Weapons:** expanded roster in `WEAPON_REGISTRY` — SMGs (MPX, MP5SD, Vector, P90), rifles (crossbow, M4A1, AK-12, DMR), shotguns, pistols (Glock, P226, Deagle, revolver), knife (secondary). Unlock ladder in `WeaponUnlocks.ts`.
+- **Muzzles:** tactical / titanium / monolithic suppressors (+ brakes, compensator, flash hider); titanium keeps MPX/Glock ≤150 px sector-alert threshold; monolithic has movement penalty.
 - **Attachments:** muzzle, rail/light and ammo type are chosen per weapon.
 - **Ammo crate:** +2 mags per gun, capped at the starting reserve. It stays on the floor if both guns are full.
 - **Crossbow bolts:** walking over a stuck bolt returns it to reserve.
@@ -131,7 +135,7 @@ images/                   Raw art uploads from the owner (source material, not l
 - **Layout shuffle:** every zombie and pickup has 2 alternative spots (`alts`), and one is picked per run. Types and counts never change, so sector HP stays 358 → 466 → 498.
 - **Evac horde waves:** every 10 s down to the difficulty minimum. Co-op waves are 2 zombies. Mix: lurker 40 / stalker 25 / bio 25 / brute 10%. Capped at 18 zombies. Spawns are validated so they never land inside Sector 3's off-roof blocker boxes (`MapManager.rollSurgeSpawn`).
 - **Warnings:** "HORDE INCOMING" banner 2 s before each evac wave and before sector-alert reinforcement waves.
-- **End screen:** difficulty, sector reached, time, kills, shots, silent kills, zombies alerted, stealth rating (GHOST 0 / SHADOW ≤3 / OPERATOR ≤8 / LOUD). **Mission letter grade** S/A/B/C/D/F from time, alerts, and damage (`LetterGrade.ts`). **Personal bests** per difficulty in `localStorage` (`RunRecords.ts`). Profile tracks wins, best grade, kills — drives **armory weapon unlocks** (`WeaponUnlocks.ts`: crossbow, M4, shotgun, revolver).
+- **End screen:** difficulty, sector reached, time, kills, shots, silent kills, zombies alerted, stealth rating (GHOST 0 / SHADOW ≤3 / OPERATOR ≤8 / LOUD). **Mission letter grade** S/A/B/C/D/F from time, alerts, and damage (`LetterGrade.ts`). **Personal bests** per difficulty in `localStorage` (`RunRecords.ts`). **Player profile** (`PlayerProfile.ts` + `PlayerProgress.ts`): wins, best grade, peak kills, **lifetime XP → operative level** (awarded each run); drives **armory weapon unlocks** (`WeaponUnlocks.ts`).
 
 ### Retention & settings
 - **Weapon unlocks:** MPX, Glock, knife always available; others gated with hints in the armory. Saved loadouts are **clamped** on load so locked weapons cannot deploy (`clampLoadoutToUnlocks`).
@@ -142,7 +146,7 @@ images/                   Raw art uploads from the owner (source material, not l
 - **Sector 1 scroll:** `worldMaxX` 1940, camera bounds follow (`Camera.setWorldBounds`).
 
 ### Sector modifiers (per-run twist)
-- Rolled in the armory with **REROLL MODIFIER**; shown on the protocol panel, HUD, and end screen.
+- Chosen in the armory **RUN MODIFIER** dropdown (default **NONE**); daily runs lock the UTC day's twist. Shown on the protocol panel, HUD, and end screen.
 - **Blackout:** 50% battery at deploy; battery pickups stripped.
 - **Scavenger:** half the sector pickups.
 - **Hush:** sector-alert reinforcement cooldown halved (4 s vs 8 s).
@@ -153,7 +157,7 @@ images/                   Raw art uploads from the owner (source material, not l
 - **Title screen:** START GAME (solo armory), CREATE CO-OP SESSION, JOIN SESSION (code input).
 - **Invite link:** `#HUSH-XXXXX` hash in the URL; guest auto-enters the armory lobby.
 - **PeerJS transport** (`peerjs@1.5.5`): room code maps to peer id `hushfire-HUSH-XXXXX`. STUN via Google + Metered STUN fallback. Optional TURN via `VITE_TURN_CREDENTIALS_URL` (see `.env.example`, `src/net/iceConfig.ts`). Outbound queue while the DataChannel opens.
-- **Armory online mode:** full-width equal-column layout, viewport scale-to-fit (no page/panel scroll), ← BACK TO MAIN MENU, room code + copy-link, connection status, ready pills, **RETRY CONNECTION** on error, debounced loadout broadcast (120 ms), host-gated deploy with shared seed. Fixed operative slots: host = Op 1, guest = Op 2 (locked).
+- **Armory online mode:** centered layout with **left vertical tabs** (briefing / loadout / profile), viewport scale-to-fit (no page scroll), ← BACK TO MAIN MENU, room code + copy-link, connection status, ready pills, **RETRY CONNECTION** on error, debounced loadout broadcast (120 ms), host-gated deploy with shared seed. Fixed operative slots: host = Op 1, guest = Op 2 (locked).
 - **Connection fixes:** host no longer times out while waiting for a guest (guest-only 20 s timeout); `retryConnection()` reopens the same room for hosts.
 - **Gameplay sync (M2):** host runs the authoritative `Game`; guest sends input at 60 Hz and renders ~30 Hz snapshots with pose blending. Slot remap: guest's local P1 = host's P2. Shared layout seed via `mulberry32(seed)` on deploy. Wire format: `src/net/GameSnapshot.ts` (`PROTO_VERSION` 3 includes sector-reward messages).
 - **Dependency:** `peerjs` in `package.json`.
@@ -166,8 +170,10 @@ images/                   Raw art uploads from the owner (source material, not l
 - **Touch:**
   - On-screen twin-stick controls for P1 appear after the first touch.
   - Pushing the aim stick past its ring fires.
-  - Buttons: SPRINT/SNEAK toggles, RELOAD, USE, SWAP, LIGHT, pause.
+  - Buttons: SPRINT/SNEAK toggles, RELOAD, USE, SWAP, LIGHT, **NVG** (when goggles equipped; PR #44), pause.
   - Upright phones get a "rotate to landscape" prompt.
+- **NVG (night vision goggles):** selectable as **operative gear** in the armory. **PR #44:** toggle **N** (each player's own PC in online co-op), HUD button, touch **NVG**; green visibility bubble + screen tint. **`\`** is only for rare same-keyboard local P2 on one PC — online guest uses **N** on their machine. **Flare pack** still armory-only (no throw yet).
+- **Mouse aim:** P1 aim uses `Camera.screenToWorld(mousePos)` so shots match the reticle when the camera pans/zooms (PR #43).
 - The armory remembers mode, difficulty and both loadouts in `localStorage`. Saves from older builds are checked field by field.
 
 ### Art & animation
@@ -207,6 +213,16 @@ images/                   Raw art uploads from the owner (source material, not l
 
 **2026-09-28:** Sector JPEGs were on disk but invisible in play — `renderFloor()` drew art then painted an opaque gray fill on top; fixed so art shows under the darkness mask (fallback grid only when load fails).
 
+**2026-09-28 (PR #40):** Expanded weapon roster, operative gear dropdown (`extra_ammo`, `extra_battery`, `nvg`, `flare_pack`), run-modifier dropdown + **NONE** default.
+
+**2026-09-28:** Three suppressor tiers + deploy bonuses for extra ammo/battery gear.
+
+**2026-09-28 (PR #41–#42):** Armory **left-side tabs** (briefing default, loadout, player profile); career **XP and level** on profile tab (`PlayerProgress.ts`).
+
+**2026-09-28 (PR #43):** Mouse aim fixed — screen mouse position converted to world space before `aimAngle` (reticle vs hitscan alignment).
+
+**2026-09-28 (PR #44, open):** In-mission **NVG toggle** (HUD, touch, `N`); `GearSystem` lighting bubble; net `PROTO_VERSION` 4 + `nvgOn` / `isTogglingNvg` on wire.
+
 ---
 
 ## 6. How things were tested (reuse these)
@@ -235,6 +251,9 @@ images/                   Raw art uploads from the owner (source material, not l
 - **Personal bests** (`tests/runRecords.test.ts`): `localStorage` merge + category labels.
 - **Letter grades** (`tests/letterGrade.test.ts`), **weapon unlocks** (`tests/weaponUnlocks.test.ts`), **daily seed** (`tests/dailyChallenge.test.ts`), **tutorial gate** (`tests/tutorial.test.ts`).
 - **Loadout clamp** (`tests/loadoutStorage.test.ts`): locked weapons stripped when loading armory saves.
+- **Mouse aim** (`tests/mouseAim.test.ts`): aim angle with offset camera.
+- **Career XP** (`tests/playerProgress.test.ts`): level from lifetime XP, persist on run record.
+- **NVG gear** (`tests/nvgGear.test.ts`, PR #44): toggle only with NVG equipped; light emission while on.
 - **Zombie separation** (`tests/aiSeparation.test.ts`): overlapping enraged zombies pushed apart.
 - **Animation pack** (`tests/animationAssets.test.ts`): walk/downed sheets present for all characters.
 - **Deterministic Playwright loop:** `Game.renderGameToText()` + `Game.advanceTime()` wired in `main.ts`. Example: `node scripts/dev-playtest.mjs http://localhost:3000/`.
@@ -247,48 +266,33 @@ images/                   Raw art uploads from the owner (source material, not l
 2. **Two-browser online playtest** — full run: lobby → both sectors → host reward pick → guest reveal → evac (off-LAN once TURN works).
 3. **Human balance playtest** — Sector 1 eastern tunnel (`worldMaxX` 1940) and survival wave pacing; confirm sector backgrounds read correctly under flashlights after the `renderFloor` fix.
 4. **Expand scrollable maps** — Sector 2/3 still viewport-sized; reuse `worldMaxX` + `Camera.setWorldBounds`.
-5. **Content backlog (§10)** — extra SMG / rifle / pistol tiers + operative gear (NVG, flare); not started in code.
-6. **Optional:** armory background art; self-host PeerServer if `0.peerjs.com` is unreliable.
+5. **Merge PR #44** (NVG controls + `PROTO_VERSION` 4) and two-browser test with updated guest build.
+6. **Flare pack gameplay** — throwable area light + noise (`GearSystem`); still armory-only.
+7. **Optional:** armory background art; self-host PeerServer if `0.peerjs.com` is unreliable.
 
 ---
 
 ## 10. Content expansion (weapons + operative gear)
 
-**Armory (implemented):** extra primaries/secondaries in `WEAPON_REGISTRY` with unlocks in `WeaponUnlocks.ts`; operative gear in `config/operativeGear.ts` + **OPERATIVE GEAR** dropdown in `ArmoryMenu`. Gear is **not** a muzzle/rail/ammo attachment.
+**Armory (implemented):** expanded `WEAPON_REGISTRY` + unlock ladder in `WeaponUnlocks.ts`; operative gear in `config/operativeGear.ts` + **OPERATIVE GEAR** dropdown (`none`, `extra_ammo`, `extra_battery`, `nvg`, `flare_pack`). Deploy bonuses for extra ammo/battery. Gear is **not** a muzzle/rail/ammo attachment.
 
-**In-mission gear gameplay (not yet):** NVG toggle and throwable flares are selected in the armory and stored on `Player.operativeGear` but do not change lighting/noise yet — follow-up `GearSystem` task.
+**In-mission gear:**
 
-### 10.1 Weapon roster expansion (unlock ladder)
+| Gear | Status |
+|------|--------|
+| **extra_ammo / extra_battery** | ✅ applied at deploy (`Player.applyDeployGearBonus`) |
+| **NVG** | ✅ PR #44 — toggle N / HUD / touch; `GearSystem` + `ShadowRenderer` green bubble (no separate NVG battery yet) |
+| **flare_pack** | ⏸ armory + loadout only; no throw / light / noise |
 
-Current guns stay; add tiers using **`PlayerProfile`** rules (wins, grade, kills) like existing unlocks — not a separate XP level unless we add `careerLevel` later.
+**Career XP** (`PlayerProgress.ts`) is separate from unlock rules (still wins/grades/kills in `WeaponUnlocks.ts`); shown on armory **Player Profile** tab.
 
-| Tier | Slot | Suggested id | Display name | Example unlock |
-|------|------|--------------|--------------|----------------|
-| 0 | SMG | `mpx` | MPX-S Tactical | Always (starter) |
-| 1 | SMG | `mp5sd` | MP5SD | 1 win |
-| 2 | SMG | `vector` | Vector .45 | Win + grade C or better |
-| 3 | SMG | `p90` | P90 | 25+ kills in one run |
-| 0 | Rifle | `crossbow` | Viper Tac-Crossbow | 1 win (existing) |
-| 1 | Rifle | `m4a1` | M4A1 CQB | Win + grade B+ (existing) |
-| 2 | Rifle | `ak12` | AK-12 | 2 wins |
-| 3 | Rifle | `dmr` | DMR / marksman | Grade A+ on a win |
-| 0 | Pistol | `glock17` | Glock 17 | Always (starter) |
-| 1 | Pistol | `p226` | P226 (suppressed) | 5+ kills in one run |
-| 2 | Pistol | `deagle` | Desert Eagle | 10+ kills in one run |
-| 3 | Pistol | `revolver` | Colt Python .357 | Grade A+ (existing) |
+### 10.1 Weapon roster — shipped (balance ongoing)
 
-**Implementation notes:** add defs in `config/weapons.ts` (sound radius, mag, stealth tier vs 150 px sector-alert); sprites in `public/assets/weapons/`; register in `UNLOCK_RULES` / `UNLOCK_HINT`; `clampLoadoutToUnlocks` already resets locked ids. Balance: at most one suppressed gun per tier should stay “stealth ready” (≤150 px).
+Ids in `PRIMARY_WEAPON_ARMORY_ORDER` / `SECONDARY_WEAPON_ARMORY_ORDER`. Human playtest: confirm tactical vs titanium suppressor feel and DMR/revolver unlock pacing.
 
-### 10.2 Operative gear (separate from weapon attachments)
+### 10.2 Flare pack — still to build
 
-New **gear** slot per operative in armory (alongside primary/secondary), hotkey in mission — distinct from muzzle / rail / ammo.
-
-| Gear | Purpose | Suggested behaviour |
-|------|---------|---------------------|
-| **Night vision (NVG)** | See without a wide flashlight cone | Toggle; green-tinted view, reduced reliance on rail lights (tradeoff: worse long-range ID or separate gear battery). Unlock example: first win. |
-| **Flare pack** | Area light + noise | Limited charges per sector/run; thrown projectile; bright pool ~8–12 s; large `NoiseSystem` event. Unlock example: clear Sector 2 once or survival wave 3. |
-
-**Implementation sketch:** `operativeGear: 'none' \| 'nvg' \| 'flare_pack'` on loadout or `Player`; `GearSystem` for flare projectile; lighting pass hook for NVG; unlocks mirror `WeaponUnlocks`. Online: host-authoritative flare + gear state in snapshots when built.
+Throwable projectile, bright pool ~8–12 s, large `NoiseSystem` event, limited charges, host-authoritative in snapshots. Sketch: extend `GearSystem` + `CombatSystem` or new `FlareProjectile` entity.
 
 ---
 
@@ -308,7 +312,7 @@ New **gear** slot per operative in armory (alongside primary/secondary), hotkey 
 | 10 | Ready pills stuck | ✅ unified `onStateChange` + `LobbyPanel.refresh()` |
 | 11 | Fixed online operative slots | ✅ host Op 1 / guest Op 2, locked |
 | 12 | Connection timeout bug | ✅ host no longer times out while waiting; guest 20 s + retry |
-| 13 | Armory full-width layout | ✅ equal 50/50 columns, viewport scale-to-fit, no scroll |
+| 13 | Armory layout | ✅ left tabs + centered panel, scale-to-fit, no scroll |
 | 14 | ICE / optional TURN | ✅ `iceConfig.ts`, `.env.example`, `tests/iceConfig.test.ts` |
 | 15 | TURN on GitHub Pages | ⏸ CI wired — add `VITE_TURN_CREDENTIALS_URL` secret & redeploy |
 | 16 | Self-hosted PeerServer | ⏸ TBD — owner must pick hosting |
@@ -323,14 +327,17 @@ New **gear** slot per operative in armory (alongside primary/secondary), hotkey 
 | 25 | PR #39 run-breaking fixes | ✅ keycard vs scavenger, survival holdout, daily modifier seed |
 | 26 | Sector background visible in play | ✅ `renderFloor` no longer paints over JPEG |
 | 27 | Extra SMG / rifle / pistol tiers | ✅ armory + `WEAPON_REGISTRY` + unlocks |
-| 28 | Operative gear (NVG, flare) | ⏸ armory + loadout wired; in-mission behaviour TBD |
-| 29 | NVG + flare gameplay | ⏸ `GearSystem`, lighting, noise, HUD charges |
+| 28 | Operative gear armory + deploy bonuses | ✅ dropdown + extra ammo/battery |
+| 29 | Armory tabs + career XP | ✅ briefing / loadout / profile (`PlayerProgress`) |
+| 30 | Mouse aim vs reticle | ✅ `screenToWorld` in `Input.getPlayer1Input` (PR #43) |
+| 31 | NVG in-mission toggle | ⏸ PR #44 open — HUD, touch, lighting; merge + PROTO 4 |
+| 32 | Flare pack gameplay | ⏸ armory only |
 
 ---
 
 ## 9. History
 
-All work landed through PRs #1–#39 on `main` (+ follow-up commits): deploy pipeline, art pipeline, asset-path fix, title screen, sprites/backgrounds, wall alignment, lighting, battery, test suite, lint, loadout saving, gamepad/touch, online lobby + M2 sync, sector modifiers, horde fixes, progress handoff (#32–#33), stability (#36), enhancement roadmap (#37), code-review fixes (#38), gameplay soft-lock fixes (#39), sector `renderFloor` background fix. Stale branches #34/#35 closed without merge. See `git log --merges` for details.
+All work landed through PRs #1–#43 on `main` (+ follow-up commits): deploy pipeline, art pipeline, asset-path fix, title screen, sprites/backgrounds, wall alignment, lighting, battery, test suite, lint, loadout saving, gamepad/touch, online lobby + M2 sync, sector modifiers, horde fixes, progress handoff (#32–#33), stability (#36), enhancement roadmap (#37), code-review fixes (#38), gameplay soft-lock fixes (#39), sector `renderFloor` background fix, expanded armory weapons/gear (#40), armory tabs + profile XP (#41–#42), mouse-aim fix (#43). PR #44 (NVG) pending merge. Stale branches #34/#35 closed without merge. See `git log --merges` for details.
 
 **2026-09-25 sessions:**
 - Sector-alert horde frenzy — loud gunfire (>150 px) wakes every zombie and calls edge reinforcements. Owner playtested and confirmed.
