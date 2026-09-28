@@ -823,7 +823,7 @@ export class Game {
     this.tutorialBanner = tutorialHint(this.map.sectorIndex, this.missionTime, this.zombiesAlerted, this.firedLoudShot);
     this.sound.setAmbientTension(Math.min(1, this.zombiesAlerted / 6));
 
-    const in1 = this.input.getPlayer1Input({ x: this.p1.x, y: this.p1.y });
+    const in1 = this.input.getPlayer1Input({ x: this.p1.x, y: this.p1.y }, this.camera);
     const in2 =
       this.netRole === 'host'
         ? (this.guestRemoteInput ?? Game.emptyInput())
@@ -961,7 +961,7 @@ export class Game {
 
   /** Guest sends local input and renders host-authoritative state from snapshots. */
   private updateGuestClient(dt: number) {
-    const in1 = this.input.getPlayer1Input({ x: this.p1.x, y: this.p1.y });
+    const in1 = this.input.getPlayer1Input({ x: this.p1.x, y: this.p1.y }, this.camera);
     this.input.endFrame();
 
     if (this.session) {
