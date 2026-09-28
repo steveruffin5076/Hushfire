@@ -13,6 +13,9 @@ import {
 import { OPERATIVE_GEAR_ORDER, OPERATIVE_GEAR_REGISTRY, OperativeGearId } from '../config/operativeGear';
 import { WeaponLoadout } from '../entities/Player';
 import { CYAN, ORANGE, TEXT, MUTED, GREEN, RED, PANEL_BG, PANEL_BORDER, FIELD_BG } from './theme';
+import { loadPlayerProfile } from './PlayerProfile';
+import { levelProgressFromTotalXp } from './PlayerProgress';
+import { GRADE_COLOR } from './LetterGrade';
 import { showQuitScreen } from './QuitScreen';
 import { GameMode, loadArmoryState, saveArmoryState } from './LoadoutStorage';
 import { Difficulty, DIFFICULTIES, DIFFICULTY_ORDER } from '../config/difficulty';
@@ -194,7 +197,7 @@ export class ArmoryMenu {
     stage.style.margin = '0 auto';
     stage.style.width = '100%';
 
-    type ArmoryTab = 'briefing' | 'loadout';
+    type ArmoryTab = 'briefing' | 'loadout' | 'profile';
     let activeTab: ArmoryTab = 'briefing';
 
     const shell = document.createElement('div');
@@ -222,9 +225,12 @@ export class ArmoryMenu {
 
     const briefingPane = document.createElement('div');
     const loadoutPane = document.createElement('div');
+    const profilePane = document.createElement('div');
     loadoutPane.style.display = 'none';
+    profilePane.style.display = 'none';
     contentPanel.appendChild(briefingPane);
     contentPanel.appendChild(loadoutPane);
+    contentPanel.appendChild(profilePane);
 
     const tabButtonBase = `
       width: 100%; text-align: left; padding: 14px 12px; font-size: 11.5px; letter-spacing: 1px;
@@ -236,8 +242,17 @@ export class ArmoryMenu {
     const loadoutTabBtn = document.createElement('button');
     loadoutTabBtn.type = 'button';
     loadoutTabBtn.innerHTML = 'WEAPON LOADOUT<br>& ATTACHMENTS';
+    const profileTabBtn = document.createElement('button');
+    profileTabBtn.type = 'button';
+    profileTabBtn.textContent = 'PLAYER PROFILE';
     tabNav.appendChild(briefingTabBtn);
     tabNav.appendChild(loadoutTabBtn);
+    tabNav.appendChild(profileTabBtn);
+
+    const renderProfile = () => {
+      profilePane.innerHTML = '';
+      profilePane.appendChild(this.buildPlayerProfilePanel());
+    };
 
     const applyTabStyles = () => {
       const pick = (active: boolean, accent: string) =>
@@ -247,8 +262,11 @@ export class ArmoryMenu {
           : `background: ${FIELD_BG}; color: ${MUTED}; border-color: ${PANEL_BORDER}; font-weight: normal;`);
       briefingTabBtn.style.cssText = pick(activeTab === 'briefing', CYAN);
       loadoutTabBtn.style.cssText = pick(activeTab === 'loadout', ORANGE);
+      profileTabBtn.style.cssText = pick(activeTab === 'profile', GREEN);
       briefingPane.style.display = activeTab === 'briefing' ? 'block' : 'none';
       loadoutPane.style.display = activeTab === 'loadout' ? 'block' : 'none';
+      profilePane.style.display = activeTab === 'profile' ? 'block' : 'none';
+      if (activeTab === 'profile') renderProfile();
       fitStage();
     };
     briefingTabBtn.onclick = () => {
@@ -257,6 +275,10 @@ export class ArmoryMenu {
     };
     loadoutTabBtn.onclick = () => {
       activeTab = 'loadout';
+      applyTabStyles();
+    };
+    profileTabBtn.onclick = () => {
+      activeTab = 'profile';
       applyTabStyles();
     };
     applyTabStyles();
@@ -712,6 +734,67 @@ export class ArmoryMenu {
 
     updateDeployButton();
     fitStage();
+  }
+
+  private buildPlayerProfilePanel(): HTMLDivElement {
+    const profile = loadPlayerProfile();
+    const prog = levelProgressFromTotalXp(profile.totalXp);
+    const pct = prog.xpForNextLevel > 0 ? Math.min(100, (prog.xpIntoLevel / prog.xpForNextLevel) * 100) : 0;
+    const bestGrade = profile.bestGrade ?? '—';
+    const bestColor = profile.bestGrade ? GRADE_COLOR[profile.bestGrade] : MUTED;
+
+    const root = document.createElement('div');
+
+    const title = document.createElement('div');
+    title.textContent = 'OPERATIVE CAREER';
+    title.style.cssText = `font-size: 12px; letter-spacing: 2px; color: ${GREEN}; font-weight: bold; margin-bottom: 16px;`;
+    root.appendChild(title);
+
+    const levelRow = document.createElement('div');
+    levelRow.style.cssText = 'display: flex; align-items: baseline; gap: 12px; margin-bottom: 14px;';
+    levelRow.innerHTML = `
+      <span style="font-size: 42px; font-weight: 800; color: ${TEXT}; line-height: 1;">${prog.level}</span>
+      <span style="font-size: 13px; letter-spacing: 2px; color: ${MUTED};">OPERATIVE LEVEL</span>
+    `;
+    root.appendChild(levelRow);
+
+    const xpLabel = document.createElement('div');
+    xpLabel.style.cssText = `font-size: 11.5px; letter-spacing: 1px; color: ${MUTED}; margin-bottom: 6px;`;
+    xpLabel.textContent = `EXPERIENCE — ${prog.xpIntoLevel} / ${prog.xpForNextLevel} XP TO NEXT LEVEL`;
+    root.appendChild(xpLabel);
+
+    const barOuter = document.createElement('div');
+    barOuter.style.cssText = `height: 10px; background: ${FIELD_BG}; border: 1px solid ${PANEL_BORDER}; border-radius: 4px; overflow: hidden; margin-bottom: 8px;`;
+    const barInner = document.createElement('div');
+    barInner.style.cssText = `height: 100%; width: ${pct}%; background: linear-gradient(90deg, #2EE66A, ${GREEN}); border-radius: 3px; transition: width 0.2s;`;
+    barOuter.appendChild(barInner);
+    root.appendChild(barOuter);
+
+    const totalXp = document.createElement('div');
+    totalXp.style.cssText = `font-size: 11px; color: ${MUTED}; margin-bottom: 18px;`;
+    totalXp.textContent = `Lifetime XP: ${prog.totalXp.toLocaleString()}`;
+    root.appendChild(totalXp);
+
+    const statsBox = document.createElement('div');
+    statsBox.style.cssText = `background: ${FIELD_BG}; border: 1px solid ${PANEL_BORDER}; border-radius: 4px; padding: 12px 14px;`;
+    const statLine = (label: string, value: string, color: string) => {
+      const row = document.createElement('div');
+      row.style.cssText = `display: flex; justify-content: space-between; font-size: 12.5px; padding: 4px 0; color: ${MUTED};`;
+      row.innerHTML = `<span>${label}</span><span style="color:${color}; font-weight:bold;">${value}</span>`;
+      return row;
+    };
+    statsBox.appendChild(statLine('EXTRACTIONS WON', String(profile.totalWins), CYAN));
+    statsBox.appendChild(statLine('BEST MISSION GRADE', bestGrade, bestColor));
+    statsBox.appendChild(statLine('PEAK KILLS (ONE RUN)', String(profile.totalKillsBest), ORANGE));
+    root.appendChild(statsBox);
+
+    const hint = document.createElement('div');
+    hint.style.cssText = `margin-top: 14px; font-size: 11.5px; line-height: 1.5; color: ${MUTED};`;
+    hint.textContent =
+      'Earn XP from every deployment — wins, mission grades, and eliminations level up your operative and track career milestones. Armory unlocks still follow wins and grades.';
+    root.appendChild(hint);
+
+    return root;
   }
 
   private buildModeButton(label: string): HTMLButtonElement {
