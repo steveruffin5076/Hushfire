@@ -190,27 +190,86 @@ export class ArmoryMenu {
       </div>
     `;
     stage.appendChild(header);
+    stage.style.maxWidth = '960px';
+    stage.style.margin = '0 auto';
+    stage.style.width = '100%';
 
-    const layout = document.createElement('div');
-    layout.id = 'armory-layout';
-    layout.style.cssText = `
-      display: grid; width: 100%; gap: 20px; align-items: stretch;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+    type ArmoryTab = 'briefing' | 'loadout';
+    let activeTab: ArmoryTab = 'briefing';
+
+    const shell = document.createElement('div');
+    shell.id = 'armory-layout';
+    shell.style.cssText = `
+      display: flex; width: 100%; max-width: 900px; margin: 0 auto; align-items: stretch;
+      min-height: 320px;
     `;
-    stage.appendChild(layout);
+    stage.appendChild(shell);
 
-    // ---- Card 1: game mode & mission briefing ----
-    const deployCard = this.buildCard('[ 1. MISSION BRIEFING ]', CYAN);
-    layout.appendChild(deployCard.card);
+    const tabNav = document.createElement('div');
+    tabNav.style.cssText = `
+      display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; width: 212px;
+      padding-right: 18px; margin-right: 18px; border-right: 1px solid ${PANEL_BORDER};
+    `;
+    shell.appendChild(tabNav);
 
+    const contentPanel = document.createElement('div');
+    contentPanel.style.cssText = `
+      flex: 1; min-width: 0; background: ${PANEL_BG}; border: 1px solid ${PANEL_BORDER};
+      border-radius: 6px; padding: 18px 20px; box-sizing: border-box;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+    `;
+    shell.appendChild(contentPanel);
+
+    const briefingPane = document.createElement('div');
+    const loadoutPane = document.createElement('div');
+    loadoutPane.style.display = 'none';
+    contentPanel.appendChild(briefingPane);
+    contentPanel.appendChild(loadoutPane);
+
+    const tabButtonBase = `
+      width: 100%; text-align: left; padding: 14px 12px; font-size: 11.5px; letter-spacing: 1px;
+      font-family: inherit; border-radius: 4px; cursor: pointer; border: 1px solid; line-height: 1.35;
+    `;
+    const briefingTabBtn = document.createElement('button');
+    briefingTabBtn.type = 'button';
+    briefingTabBtn.textContent = 'MISSION BRIEFING';
+    const loadoutTabBtn = document.createElement('button');
+    loadoutTabBtn.type = 'button';
+    loadoutTabBtn.innerHTML = 'WEAPON LOADOUT<br>& ATTACHMENTS';
+    tabNav.appendChild(briefingTabBtn);
+    tabNav.appendChild(loadoutTabBtn);
+
+    const applyTabStyles = () => {
+      const pick = (active: boolean, accent: string) =>
+        tabButtonBase +
+        (active
+          ? `background: ${accent}; color: #05050A; border-color: ${accent}; font-weight: bold;`
+          : `background: ${FIELD_BG}; color: ${MUTED}; border-color: ${PANEL_BORDER}; font-weight: normal;`);
+      briefingTabBtn.style.cssText = pick(activeTab === 'briefing', CYAN);
+      loadoutTabBtn.style.cssText = pick(activeTab === 'loadout', ORANGE);
+      briefingPane.style.display = activeTab === 'briefing' ? 'block' : 'none';
+      loadoutPane.style.display = activeTab === 'loadout' ? 'block' : 'none';
+      fitStage();
+    };
+    briefingTabBtn.onclick = () => {
+      activeTab = 'briefing';
+      applyTabStyles();
+    };
+    loadoutTabBtn.onclick = () => {
+      activeTab = 'loadout';
+      applyTabStyles();
+    };
+    applyTabStyles();
+
+    // ---- Mission briefing tab ----
     const modeLabel = document.createElement('div');
     modeLabel.textContent = 'GAME MODE:';
     modeLabel.style.cssText = `font-size: 12px; letter-spacing: 1px; color: ${MUTED}; margin-bottom: 8px;`;
-    deployCard.body.appendChild(modeLabel);
+    briefingPane.appendChild(modeLabel);
 
     const modeRow = document.createElement('div');
     modeRow.style.cssText = 'display: flex; gap: 10px; margin-bottom: 18px;';
-    deployCard.body.appendChild(modeRow);
+    briefingPane.appendChild(modeRow);
 
     const modeButtonBase = `
       flex: 1; padding: 12px 8px; font-size: 13px; letter-spacing: 1px; font-family: inherit;
@@ -225,14 +284,14 @@ export class ArmoryMenu {
     const diffLabel = document.createElement('div');
     diffLabel.textContent = 'DIFFICULTY:';
     diffLabel.style.cssText = `font-size: 12px; letter-spacing: 1px; color: ${MUTED}; margin-bottom: 8px;`;
-    deployCard.body.appendChild(diffLabel);
+    briefingPane.appendChild(diffLabel);
 
     const diffRow = document.createElement('div');
     diffRow.style.cssText = 'display: flex; gap: 8px; margin-bottom: 6px;';
-    deployCard.body.appendChild(diffRow);
+    briefingPane.appendChild(diffRow);
     const diffBlurb = document.createElement('div');
     diffBlurb.style.cssText = `font-size: 11.5px; color: ${MUTED}; margin-bottom: 18px; min-height: 16px;`;
-    deployCard.body.appendChild(diffBlurb);
+    briefingPane.appendChild(diffBlurb);
 
     const diffButtons = DIFFICULTY_ORDER.map(level => {
       const btn = this.buildModeButton(DIFFICULTIES[level].label);
@@ -295,8 +354,8 @@ export class ArmoryMenu {
     };
 
     const protocolBox = document.createElement('div');
-    protocolBox.style.cssText = `background: ${PANEL_BG}; border: 1px solid ${PANEL_BORDER}; border-radius: 4px; padding: 14px 16px; margin-top: 4px;`;
-    deployCard.body.appendChild(protocolBox);
+    protocolBox.style.cssText = `background: ${FIELD_BG}; border: 1px solid ${PANEL_BORDER}; border-radius: 4px; padding: 14px 16px; margin-top: 4px;`;
+    briefingPane.appendChild(protocolBox);
 
     const modifierMount = document.createElement('div');
     modifierMount.style.cssText = 'margin-bottom: 10px;';
@@ -331,7 +390,7 @@ export class ArmoryMenu {
     };
 
     const lobbyMount = document.createElement('div');
-    deployCard.body.appendChild(lobbyMount);
+    briefingPane.appendChild(lobbyMount);
 
     const broadcastLoadout = () => {
       if (!session || mode !== 'online') return;
@@ -365,11 +424,9 @@ export class ArmoryMenu {
       fitStage();
     };
 
-    // ---- Card 2: weapon loadout ----
-    const loadoutCard = this.buildCard('[ 2. WEAPON LOADOUT & ATTACHMENTS ]', ORANGE);
-    loadoutCard.body.appendChild(operativeSlotLabel);
-    loadoutCard.body.appendChild(loadoutBody);
-    layout.appendChild(loadoutCard.card);
+    // ---- Weapon loadout tab ----
+    loadoutPane.appendChild(operativeSlotLabel);
+    loadoutPane.appendChild(loadoutBody);
 
     // Every attachment is mounted per-weapon now — each row below is a
     // primary/secondary pair rather than one shared choice, so swapping
@@ -655,29 +712,6 @@ export class ArmoryMenu {
 
     updateDeployButton();
     fitStage();
-  }
-
-  private buildCard(label: string, accent: string): { card: HTMLDivElement; body: HTMLDivElement } {
-    const card = document.createElement('div');
-    card.style.cssText = `
-      background: ${PANEL_BG}; border: 1px solid ${PANEL_BORDER}; border-radius: 6px; padding: 16px;
-      width: 100%; min-width: 0; height: 100%; box-sizing: border-box;
-      box-shadow: 0 8px 30px rgba(0,0,0,0.4);
-    `;
-
-    const heading = document.createElement('div');
-    heading.textContent = label;
-    heading.style.cssText = `color: ${accent}; font-size: 13px; letter-spacing: 1px; font-weight: bold; margin-bottom: 10px;`;
-    card.appendChild(heading);
-
-    const divider = document.createElement('div');
-    divider.style.cssText = `height: 1px; background: ${PANEL_BORDER}; margin-bottom: 16px;`;
-    card.appendChild(divider);
-
-    const body = document.createElement('div');
-    card.appendChild(body);
-
-    return { card, body };
   }
 
   private buildModeButton(label: string): HTMLButtonElement {
