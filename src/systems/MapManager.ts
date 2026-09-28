@@ -52,6 +52,14 @@ export class MapManager {
     return this.sectorIndex >= SECTORS.length - 1;
   }
 
+  worldMaxX(): number {
+    return this.sector.worldMaxX ?? 1260;
+  }
+
+  worldMaxY(): number {
+    return 700;
+  }
+
   /** `rand` picks this visit's zombie/pickup spots — injectable so tests can pin a layout. */
   loadSector(index: number, rand: () => number = Math.random, modifier?: SectorModifierId) {
     const sector = SECTORS[Math.min(index, SECTORS.length - 1)];
@@ -60,11 +68,13 @@ export class MapManager {
     this.objectiveComplete = false;
     this.objectiveProgress = 0;
 
+    const maxX = sector.worldMaxX ?? 1260;
+    const maxY = 700;
     this.walls = [
-      { p1: { x: 20, y: 20 }, p2: { x: 1260, y: 20 } },
-      { p1: { x: 1260, y: 20 }, p2: { x: 1260, y: 700 } },
-      { p1: { x: 1260, y: 700 }, p2: { x: 20, y: 700 } },
-      { p1: { x: 20, y: 700 }, p2: { x: 20, y: 20 } }
+      { p1: { x: 20, y: 20 }, p2: { x: maxX, y: 20 } },
+      { p1: { x: maxX, y: 20 }, p2: { x: maxX, y: maxY } },
+      { p1: { x: maxX, y: maxY }, p2: { x: 20, y: maxY } },
+      { p1: { x: 20, y: maxY }, p2: { x: 20, y: 20 } }
     ];
     for (const box of sector.boxes) this.addBox(box.x1, box.y1, box.x2, box.y2);
 

@@ -4,6 +4,7 @@ import type { WeaponLoadout } from '../entities/Player';
 import type { ZombieArchetype } from '../entities/Zombie';
 import type { ZombieState } from '../config/zombies';
 import type { PickupType } from '../entities/Pickup';
+import type { SectorReward } from '../ui/SectorRewardMenu';
 
 /** Guest → host input at 60 Hz. Slot is always 2 (guest operative on the host sim). */
 export interface NetInputMessage {
@@ -130,8 +131,10 @@ export type NetMessage =
   | { t: 'hello'; code: string; proto: number }
   | { t: 'loadout'; loadout: WeaponLoadout; ready: boolean }
   | { t: 'deploy'; seed: number; runModifier: SectorModifierId; hostLoadout: WeaponLoadout; guestLoadout: WeaponLoadout }
+  | { t: 'sector_reward_open'; sectorName: string; nextSectorName: string }
+  | { t: 'sector_reward_pick'; reward: SectorReward }
   | { t: 'bye' }
   | NetInputMessage
   | NetSnapshotMessage;
 
-export const PROTO_VERSION = 2;
+export const PROTO_VERSION = 3;

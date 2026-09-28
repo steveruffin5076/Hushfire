@@ -1,4 +1,5 @@
 import { ORANGE, MUTED, TEXT, FIELD_BG, PANEL_BORDER } from './theme';
+import { dailyChallengeLabel } from './dailyChallenge';
 
 // Built from Vite's BASE_URL (not a hardcoded leading slash) so this still
 // resolves once built under a subpath — see CLAUDE.md's "Deployed Asset
@@ -7,6 +8,9 @@ const BG_PATH = `${import.meta.env.BASE_URL}assets/branding/hushfire_menu_bg.jpg
 
 export interface MainMenuCallbacks {
   onStart: () => void;
+  onDaily: () => void;
+  onSurvival: () => void;
+  onSettings: () => void;
   onCreateOnline: () => void;
   onJoinOnline: (code: string) => void;
 }
@@ -81,6 +85,27 @@ export class MainMenu {
       callbacks.onStart();
     };
     stack.appendChild(startBtn);
+
+    const dailyBtn = secondaryBtn(`DAILY RUN — ${dailyChallengeLabel()}`);
+    dailyBtn.onclick = () => {
+      this.close();
+      callbacks.onDaily();
+    };
+    stack.appendChild(dailyBtn);
+
+    const survivalBtn = secondaryBtn('SURVIVAL — HELIPAD HOLDOUT');
+    survivalBtn.onclick = () => {
+      this.close();
+      callbacks.onSurvival();
+    };
+    stack.appendChild(survivalBtn);
+
+    const settingsBtn = secondaryBtn('SETTINGS');
+    settingsBtn.onclick = () => {
+      this.close();
+      callbacks.onSettings();
+    };
+    stack.appendChild(settingsBtn);
 
     const createBtn = secondaryBtn('CREATE CO-OP SESSION');
     createBtn.onclick = () => {

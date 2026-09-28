@@ -1,7 +1,7 @@
 import { Player } from '../entities/Player';
 import { WEAPON_REGISTRY } from '../config/weapons';
 import { MapManager } from '../systems/MapManager';
-import { CANVAS_WIDTH, FLASHLIGHT_BATTERY_MAX } from '../config/constants';
+import { CANVAS_WIDTH, CANVAS_HEIGHT, FLASHLIGHT_BATTERY_MAX } from '../config/constants';
 import { SectorModifierId, getSectorModifier } from '../config/sectorModifiers';
 import { AssetLoader } from '../core/AssetLoader';
 import { Camera } from '../core/Camera';
@@ -95,10 +95,25 @@ export class HUD {
    * or genuinely dead in co-op, where a stale "HP: 0/120" panel would just
    * be confusing.
    */
-  renderScreenSpace(ctx: CanvasRenderingContext2D, p1: Player, p2: Player, map: MapManager, runModifier: SectorModifierId) {
+  renderScreenSpace(
+    ctx: CanvasRenderingContext2D,
+    p1: Player,
+    p2: Player,
+    map: MapManager,
+    runModifier: SectorModifierId,
+    tutorialBanner: string | null = null
+  ) {
     this.renderPlayerPanel(ctx, p1, 30, 30);
     if (!p2.isEliminated) this.renderPlayerPanel(ctx, p2, CANVAS_WIDTH - 330, 30);
     this.renderMissionStatus(ctx, map, !p2.isEliminated, runModifier);
+    if (tutorialBanner) {
+      ctx.save();
+      ctx.font = '12px monospace';
+      ctx.fillStyle = 'rgba(235, 244, 250, 0.92)';
+      ctx.textAlign = 'center';
+      ctx.fillText(tutorialBanner, CANVAS_WIDTH / 2, CANVAS_HEIGHT - 28);
+      ctx.restore();
+    }
   }
 
   private renderPlayerPanel(ctx: CanvasRenderingContext2D, p: Player, x: number, y: number) {

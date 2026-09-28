@@ -1,6 +1,9 @@
 export const CANVAS_WIDTH = 1280;
 export const CANVAS_HEIGHT = 720;
 
+/** Blood/brass decals per sector — oldest drop when exceeded. */
+export const DECAL_MAX = 100;
+
 export const PHYSICS_TICK_RATE = 60;
 export const DT = 1 / PHYSICS_TICK_RATE;
 

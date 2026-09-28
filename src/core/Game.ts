@@ -7,8 +7,12 @@ import {
   SECTOR_HORDE_COOLDOWN_SEC,
   SNEAK_NOISE_RADIUS,
   WALK_NOISE_RADIUS,
-  SPRINT_NOISE_RADIUS
+  SPRINT_NOISE_RADIUS,
+  DECAL_MAX
 } from '../config/constants';
+import { RunKind } from '../config/runKind';
+import { tutorialHint } from '../config/tutorial';
+import { loadGameSettings } from '../ui/GameSettings';
 import { InputManager, PlayerInputState } from './Input';
 import { Camera } from './Camera';
 import { getSharedSoundManager, SoundManager } from './SoundManager';
@@ -122,6 +126,8 @@ export interface GameCallbacks {
     info: { sectorName: string; nextSectorName: string },
     onChosen: (reward: SectorReward) => void
   ) => void;
+  onSectorRewardGuestWait?: (info: { sectorName: string; nextSectorName: string }) => void;
+  onSectorRewardGuestPick?: (reward: SectorReward) => void;
 }
 
 export class Game {
@@ -232,6 +238,15 @@ export class Game {
   private readonly zombieAnims = new Map<number, { key: CharacterAnimId; ctrl: CharacterAnimController }>();
   /** Previous zombie positions — walk sheets only advance when the sim actually moved them. */
   private readonly zombiePrevWorld = new Map<number, { x: number; y: number }>();
+  private readonly runKind: RunKind;
+  private survivalMode = false;
+  private survivalWavesCleared = 0;
+  private firedLoudShot = false;
+  private tutorialBanner: string | null = null;
+  private readonly handleVisibility = () => {
+    if (!loadGameSettings().pauseOnBlur) return;
+    if (document.hidden && !this.paused && this.running) this.togglePause();
+  };
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -244,8 +259,10 @@ export class Game {
     runModifier: SectorModifierId = 'scavenger',
     layoutRand: () => number = Math.random,
     online?: OnlineGameConfig,
-    animations: AnimationCatalog | null = null
+    animations: AnimationCatalog | null = null,
+    runKind: RunKind = 'campaign'
   ) {
+    this.runKind = runKind;
     this.animations = animations;
     this.p1Anim = animations?.createController(playerAnimId(1)) ?? null;
     this.p2Anim = animations?.createController(playerAnimId(2)) ?? null;
@@ -283,7 +300,20 @@ export class Game {
     this.wireSheetFootfalls(this.p1, this.p1Anim);
     this.wireSheetFootfalls(this.p2, this.p2Anim);
 
-    this.map.loadSector(0, this.layoutRand, this.runModifier);
+    if (runKind === 'survival') {
+      this.survivalMode = true;
+      this.map.loadSector(2, this.layoutRand, this.runModifier);
+      this.map.objectiveComplete = true;
+      this.map.extractionZone.isActive = true;
+    } else {
+      this.map.loadSector(0, this.layoutRand, this.runModifier);
+    }
+    this.syncCameraBounds();
+    const sectorSpawns = this.map.sector.playerSpawns;
+    this.p1.x = sectorSpawns[0].x;
+    this.p1.y = sectorSpawns[0].y;
+    this.p2.x = sectorSpawns[1].x;
+    this.p2.y = sectorSpawns[1].y;
     if (this.runModifier === 'blackout') {
       for (const player of [this.p1, this.p2]) {
         if (!player.isEliminated) player.flashlightBattery = FLASHLIGHT_BATTERY_MAX / 2;
@@ -308,6 +338,19 @@ export class Game {
     if (!this.session) return;
     this.session.onRemoteInput = msg => {
       if (this.netRole === 'host') this.guestRemoteInput = netToInput(msg);
+    };
+    this.session.onSectorRewardOpen = info => {
+      if (this.netRole !== 'guest') return;
+      this.waitingForReward = true;
+      this.paused = true;
+      this.callbacks.onSectorRewardGuestWait?.(info);
+    };
+    this.session.onSectorRewardPick = reward => {
+      if (this.netRole !== 'guest') return;
+      this.applySectorReward(reward);
+      this.waitingForReward = false;
+      this.paused = false;
+      this.callbacks.onSectorRewardGuestPick?.(reward);
     };
     this.session.onSnapshot = msg => {
       if (this.netRole === 'guest') {
@@ -595,6 +638,7 @@ export class Game {
   public start() {
     this.running = true;
     this.lastTime = performance.now();
+    document.addEventListener('visibilitychange', this.handleVisibility);
     requestAnimationFrame(t => this.tick(t));
   }
 
@@ -690,6 +734,7 @@ export class Game {
 
   public stop() {
     this.running = false;
+    document.removeEventListener('visibilitychange', this.handleVisibility);
     window.removeEventListener('keydown', this.handleKeyDown);
     this.canvas.removeEventListener('mousedown', this.handleCanvasMouseDown);
     this.canvas.removeEventListener('mousemove', this.handleCanvasMouseMove);
@@ -766,6 +811,8 @@ export class Game {
 
     this.missionTime += dt;
     this.netTick++;
+    this.tutorialBanner = tutorialHint(this.map.sectorIndex, this.missionTime, this.zombiesAlerted, this.firedLoudShot);
+    this.sound.setAmbientTension(Math.min(1, this.zombiesAlerted / 6));
 
     const in1 = this.input.getPlayer1Input({ x: this.p1.x, y: this.p1.y });
     const in2 =
@@ -978,6 +1025,11 @@ export class Game {
       d.vy = (d.vy ?? 0) * 0.92;
     }
     this.decals = this.decals.filter(d => d.life === undefined || d.life > 0);
+    while (this.decals.length > DECAL_MAX) this.decals.shift();
+  }
+
+  private syncCameraBounds() {
+    this.camera.setWorldBounds(20, 20, this.map.worldMaxX(), this.map.worldMaxY());
   }
 
   private handleReload(player: Player, input: PlayerInputState) {
@@ -1176,6 +1228,7 @@ export class Game {
    * armory warns about. Evac holdout already runs its own surge loop.
    */
   private onSectorAlertingShot(player: Player) {
+    this.firedLoudShot = true;
     const source = { x: player.x, y: player.y };
     for (const zombie of this.zombies) {
       if (!zombie.alive || zombie.state === 'ENRAGED') continue;
@@ -1266,15 +1319,19 @@ export class Game {
 
     this.waitingForReward = true;
     this.paused = true;
-    this.callbacks.onSectorReward(
-      { sectorName: this.map.sector.name, nextSectorName: nextSector.name },
-      reward => {
-        this.applySectorReward(reward);
-        this.advanceSector();
-        this.waitingForReward = false;
-        this.paused = false;
+    const info = { sectorName: this.map.sector.name, nextSectorName: nextSector.name };
+    if (this.session && this.netRole === 'host') {
+      this.session.send({ t: 'sector_reward_open', ...info });
+    }
+    this.callbacks.onSectorReward?.(info, reward => {
+      if (this.session && this.netRole === 'host') {
+        this.session.send({ t: 'sector_reward_pick', reward });
       }
-    );
+      this.applySectorReward(reward);
+      this.advanceSector();
+      this.waitingForReward = false;
+      this.paused = false;
+    });
   }
 
   private applySectorReward(reward: SectorReward) {
@@ -1295,7 +1352,9 @@ export class Game {
   }
 
   private advanceSector() {
+    Flashlight.clearCache();
     this.map.loadSector(this.map.sectorIndex + 1, this.layoutRand, this.runModifier);
+    this.syncCameraBounds();
     this.applyDifficultyToSector();
     this.zombies = [];
     this.projectiles = [];
@@ -1321,6 +1380,16 @@ export class Game {
       return;
     }
     if (this.map.extractionZone.isComplete) {
+      if (this.survivalMode) {
+        this.survivalWavesCleared++;
+        const zone = this.map.extractionZone;
+        zone.isComplete = false;
+        zone.isActive = true;
+        zone.holdoutTimer = zone.holdoutDurationSec;
+        zone.isOccupied = false;
+        this.hordeSpawnTimer = SURGE_START_INTERVAL_SEC;
+        return;
+      }
       this.endMission(true);
     }
   }
@@ -1339,7 +1408,9 @@ export class Game {
       zombiesAlerted: this.zombiesAlerted,
       silentKills: this.p1.silentKills + this.p2.silentKills,
       difficulty: this.difficultyDef.label,
-      runModifier: getSectorModifier(this.runModifier).name
+      runModifier: getSectorModifier(this.runModifier).name,
+      runKind: this.runKind,
+      survivalWavesCleared: this.survivalMode ? this.survivalWavesCleared : undefined
     });
   }
 
@@ -1365,7 +1436,7 @@ export class Game {
     ctx.restore();
 
     this.renderLighting(ctx);
-    this.hud.renderScreenSpace(ctx, this.p1, this.p2, this.map, this.runModifier);
+    this.hud.renderScreenSpace(ctx, this.p1, this.p2, this.map, this.runModifier, this.tutorialBanner);
     this.renderBlasts(ctx);
     this.renderSurgeWarning(ctx);
     this.renderDamageFlash(ctx);
@@ -1424,15 +1495,16 @@ export class Game {
   }
 
   private renderFloor(ctx: CanvasRenderingContext2D) {
+    const worldW = Math.max(CANVAS_WIDTH, this.map.worldMaxX());
     const bgKey = this.map.sector.backgroundKey;
-    if (bgKey && this.assets.drawStretched(ctx, bgKey, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT)) return;
+    if (bgKey) this.assets.drawStretched(ctx, bgKey, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
     ctx.fillStyle = '#2A2F3A';
-    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    ctx.fillRect(0, 0, worldW, CANVAS_HEIGHT);
 
     ctx.strokeStyle = '#363C49';
     ctx.lineWidth = 1;
-    for (let x = 0; x < CANVAS_WIDTH; x += 40) {
+    for (let x = 0; x < worldW; x += 40) {
       ctx.beginPath();
       ctx.moveTo(x, 0);
       ctx.lineTo(x, CANVAS_HEIGHT);
@@ -1441,7 +1513,7 @@ export class Game {
     for (let y = 0; y < CANVAS_HEIGHT; y += 40) {
       ctx.beginPath();
       ctx.moveTo(0, y);
-      ctx.lineTo(CANVAS_WIDTH, y);
+      ctx.lineTo(worldW, y);
       ctx.stroke();
     }
   }

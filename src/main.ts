@@ -13,6 +13,13 @@ import { SessionManager } from './net/SessionManager';
 import { mulberry32 } from './core/seededRand';
 import { AnimationCatalog } from './graphics/animation/AnimationCatalog';
 import { recordRun, recordsForDifficulty } from './ui/RunRecords';
+import { recordPlayerProfile, loadPlayerProfile } from './ui/PlayerProfile';
+import { nextGradeGoal } from './ui/LetterGrade';
+import { RunKind } from './config/runKind';
+import { dailyChallengeRand } from './ui/dailyChallenge';
+import { SettingsMenu } from './ui/SettingsMenu';
+import { loadGameSettings } from './ui/GameSettings';
+import { getSharedSoundManager } from './core/SoundManager';
 
 window.addEventListener('DOMContentLoaded', async () => {
   const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
@@ -21,6 +28,9 @@ window.addEventListener('DOMContentLoaded', async () => {
     console.error('Required DOM elements not found!');
     return;
   }
+
+  const settings = loadGameSettings();
+  getSharedSoundManager().setMasterVolume(settings.masterVolume);
 
   const assets = new AssetLoader();
   const animations = new AnimationCatalog();
@@ -33,7 +43,10 @@ window.addEventListener('DOMContentLoaded', async () => {
   const extractionModal = new ExtractionModal(overlay);
   const pauseMenu = new PauseMenu(overlay);
   const sectorRewardMenu = new SectorRewardMenu(overlay);
+  const settingsMenu = new SettingsMenu(overlay);
   let activeGame: Game | null = null;
+  let pendingRunKind: RunKind = 'campaign';
+  let pendingLayoutRand: () => number = Math.random;
 
   const deploy = (
     mode: GameMode,
@@ -45,7 +58,8 @@ window.addEventListener('DOMContentLoaded', async () => {
   ) => {
     activeGame?.stop();
     const solo = mode === 'solo';
-    const layoutRand = net ? mulberry32(net.seed) : Math.random;
+    const layoutRand = net ? mulberry32(net.seed) : pendingLayoutRand;
+    const runKind = pendingRunKind;
     const online = mode === 'online' && session.role !== 'LOCAL' && net ? { session, role: net.role } : undefined;
     activeGame = new Game(
       canvas,
@@ -56,7 +70,16 @@ window.addEventListener('DOMContentLoaded', async () => {
           pauseMenu.hide();
           sectorRewardMenu.hide();
           const newBest = recordRun(stats);
-          extractionModal.show(stats, () => openArmory(), newBest, recordsForDifficulty(stats.difficulty));
+          const letter = recordPlayerProfile(stats);
+          const profile = loadPlayerProfile();
+          extractionModal.show(
+            stats,
+            () => openArmory(),
+            newBest,
+            recordsForDifficulty(stats.difficulty),
+            letter,
+            nextGradeGoal(stats, profile.bestGrade)
+          );
         },
         onPauseChange: (paused: boolean) => {
           if (paused) {
@@ -78,6 +101,12 @@ window.addEventListener('DOMContentLoaded', async () => {
         },
         onSectorReward: (info, onChosen) => {
           sectorRewardMenu.show(info.sectorName, info.nextSectorName, onChosen);
+        },
+        onSectorRewardGuestWait: info => {
+          sectorRewardMenu.showGuestWait(info.sectorName, info.nextSectorName);
+        },
+        onSectorRewardGuestPick: reward => {
+          sectorRewardMenu.showGuestReveal(reward);
         }
       },
       solo,
@@ -85,14 +114,37 @@ window.addEventListener('DOMContentLoaded', async () => {
       runModifier,
       layoutRand,
       online,
-      animations.ready ? animations : null
+      animations.ready ? animations : null,
+      runKind
     );
     activeGame.start();
   };
 
   const openMainMenu = () => {
     mainMenu.open({
-      onStart: () => openArmory(),
+      onStart: () => {
+        pendingRunKind = 'campaign';
+        pendingLayoutRand = Math.random;
+        openArmory();
+      },
+      onDaily: () => {
+        pendingRunKind = 'daily';
+        pendingLayoutRand = dailyChallengeRand();
+        openArmory();
+      },
+      onSurvival: () => {
+        pendingRunKind = 'survival';
+        pendingLayoutRand = Math.random;
+        openArmory();
+      },
+      onSettings: () => {
+        settingsMenu.open(() => {
+          settingsMenu.hide();
+          const s = loadGameSettings();
+          getSharedSoundManager().setMasterVolume(s.masterVolume);
+          openMainMenu();
+        });
+      },
       onCreateOnline: () => openArmory({ online: true, host: true }),
       onJoinOnline: code => openArmory({ online: true, joinCode: code })
     });

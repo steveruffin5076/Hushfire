@@ -1,4 +1,6 @@
 import { stealthRating, RATING_COLOR } from './StealthRating';
+import { LetterGrade, GRADE_COLOR, missionLetterGrade } from './LetterGrade';
+import { RunKind } from '../config/runKind';
 
 export interface RunStats {
   victory: boolean;
@@ -14,6 +16,8 @@ export interface RunStats {
   difficulty: string;
   /** Per-run sector twist (blackout, scavenger, hush, heavy). */
   runModifier?: string;
+  runKind?: RunKind;
+  survivalWavesCleared?: number;
 }
 
 /** DOM-based win/loss run summary shown at the end of a mission. */
@@ -25,7 +29,14 @@ export class ExtractionModal {
     this.container.appendChild(this.root);
   }
 
-  show(stats: RunStats, onRestart: () => void, newBest: string[] = [], prior?: { bestTimeSurvivedSec: number; bestKills: number; bestStealthAlerts: number | null }) {
+  show(
+    stats: RunStats,
+    onRestart: () => void,
+    newBest: string[] = [],
+    prior?: { bestTimeSurvivedSec: number; bestKills: number; bestStealthAlerts: number | null },
+    letterGrade?: LetterGrade,
+    gradeGoal?: string
+  ) {
     this.container.style.pointerEvents = 'auto';
     this.root.innerHTML = '';
     this.root.style.cssText = `
@@ -47,6 +58,8 @@ export class ExtractionModal {
     };
 
     stat('DIFFICULTY', stats.difficulty);
+    if (stats.runKind === 'daily') stat('MODE', 'DAILY CHALLENGE');
+    if (stats.runKind === 'survival') stat('MODE', `SURVIVAL — ${stats.survivalWavesCleared ?? 0} waves held`);
     if (stats.runModifier) stat('RUN MODIFIER', stats.runModifier);
     stat('FURTHEST SECTOR', stats.sectorReached);
     stat('TIME SURVIVED', `${Math.round(stats.timeSurvivedSec)}s`);
@@ -60,6 +73,19 @@ export class ExtractionModal {
     grade.style.cssText = 'margin-top: 14px; font-size: 13px; letter-spacing: 2px; color: #8A94A6;';
     grade.innerHTML = `STEALTH RATING: <span style="font-size: 20px; font-weight: bold; letter-spacing: 4px; color: ${RATING_COLOR[rating]}">${rating}</span>`;
     this.root.appendChild(grade);
+
+    const letter = letterGrade ?? missionLetterGrade(stats);
+    const missionGrade = document.createElement('div');
+    missionGrade.style.cssText = 'margin-top: 10px; font-size: 13px; letter-spacing: 2px; color: #8A94A6;';
+    missionGrade.innerHTML = `MISSION GRADE: <span style="font-size: 28px; font-weight: bold; color: ${GRADE_COLOR[letter]}">${letter}</span>`;
+    this.root.appendChild(missionGrade);
+
+    if (gradeGoal) {
+      const goal = document.createElement('div');
+      goal.style.cssText = 'margin-top: 8px; font-size: 12px; letter-spacing: 1px; color: #6A7486;';
+      goal.textContent = gradeGoal;
+      this.root.appendChild(goal);
+    }
 
     if (newBest.length > 0) {
       const banner = document.createElement('div');

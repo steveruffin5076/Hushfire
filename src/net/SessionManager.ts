@@ -6,6 +6,7 @@ import Peer, { DataConnection, PeerOptions } from 'peerjs';
 import type { NetMessage } from './Protocol';
 import { PROTO_VERSION } from './Protocol';
 import type { NetInputMessage, NetSnapshotMessage } from './GameSnapshot';
+import type { SectorReward } from '../ui/SectorRewardMenu';
 import { generateRoomCode, isRoomHash, normalizeRoomCode, peerIdForRoom } from './roomCode';
 import { resolveIceServers } from './iceConfig';
 import type { WeaponLoadout } from '../entities/Player';
@@ -33,6 +34,8 @@ export class SessionManager {
   onDeploy?: (seed: number, runModifier: SectorModifierId, hostLoadout: WeaponLoadout, guestLoadout: WeaponLoadout) => void;
   onRemoteInput?: (msg: NetInputMessage) => void;
   onSnapshot?: (msg: NetSnapshotMessage) => void;
+  onSectorRewardOpen?: (info: { sectorName: string; nextSectorName: string }) => void;
+  onSectorRewardPick?: (reward: SectorReward) => void;
 
   private peer: Peer | null = null;
   private conn: DataConnection | null = null;
@@ -292,6 +295,12 @@ export class SessionManager {
         break;
       case 'snapshot':
         this.onSnapshot?.(msg);
+        break;
+      case 'sector_reward_open':
+        this.onSectorRewardOpen?.({ sectorName: msg.sectorName, nextSectorName: msg.nextSectorName });
+        break;
+      case 'sector_reward_pick':
+        this.onSectorRewardPick?.(msg.reward);
         break;
       case 'bye':
         this.handleDrop('Partner left the session.');

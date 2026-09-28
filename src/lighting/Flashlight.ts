@@ -11,9 +11,22 @@ export interface FlashlightBeam {
 
 /** Builds the light shape for a player's rail attachment: a flood/spot cone, or a pencil-thin laser ray. */
 export class Flashlight {
+  private static beamCache = new Map<string, FlashlightBeam | null>();
+
+  static clearCache() {
+    this.beamCache.clear();
+  }
+
   static build(origin: Point, angle: number, rail: RailType, walls: Segment[]): FlashlightBeam | null {
+    const key = `${Math.round(origin.x)}|${Math.round(origin.y)}|${angle.toFixed(3)}|${rail}|${walls.length}`;
+    const hit = this.beamCache.get(key);
+    if (hit !== undefined) return hit;
+
     const mod = RAIL_MODIFIERS[rail];
-    if (rail === 'none' || mod.rangePx === 0) return null;
+    if (rail === 'none' || mod.rangePx === 0) {
+      this.beamCache.set(key, null);
+      return null;
+    }
 
     if (rail === 'green_laser') {
       const dir = { x: Math.cos(angle) * mod.rangePx, y: Math.sin(angle) * mod.rangePx };
@@ -29,10 +42,14 @@ export class Flashlight {
           }
         }
       }
-      return { polygon: [], origin, range: mod.rangePx, isLaser: true, laserEnd };
+      const beam = { polygon: [], origin, range: mod.rangePx, isLaser: true, laserEnd };
+      this.beamCache.set(key, beam);
+      return beam;
     }
 
     const polygon = Raycaster.castCone(origin, angle, mod.coneAngleRad, mod.rangePx, walls);
-    return { polygon, origin, range: mod.rangePx, isLaser: false };
+    const beam = { polygon, origin, range: mod.rangePx, isLaser: false };
+    this.beamCache.set(key, beam);
+    return beam;
   }
 }

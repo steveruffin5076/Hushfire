@@ -37,6 +37,13 @@ export class Camera {
     this.y = viewportHeight / 2;
   }
 
+  setWorldBounds(minX: number, minY: number, maxX: number, maxY: number) {
+    this.worldMinX = minX;
+    this.worldMinY = minY;
+    this.worldMaxX = maxX;
+    this.worldMaxY = maxY;
+  }
+
   update(targets: CameraTarget[], dt: number) {
     const alive = targets.filter(t => t.alive);
     const pts = alive.length > 0 ? alive : targets;

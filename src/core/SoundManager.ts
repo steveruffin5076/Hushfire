@@ -20,6 +20,9 @@ export class SoundManager {
   private ctx: AudioContext | null = null;
   private masterGain: GainNode | null = null;
   private noiseBuffer: AudioBuffer | null = null;
+  private ambientOsc: OscillatorNode | null = null;
+  private ambientGain: GainNode | null = null;
+  private ambientTension = 0;
 
   private ensureContext(): AudioContext | null {
     if (this.ctx) return this.ctx;
@@ -28,6 +31,7 @@ export class SoundManager {
     this.ctx = new Ctor();
     this.masterGain = this.ctx.createGain();
     this.masterGain.gain.value = 0.6;
+    this.startAmbientBed();
     this.masterGain.connect(this.ctx.destination);
     this.noiseBuffer = this.buildNoiseBuffer(this.ctx);
     return this.ctx;
@@ -37,6 +41,34 @@ export class SoundManager {
   resume() {
     const ctx = this.ensureContext();
     if (ctx && ctx.state === 'suspended') ctx.resume();
+  }
+
+  setMasterVolume(volume: number) {
+    const v = Math.min(1, Math.max(0, volume));
+    if (this.masterGain) this.masterGain.gain.value = v;
+  }
+
+  /** 0 = calm, 1 = high alert — modulates ambient filter/volume. */
+  setAmbientTension(tension: number) {
+    this.ambientTension = Math.min(1, Math.max(0, tension));
+    if (this.ambientGain) {
+      this.ambientGain.gain.value = 0.04 + this.ambientTension * 0.08;
+    }
+  }
+
+  private startAmbientBed() {
+    const ctx = this.ctx;
+    if (!ctx || !this.masterGain || this.ambientOsc) return;
+    this.ambientOsc = ctx.createOscillator();
+    this.ambientOsc.type = 'sawtooth';
+    this.ambientOsc.frequency.value = 42;
+    this.ambientGain = ctx.createGain();
+    this.ambientGain.gain.value = 0.04;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 180;
+    this.ambientOsc.connect(filter).connect(this.ambientGain).connect(this.masterGain);
+    this.ambientOsc.start();
   }
 
   private buildNoiseBuffer(ctx: AudioContext): AudioBuffer {

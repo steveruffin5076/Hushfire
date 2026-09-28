@@ -65,6 +65,34 @@ export class SectorRewardMenu {
     });
   }
 
+  /** Online guest — host is choosing between sectors. */
+  showGuestWait(sectorName: string, nextSectorName: string) {
+    this.container.style.pointerEvents = 'auto';
+    this.root.innerHTML = '';
+    this.root.style.cssText = `
+      position: absolute; inset: 0; background: rgba(5,5,8,0.94);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      font-family: 'Segoe UI', monospace; color: ${TEXT}; text-align: center;
+    `;
+    const title = document.createElement('h1');
+    title.textContent = 'SUPPLY DROP INCOMING';
+    title.style.cssText = `font-size: 22px; letter-spacing: 3px; color: ${CYAN}; margin-bottom: 12px;`;
+    this.root.appendChild(title);
+    const sub = document.createElement('div');
+    sub.textContent = `Host is choosing a drop for ${nextSectorName} (${sectorName} secured).`;
+    sub.style.cssText = `font-size: 13px; color: ${MUTED}; max-width: 480px; line-height: 1.5;`;
+    this.root.appendChild(sub);
+  }
+
+  showGuestReveal(reward: SectorReward) {
+    const label = REWARDS.find(r => r.id === reward)?.label ?? reward;
+    const banner = document.createElement('div');
+    banner.textContent = `PARTNER SELECTED: ${label}`;
+    banner.style.cssText = `margin-top: 18px; font-size: 13px; letter-spacing: 2px; color: ${ORANGE};`;
+    this.root.appendChild(banner);
+    window.setTimeout(() => this.hide(), 1200);
+  }
+
   hide() {
     this.root.innerHTML = '';
     this.root.style.cssText = 'display: none;';

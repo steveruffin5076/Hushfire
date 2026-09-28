@@ -8,6 +8,7 @@ import { SECTOR_ALERT_SOUND_RADIUS_PX } from '../config/constants';
 import { pickSectorModifier, getSectorModifier, SectorModifierId } from '../config/sectorModifiers';
 import { SessionManager } from '../net/SessionManager';
 import { LobbyPanel } from './LobbyPanel';
+import { isWeaponUnlocked, weaponUnlockHint } from './WeaponUnlocks';
 
 export type { GameMode };
 
@@ -323,6 +324,15 @@ export class ArmoryMenu {
       return row;
     };
 
+    const weaponOptions = (type: 'primary' | 'secondary'): [string, string][] =>
+      Object.values(WEAPON_REGISTRY)
+        .filter(w => w.type === type)
+        .map(w => {
+          const locked = !isWeaponUnlocked(w.id);
+          const tag = locked ? ` 🔒 (${weaponUnlockHint(w.id)})` : '';
+          return [w.id, w.name + tag] as [string, string];
+        });
+
     const renderLoadout = () => {
       if (mode === 'online') editingOperative = mySlot;
       loadoutBody.innerHTML = '';
@@ -332,19 +342,17 @@ export class ArmoryMenu {
         pairedRow(
           'PRIMARY WEAPON:',
           'SECONDARY WEAPON:',
-          Object.values(WEAPON_REGISTRY)
-            .filter(w => w.type === 'primary')
-            .map(w => [w.id, w.name] as [string, string]),
-          Object.values(WEAPON_REGISTRY)
-            .filter(w => w.type === 'secondary')
-            .map(w => [w.id, w.name] as [string, string]),
+          weaponOptions('primary'),
+          weaponOptions('secondary'),
           loadout.primaryWeapon,
           loadout.secondaryWeapon,
           v => {
+            if (!isWeaponUnlocked(v)) return;
             loadout.primaryWeapon = v;
             renderLoadout();
           },
           v => {
+            if (!isWeaponUnlocked(v)) return;
             loadout.secondaryWeapon = v;
             renderLoadout();
           }
@@ -603,6 +611,7 @@ export class ArmoryMenu {
       opt.value = value;
       opt.textContent = text;
       if (value === current) opt.selected = true;
+      if (!isWeaponUnlocked(value) && WEAPON_REGISTRY[value]) opt.disabled = true;
       select.appendChild(opt);
     }
     select.onchange = () => onChange(select.value);

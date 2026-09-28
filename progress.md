@@ -1,6 +1,6 @@
 # HUSHFIRE — Progress & Handoff
 
-Last updated: 2026-09-28 (stability + personal bests ported onto online `main`; §9 task list includes walk-cycle animation tasks). Written as a handoff for another developer or AI assistant, e.g. Cursor. Read this first, then `CLAUDE.md`.
+Last updated: 2026-09-28 (enhancement roadmap: retention, online polish, Sector 1 scroll, survival/daily). Written as a handoff for another developer or AI assistant, e.g. Cursor. Read this first, then `CLAUDE.md`.
 
 **Status in one line:** the full game is playable and deployed. Title → armory → 3 sectors → evac, **solo** (one operative) or **online co-op** (two operatives over PeerJS), on keyboard/mouse, gamepad or touch. **Phase 7 M1–M2 (lobby + host-authoritative gameplay sync) are wired.** Same-machine 2-player couch co-op was removed from the armory (legacy `coop` saves migrate to solo).
 
@@ -16,7 +16,7 @@ npm install        # after any pull that touched package.json
 npm run dev        # http://localhost:3000
 npm run typecheck  # tsc --noEmit (covers src/ and tests/)
 npm run lint       # ESLint + typescript-eslint; `any` is an error
-npm test           # Vitest, 299 tests in tests/
+npm test           # Vitest, 306 tests in tests/
 npm run build      # tsc && vite build → dist/
 ```
 
@@ -220,11 +220,11 @@ images/                   Raw art uploads from the owner (source material, not l
 
 ## 7. What's next (recommended order)
 
-1. **Configure TURN for production** — free Metered Open Relay + `VITE_TURN_CREDENTIALS_URL` in GitHub Actions; retest guest connect on a non-LAN network.
-2. **Two-browser online playtest** — host create → guest join → both READY → deploy → full 3-sector run on localhost and GitHub Pages.
-3. **Online gameplay polish:** guest snapshot interpolation; sync sector-reward choice (or show read-only reward on guest); optional client-side prediction for guest movement.
-4. **Human balance playtest** — full NORMAL run, then EASY/HARD feel pass (automated tests already pass).
-5. **Smaller ideas:** re-add same-machine 2P if desired; more sectors; survival mode on Sector 3; self-hosted PeerServer.
+1. **Add `VITE_TURN_CREDENTIALS_URL` GitHub secret** — CI build now passes the env var through; owner must paste the Metered Open Relay URL and retest guest connect off-LAN.
+2. **Two-browser online playtest** — sector-reward sync is wired (`PROTO_VERSION` 3); verify host pick → guest reveal on a full run.
+3. **Human balance playtest** — especially Sector 1's eastern tunnel (`worldMaxX` 1940) and survival wave pacing.
+4. **Expand scrollable maps** — Sector 2/3 still viewport-sized; reuse `worldMaxX` + camera bounds pattern.
+5. **Self-hosted PeerServer** or paid TURN if strict NAT blocks remain common.
 
 ---
 
@@ -246,14 +246,15 @@ images/                   Raw art uploads from the owner (source material, not l
 | 12 | Connection timeout bug | ✅ host no longer times out while waiting; guest 20 s + retry |
 | 13 | Armory full-width layout | ✅ equal 50/50 columns, viewport scale-to-fit, no scroll |
 | 14 | ICE / optional TURN | ✅ `iceConfig.ts`, `.env.example`, `tests/iceConfig.test.ts` |
-| 15 | TURN on GitHub Pages | ⏸ needs owner API key in CI secrets |
+| 15 | TURN on GitHub Pages | ⏸ CI wired — add `VITE_TURN_CREDENTIALS_URL` secret & redeploy |
 | 16 | Self-hosted PeerServer | ⏸ TBD — owner must pick hosting |
 | 17 | Online two-browser playtest | ⏸ owner task |
-| 18 | Guest sector-reward sync | ⏸ not started |
-| 19 | Guest snapshot interpolation | ⏸ not started |
+| 18 | Guest sector-reward sync | ✅ `sector_reward_open` / `sector_reward_pick` + guest wait/reveal UI |
+| 19 | Guest snapshot interpolation | ✅ blend poses in `Game.ts` (existing); guest local movement predict between snaps |
 | 20 | Walk-cycle art frames in `generate_assets.py` | ⏸ not started — extend the script with pose-parameterized SVG functions (e.g. 4-frame cycle: legs together / left-forward / legs together / right-forward) per player + zombie archetype, output as `<entity>_walk0..3.png` or one sprite sheet. Cursor can write the new pose functions; **running the script to regenerate `public/assets/sprites/*.png` is the owner's call**, per the "never run `generate_assets.py`" hard constraint. |
 | 21 | Frame-swap animation in renderer | ⏸ not started — once walk frames exist, update `AssetLoader.ts` to load the frame set per entity and the render code in `Game.ts` (currently draws one static sprite rotated with `ctx.rotate`) to pick a frame by distance traveled / elapsed time instead of a fixed image. Pure code, no art dependency once task 20 ships frames. |
 | 22 | Restart leaks + bleed-out + personal bests + PR CI | ✅ ported from `cursor/recommended-next-steps-e159` onto current `main` |
+| 23 | Enhancement roadmap (retention + polish) | ✅ letter grades, weapon unlocks, daily/survival modes, settings, ambient bed, tutorial hints, Sector 1 scroll, decal cap, beam cache, repo tar cleanup |
 
 ---
 
@@ -269,4 +270,6 @@ All work landed through PRs #1–#33 on `main`: deploy pipeline, art pipeline, a
 - Sector modifiers, crossbow warm-up, AI pathing, recoil spread, ESLint CI fixes.
 - Armory polish: remove LOCAL mode, back button, ready-state fix, fixed Op slots, full-width equal columns, viewport scale-to-fit, connection timeout/retry, `iceConfig.ts` + `.env.example`.
 
-**2026-09-28:** Restart leak fixes (`InputManager.dispose`, shared `SoundManager`), online downed bleed-out (`BLEEDOUT_SEC`), spatial audio listener midpoint, scream SFX + zombie separation, `RunRecords` personal bests, `pull_request` CI — merged onto the online `main` tree.
+**2026-09-28:** Restart leak fixes (`InputManager.dispose`, shared `SoundManager`), online downed bleed-out (`BLEEDOUT_SEC`), spatial audio listener midpoint, scream SFX + zombie separation, `RunRecords` personal bests, `pull_request` CI — merged onto the online `main` tree (PR #36).
+
+**2026-09-28 (enhancement roadmap):** Mission letter grades + armory weapon unlocks (`PlayerProfile`), daily seeded runs, helipad survival loop, settings menu (volume / pause-on-blur), sector-reward net sync, Sector 1 `worldMaxX` tunnel, acoustic tutorial HUD, ambient tension bed, flashlight beam cache + decal cap, removed committed `*.tar.gz` bundles.

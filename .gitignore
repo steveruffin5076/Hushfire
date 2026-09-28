@@ -5,6 +5,9 @@ node_modules/
 # Build output — GitHub Actions rebuilds this on every deploy.
 dist/
 
+# Accidental local bundles — never commit multi-MB archives.
+*.tar.gz
+
 # Local env / editor / OS noise
 .env
 .env.local

@@ -33,8 +33,9 @@ SECTORS.forEach((sector, index) => {
     ];
 
     it.each(points)('$label is inside the map and not inside a wall', ({ p }) => {
+      const maxX = sector.worldMaxX ?? MAP_MAX_X;
       expect(p.x).toBeGreaterThan(MAP_MIN);
-      expect(p.x).toBeLessThan(MAP_MAX_X);
+      expect(p.x).toBeLessThan(maxX);
       expect(p.y).toBeGreaterThan(MAP_MIN);
       expect(p.y).toBeLessThan(MAP_MAX_Y);
       for (const box of sector.boxes) expect(insideBox(p, box)).toBe(false);

@@ -43,6 +43,8 @@ export interface SectorDef {
   id: number;
   name: string;
   briefing: string;
+  /** Playable world width in px (camera clamps); defaults to 1280. */
+  worldMaxX?: number;
   /** Drawn stretched across the full play field in place of the flat grid floor when present. */
   backgroundKey?: AssetKey;
   boxes: BoxDef[];
@@ -63,6 +65,8 @@ const SECTOR_1: SectorDef = {
   name: 'SECTOR 1 — TRANSIT',
   backgroundKey: 'sector1_bg',
   briefing: 'Find the keycard, override the blast door',
+  /** Eastern service tunnel — camera scrolls; bg art covers the platform, east is dark grid. */
+  worldMaxX: 1940,
   // Aligned to sector1_bg.jpg: the platform's equipment/trench row (~x310-395),
   // the rusty mesh divider between the two rail tracks (~x810-855), and the
   // support column on the platform's far right (~x1045-1090). The old wall at
@@ -74,7 +78,9 @@ const SECTOR_1: SectorDef = {
     { x1: 810, y1: 60, x2: 855, y2: 380 },
     { x1: 810, y1: 480, x2: 855, y2: 700 },
     { x1: 1045, y1: 20, x2: 1090, y2: 280 },
-    { x1: 1045, y1: 440, x2: 1090, y2: 700 }
+    { x1: 1045, y1: 440, x2: 1090, y2: 700 },
+    { x1: 1280, y1: 180, x2: 1320, y2: 540 },
+    { x1: 1520, y1: 260, x2: 1560, y2: 460 }
   ],
   doorWalls: [
     { p1: { x: 1067, y: 280 }, p2: { x: 1067, y: 440 } }
@@ -98,7 +104,7 @@ const SECTOR_1: SectorDef = {
     { x: 950, y: 160, type: 'ammo', alts: [{ x: 1000, y: 440 }, { x: 880, y: 120 }] }
   ],
   objective: { kind: 'keycard_door', x: 1030, y: 360, radius: 44, label: 'BLAST DOOR PANEL', holdSec: 0 },
-  exitZone: { x: 1180, y: 360, radius: 60 }
+  exitZone: { x: 1880, y: 360, radius: 60 }
 };
 
 const SECTOR_2: SectorDef = {
