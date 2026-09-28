@@ -1,6 +1,7 @@
 import { WEAPON_REGISTRY, MUZZLE_MODIFIERS, RAIL_MODIFIERS, AMMO_MODIFIERS } from '../config/weapons';
 import { WeaponLoadout } from '../entities/Player';
 import { Difficulty, DIFFICULTIES } from '../config/difficulty';
+import { SectorModifierId, SECTOR_MODIFIERS } from '../config/sectorModifiers';
 import { OperativeGearId, OPERATIVE_GEAR_REGISTRY } from '../config/operativeGear';
 import { clampLoadoutToUnlocks } from './WeaponUnlocks';
 
@@ -10,6 +11,8 @@ export interface ArmoryState {
   mode: GameMode;
   difficulty: Difficulty;
   loadouts: [WeaponLoadout, WeaponLoadout];
+  /** Last campaign/survival modifier pick (daily runs override via `fixedModifier`). */
+  runModifier?: SectorModifierId;
 }
 
 export const DEFAULT_LOADOUTS: [WeaponLoadout, WeaponLoadout] = [
@@ -95,7 +98,8 @@ export function loadArmoryState(storage: KeyValueStorage | null = defaultStorage
     loadouts: [
       clampLoadoutToUnlocks(sanitizeLoadout(loadouts[0], DEFAULT_LOADOUTS[0])),
       clampLoadoutToUnlocks(sanitizeLoadout(loadouts[1], DEFAULT_LOADOUTS[1]))
-    ]
+    ],
+    runModifier: pick(parsed.runModifier, SECTOR_MODIFIERS, 'blackout') as SectorModifierId
   };
 }
 

@@ -16,7 +16,13 @@ import { showQuitScreen } from './QuitScreen';
 import { GameMode, loadArmoryState, saveArmoryState } from './LoadoutStorage';
 import { Difficulty, DIFFICULTIES, DIFFICULTY_ORDER } from '../config/difficulty';
 import { SECTOR_ALERT_SOUND_RADIUS_PX } from '../config/constants';
-import { pickSectorModifier, getSectorModifier, SectorModifierId } from '../config/sectorModifiers';
+import {
+  pickSectorModifier,
+  getSectorModifier,
+  SectorModifierId,
+  SECTOR_MODIFIER_ORDER,
+  SECTOR_MODIFIERS
+} from '../config/sectorModifiers';
 import { SessionManager } from '../net/SessionManager';
 import { LobbyPanel } from './LobbyPanel';
 import { gearUnlockHint, isGearUnlocked, isWeaponUnlocked, weaponUnlockHint } from './WeaponUnlocks';
@@ -91,7 +97,17 @@ export class ArmoryMenu {
     // Daily runs lock the day's twist (derived from the UTC seed) so every
     // player faces the same run; campaign/survival roll one, rerollable below.
     const fixedModifier = options.fixedModifier;
-    let runModifier = fixedModifier ?? pickSectorModifier();
+    let runModifier: SectorModifierId =
+      fixedModifier ?? saved.runModifier ?? pickSectorModifier();
+
+    const persistArmory = () => {
+      saveArmoryState({
+        mode,
+        difficulty,
+        loadouts,
+        runModifier: fixedModifier ? saved.runModifier : runModifier
+      });
+    };
     let lobbyPanel: LobbyPanel | null = null;
     let broadcastTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -227,7 +243,7 @@ export class ArmoryMenu {
       const inactive = `background: ${FIELD_BG}; color: ${MUTED}; border-color: ${PANEL_BORDER}; font-weight: normal;`;
       for (const { level, btn } of diffButtons) btn.style.cssText = modeButtonBase + (level === difficulty ? active : inactive);
       diffBlurb.textContent = DIFFICULTIES[difficulty].blurb;
-      saveArmoryState({ mode, difficulty, loadouts });
+      persistArmory();
     };
 
     /** Online co-op: fixed slot per role — host = Op 1, guest = Op 2, no switching. */
@@ -279,6 +295,38 @@ export class ArmoryMenu {
     protocolBox.style.cssText = `background: ${PANEL_BG}; border: 1px solid ${PANEL_BORDER}; border-radius: 4px; padding: 14px 16px; margin-top: 4px;`;
     deployCard.body.appendChild(protocolBox);
 
+    const modifierMount = document.createElement('div');
+    modifierMount.style.cssText = 'margin-bottom: 10px;';
+    const protocolText = document.createElement('div');
+    protocolBox.appendChild(modifierMount);
+    protocolBox.appendChild(protocolText);
+
+    const modifierOptions = (): [string, string][] =>
+      SECTOR_MODIFIER_ORDER.map(id => [id, SECTOR_MODIFIERS[id].name]);
+
+    const renderModifierSelect = () => {
+      modifierMount.innerHTML = '';
+      const label = fixedModifier ? 'RUN MODIFIER (FIXED TODAY):' : 'RUN MODIFIER:';
+      const select = this.buildSelect(
+        label,
+        modifierOptions(),
+        runModifier,
+        v => {
+          if (fixedModifier) return;
+          runModifier = v as SectorModifierId;
+          renderProtocol();
+          persistArmory();
+        },
+        true,
+        () => true
+      );
+      if (fixedModifier) {
+        const el = select.querySelector('select');
+        if (el) el.disabled = true;
+      }
+      modifierMount.appendChild(select);
+    };
+
     const lobbyMount = document.createElement('div');
     deployCard.body.appendChild(lobbyMount);
 
@@ -298,11 +346,11 @@ export class ArmoryMenu {
           ? 'Going down alone is fatal — with no partner to revive you, it means instant elimination.'
           : 'Downed partners can be revived by standing nearby!';
       const mod = getSectorModifier(runModifier);
-      protocolBox.innerHTML = `
+      renderModifierSelect();
+      protocolText.innerHTML = `
         <div style="color:${ORANGE}; font-size:12px; letter-spacing:1px; font-weight:bold; margin-bottom:9px;">SURVIVAL PROTOCOL:</div>
         <div style="background:${FIELD_BG}; border:1px solid ${PANEL_BORDER}; border-radius:4px; padding:10px 12px; margin-bottom:10px;">
-          <div style="color:${CYAN}; font-size:12px; letter-spacing:1px; font-weight:bold;">RUN MODIFIER${fixedModifier ? ' (FIXED TODAY)' : ''}: ${mod.name}</div>
-          <div style="color:${MUTED}; font-size:12px; margin-top:4px; line-height:1.5;">${mod.blurb}</div>
+          <div style="color:${MUTED}; font-size:12px; line-height:1.5;">${mod.blurb}</div>
         </div>
         <ul style="margin:0; padding-left:18px; color:${TEXT}; font-size:13px; line-height:1.55;">
           <li>Move through dark sectors to reach the Evac Point.</li>
@@ -477,7 +525,7 @@ export class ArmoryMenu {
       loadoutBody.appendChild(this.buildStatsPanel(loadout));
       broadcastLoadout();
       // Every loadout or mode change ends up here, so this is the one place to persist.
-      saveArmoryState({ mode, difficulty, loadouts });
+      persistArmory();
       fitStage();
     };
 
@@ -536,22 +584,8 @@ export class ArmoryMenu {
       onDeploy(mode, difficulty, loadouts[0], loadouts[1], runModifier);
     };
 
-    const rerollModifierBtn = document.createElement('button');
-    rerollModifierBtn.textContent = 'REROLL MODIFIER';
-    rerollModifierBtn.style.cssText = `
-      margin-top: 10px; padding: 8px 20px; font-size: 12px; letter-spacing: 1px;
-      background: ${FIELD_BG}; color: ${CYAN}; border: 1px solid ${PANEL_BORDER}; border-radius: 4px;
-      cursor: pointer; font-family: inherit;
-    `;
-    rerollModifierBtn.onclick = () => {
-      runModifier = pickSectorModifier();
-      renderProtocol();
-    };
-
     const actionsBar = document.createElement('div');
     actionsBar.style.cssText = 'width: 100%; display: flex; flex-direction: column; align-items: center; flex-shrink: 0; margin-top: 12px; padding-bottom: 4px;';
-    // A daily twist is the same for everyone, so it can't be rerolled.
-    if (!fixedModifier) actionsBar.appendChild(rerollModifierBtn);
     actionsBar.appendChild(readyBtn);
     actionsBar.appendChild(deployBtn);
     stage.appendChild(actionsBar);
