@@ -1,6 +1,6 @@
 # HUSHFIRE — Progress & Handoff
 
-Last updated: 2026-09-28 (post–enhancement roadmap + code-review fixes on PR #38). Written as a handoff for another developer or AI assistant, e.g. Cursor. Read this first, then `CLAUDE.md`.
+Last updated: 2026-09-28 (`main` at PR #38 merge; stale PRs #34/#35 closed). Written as a handoff for another developer or AI assistant, e.g. Cursor. Read this first, then `CLAUDE.md`.
 
 **Status in one line:** the full game is playable and deployed. Title → **campaign**, **daily challenge**, or **survival** (or online co-op) → armory → up to 3 sectors → evac. **Solo** (one operative) or **online co-op** (PeerJS, `PROTO_VERSION` 3). Keyboard/mouse, gamepad, or touch. Retention: mission letter grades, armory weapon unlocks, personal bests. **Phase 7 M1–M2** (lobby + host-authoritative sync) are wired. Same-machine couch co-op was removed (legacy `coop` saves → solo).
 
@@ -134,7 +134,7 @@ images/                   Raw art uploads from the owner (source material, not l
 - **End screen:** difficulty, sector reached, time, kills, shots, silent kills, zombies alerted, stealth rating (GHOST 0 / SHADOW ≤3 / OPERATOR ≤8 / LOUD). **Mission letter grade** S/A/B/C/D/F from time, alerts, and damage (`LetterGrade.ts`). **Personal bests** per difficulty in `localStorage` (`RunRecords.ts`). Profile tracks wins, best grade, kills — drives **armory weapon unlocks** (`WeaponUnlocks.ts`: crossbow, M4, shotgun, revolver).
 
 ### Retention & settings
-- **Weapon unlocks:** MPX, Glock, knife always available; others gated with hints in the armory. Saved loadouts are **clamped** on load so locked weapons cannot deploy (`clampLoadoutToUnlocks` — PR #38).
+- **Weapon unlocks:** MPX, Glock, knife always available; others gated with hints in the armory. Saved loadouts are **clamped** on load so locked weapons cannot deploy (`clampLoadoutToUnlocks`).
 - **Daily challenge:** shared UTC date seed (`dailyChallenge.ts`); label on title + armory.
 - **Survival:** after Sector 3 evac, re-hold helipad for escalating waves (`runKind: 'survival'`).
 - **Settings** (`GameSettings.ts` / `SettingsMenu.ts`): master volume, pause when the tab loses focus.
@@ -189,7 +189,6 @@ images/                   Raw art uploads from the owner (source material, not l
   - Free `0.peerjs.com` PeerServer has no SLA — consider self-hosted `peerjs-server` for production.
   - Guest movement is lightly blended between snapshots; there is no full input prediction (may feel laggy on high-latency links).
   - **Sector reward:** host picks the drop; guest sees a wait screen then a reveal (`sector_reward_open` / `sector_reward_pick`, `PROTO_VERSION` 3). Still needs a full two-browser playtest off-LAN once TURN is configured.
-- **Stale open PRs:** #34 / #35 predate current `main` — safe to close without merge.
 - **2026-09-25 playtest pass:** automated balance review (`tests/playtestBalance.test.ts`) confirms EASY/HARD contact DPS, evac pacing and sector HP scale as intended.
 
 ### Recently fixed
@@ -200,7 +199,7 @@ images/                   Raw art uploads from the owner (source material, not l
 
 **2026-09-28 (PR #37):** letter grades, weapon unlocks, daily/survival modes, settings, sector-reward net messages, Sector 1 tunnel, tutorial HUD, ambient bed, decal cap, flashlight beam cache, removed committed `*.tar.gz`.
 
-**2026-09-28 (PR #38 — open):** `clampLoadoutToUnlocks` + starter P2 default; flashlight cache keyed on `MapManager.wallsRevision`; guest reward UI cleared when sector-advance snapshot arrives early.
+**2026-09-28 (PR #38, merged):** `clampLoadoutToUnlocks` + starter P2 default; flashlight cache keyed on `MapManager.wallsRevision`; guest reward UI cleared when sector-advance snapshot arrives early.
 
 ---
 
@@ -238,12 +237,11 @@ images/                   Raw art uploads from the owner (source material, not l
 
 ## 7. What's next (recommended order)
 
-1. **Merge PR #38** (code-review fixes) if not already on `main`.
-2. **Add `VITE_TURN_CREDENTIALS_URL` GitHub secret** — CI passes the env var through; owner pastes Metered Open Relay URL and redeploys.
-3. **Two-browser online playtest** — full run: lobby → both sectors → host reward pick → guest reveal → evac (off-LAN once TURN works).
-4. **Human balance playtest** — Sector 1 eastern tunnel (`worldMaxX` 1940) and survival wave pacing.
-5. **Expand scrollable maps** — Sector 2/3 still viewport-sized; reuse `worldMaxX` + `Camera.setWorldBounds`.
-6. **Close stale PRs #34 / #35** and optionally self-host PeerServer if `0.peerjs.com` is unreliable.
+1. **Add `VITE_TURN_CREDENTIALS_URL` GitHub secret** — CI passes the env var through; owner pastes Metered Open Relay URL and redeploys.
+2. **Two-browser online playtest** — full run: lobby → both sectors → host reward pick → guest reveal → evac (off-LAN once TURN works).
+3. **Human balance playtest** — Sector 1 eastern tunnel (`worldMaxX` 1940) and survival wave pacing.
+4. **Expand scrollable maps** — Sector 2/3 still viewport-sized; reuse `worldMaxX` + `Camera.setWorldBounds`.
+5. **Optional:** self-host PeerServer if `0.peerjs.com` is unreliable.
 
 ---
 
@@ -274,13 +272,13 @@ images/                   Raw art uploads from the owner (source material, not l
 | 21 | Frame-swap animation in renderer | ✅ `CharacterAnimController` + sheet draw path in `Game.ts` |
 | 22 | Restart leaks + bleed-out + personal bests + PR CI | ✅ PR #36 |
 | 23 | Enhancement roadmap (retention + polish) | ✅ PR #37 on `main` |
-| 24 | Post-roadmap code review | ⏸ PR #38 — loadout unlock clamp, `wallsRevision` beam cache, guest reward snapshot resync |
+| 24 | Post-roadmap code review | ✅ PR #38 — loadout unlock clamp, `wallsRevision` beam cache, guest reward snapshot resync |
 
 ---
 
 ## 9. History
 
-All work landed through PRs #1–#37 on `main` (plus #38 pending): deploy pipeline, art pipeline, asset-path fix, title screen, sprites/backgrounds, wall alignment, lighting, battery, test suite, lint, loadout saving, gamepad/touch, online lobby + M2 sync, sector modifiers, horde fixes, progress handoff (#32–#33), stability (#36), enhancement roadmap (#37). See `git log --merges` for details.
+All work landed through PRs #1–#38 on `main`: deploy pipeline, art pipeline, asset-path fix, title screen, sprites/backgrounds, wall alignment, lighting, battery, test suite, lint, loadout saving, gamepad/touch, online lobby + M2 sync, sector modifiers, horde fixes, progress handoff (#32–#33), stability (#36), enhancement roadmap (#37), code-review fixes (#38). Stale branches #34/#35 closed without merge. See `git log --merges` for details.
 
 **2026-09-25 sessions:**
 - Sector-alert horde frenzy — loud gunfire (>150 px) wakes every zombie and calls edge reinforcements. Owner playtested and confirmed.
