@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { TouchControls, TOUCH_BUTTONS, STICK_RADIUS, FIRE_THRESHOLD } from '../src/core/TouchControls';
 import { InputManager } from '../src/core/Input';
+import { Camera } from '../src/core/Camera';
 
 const btn = (id: string) => TOUCH_BUTTONS.find(b => b.id === id)!;
 
@@ -115,6 +116,7 @@ describe('InputManager with touch', () => {
     getBoundingClientRect: () => ({ left: 0, top: 0, width: 1280, height: 720 })
   } as unknown as HTMLCanvasElement;
   const at = { x: 100, y: 100 };
+  const cam = () => new Camera(1280, 720, 0, 0, 5000, 5000);
 
   beforeEach(() => {
     vi.stubGlobal('window', { addEventListener: () => {} });
@@ -129,7 +131,7 @@ describe('InputManager with touch', () => {
     input.touch.onStart(2, 900, 500);
     input.touch.onMove(2, 900 - STICK_RADIUS, 500);
     input.poll();
-    let s = input.getPlayer1Input(at);
+    let s = input.getPlayer1Input(at, cam());
     expect(s.moveY).toBeCloseTo(1);
     expect(s.aimAngle).toBeCloseTo(Math.PI);
     expect(s.isFiring).toBe(true);
@@ -137,7 +139,7 @@ describe('InputManager with touch', () => {
 
     input.touch.onEnd(2);
     input.poll();
-    s = input.getPlayer1Input(at);
+    s = input.getPlayer1Input(at, cam());
     expect(s.aimAngle).toBeCloseTo(Math.PI);
     expect(s.isFiring).toBe(false);
   });
@@ -147,9 +149,9 @@ describe('InputManager with touch', () => {
     input.touch.onStart(3, btn('light').x, btn('light').y);
     input.touch.onEnd(3);
     input.poll();
-    expect(input.getPlayer1Input(at).isTogglingFlashlight).toBe(true);
+    expect(input.getPlayer1Input(at, cam()).isTogglingFlashlight).toBe(true);
     input.endFrame();
-    expect(input.getPlayer1Input(at).isTogglingFlashlight).toBe(false);
+    expect(input.getPlayer1Input(at, cam()).isTogglingFlashlight).toBe(false);
   });
 
   it('reports the pause button through poll()', () => {

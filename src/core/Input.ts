@@ -1,5 +1,6 @@
 import { PadSnapshot, PadState, PAD_BUTTON, readPad, assignPads } from './Gamepad';
 import { TouchControls } from './TouchControls';
+import { Camera } from './Camera';
 
 export interface PlayerInputState {
   moveX: number;
@@ -161,7 +162,7 @@ export class InputManager {
     };
   }
 
-  getPlayer1Input(playerWorldPos: { x: number; y: number }): PlayerInputState {
+  getPlayer1Input(playerWorldPos: { x: number; y: number }, camera: Camera): PlayerInputState {
     let moveX = 0;
     let moveY = 0;
     if (this.keys.has('KeyW')) moveY -= 1;
@@ -180,7 +181,10 @@ export class InputManager {
     const aimAngle =
       this.p1AimSource === 'stick' && padAim !== null
         ? padAim
-        : Math.atan2(this.mousePos.y - playerWorldPos.y, this.mousePos.x - playerWorldPos.x);
+        : (() => {
+            const target = camera.screenToWorld(this.mousePos);
+            return Math.atan2(target.y - playerWorldPos.y, target.x - playerWorldPos.x);
+          })();
 
     return this.mergeTouch(this.mergeButtons(0, {
       ...this.mergeMove(0, moveX, moveY),

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { applyDeadzone, readPad, assignPads, PadSnapshot, PAD_BUTTON, MOVE_DEADZONE } from '../src/core/Gamepad';
 import { InputManager } from '../src/core/Input';
+import { Camera } from '../src/core/Camera';
 
 const pad = (index: number, opts: { axes?: number[]; down?: number[]; mapping?: string; connected?: boolean } = {}): PadSnapshot => ({
   index,
@@ -81,6 +82,7 @@ describe('InputManager with a gamepad', () => {
   let pads: (PadSnapshot | null)[] = [];
   const canvas = { width: 1280, height: 720, addEventListener: () => {}, removeEventListener: () => {}, getBoundingClientRect: () => ({ left: 0, top: 0, width: 1280, height: 720 }) } as unknown as HTMLCanvasElement;
   const at = { x: 100, y: 100 };
+  const cam = () => new Camera(1280, 720, 0, 0, 5000, 5000);
 
   beforeEach(() => {
     pads = [];
@@ -93,7 +95,7 @@ describe('InputManager with a gamepad', () => {
     const input = new InputManager(canvas, true);
     pads = [pad(0, { axes: [0, -1, -1, 0], down: [PAD_BUTTON.RT] })];
     input.poll();
-    const s = input.getPlayer1Input(at);
+    const s = input.getPlayer1Input(at, cam());
     expect(s.moveY).toBeCloseTo(-1);
     expect(s.aimAngle).toBeCloseTo(Math.PI);
     expect(s.isFiring).toBe(true);
@@ -106,20 +108,20 @@ describe('InputManager with a gamepad', () => {
     input.poll();
     pads = [pad(0)];
     input.poll();
-    expect(input.getPlayer1Input(at).aimAngle).toBeCloseTo(Math.PI / 2);
+    expect(input.getPlayer1Input(at, cam()).aimAngle).toBeCloseTo(Math.PI / 2);
   });
 
   it('fires one-shot actions once per press, not every frame held', () => {
     const input = new InputManager(canvas, true);
     pads = [pad(0, { down: [PAD_BUTTON.B, PAD_BUTTON.Y] })];
     input.poll();
-    const first = input.getPlayer1Input(at);
+    const first = input.getPlayer1Input(at, cam());
     expect(first.isTogglingFlashlight).toBe(true);
     expect(first.isSwitchingWeapon).toBe(true);
     input.endFrame();
 
     input.poll(); // still held
-    const held = input.getPlayer1Input(at);
+    const held = input.getPlayer1Input(at, cam());
     expect(held.isTogglingFlashlight).toBe(false);
     expect(held.isSwitchingWeapon).toBe(false);
   });
@@ -130,7 +132,7 @@ describe('InputManager with a gamepad', () => {
     input.poll();
     pads = [pad(0)]; // released before the next poll
     input.poll();
-    expect(input.getPlayer1Input(at).selectSecondary).toBe(true);
+    expect(input.getPlayer1Input(at, cam()).selectSecondary).toBe(true);
   });
 
   it('reports Start as a pause edge', () => {
@@ -144,7 +146,7 @@ describe('InputManager with a gamepad', () => {
     const input = new InputManager(canvas, false);
     pads = [pad(0, { axes: [1, 0, 0, -1], down: [PAD_BUTTON.RT] })];
     input.poll();
-    const p1 = input.getPlayer1Input(at);
+    const p1 = input.getPlayer1Input(at, cam());
     const p2 = input.getPlayer2Input(at, { x: 0, y: 0 });
     expect(p1.moveX).toBe(0);
     expect(p1.isFiring).toBe(false);
