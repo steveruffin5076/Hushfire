@@ -9,10 +9,13 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "import-anim-pack": "node scripts/import-anim-pack.mjs",
+    "verify-pages-assets": "node scripts/verify-pages-assets.mjs"
   },
   "dependencies": {
-    "howler": "^2.2.4"
+    "howler": "^2.2.4",
+    "peerjs": "^1.5.5"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
@@ -23,6 +26,7 @@
     "typescript": "^5.3.3",
     "typescript-eslint": "^8.70.1",
     "vite": "^5.1.4",
-    "vitest": "^3.2.7"
+    "vitest": "^3.2.7",
+    "sharp": "^0.34.5"
   }
 }

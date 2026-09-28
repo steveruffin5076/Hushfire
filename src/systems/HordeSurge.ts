@@ -1,5 +1,6 @@
 import { Point } from '../lighting/Raycaster';
 import { ZombieArchetype } from '../entities/Zombie';
+import { SECTOR_ALERT_SOUND_RADIUS_PX } from '../config/constants';
 
 /**
  * Pacing for the final-sector evac holdout. Pure functions so the curve is
@@ -11,6 +12,11 @@ import { ZombieArchetype } from '../entities/Zombie';
  */
 export const SURGE_START_INTERVAL_SEC = 10;
 export const SURGE_MIN_INTERVAL_SEC = 4;
+
+/** True when a gunshot is loud enough to frenzy the whole sector (see ArmoryMenu). */
+export function isSectorAlertingShot(soundRadiusPx: number, silentByDefault = false): boolean {
+  return !silentByDefault && soundRadiusPx > SECTOR_ALERT_SOUND_RADIUS_PX;
+}
 /** Seconds of holdout it takes to shave one second off the interval. */
 const SURGE_RAMP_SEC_PER_SEC = 20;
 

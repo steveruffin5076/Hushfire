@@ -36,59 +36,31 @@ npm run build
 
 # Preview production build locally
 npm run preview
+
+# Re-import baked animation sheets (after extracting pack to .tmp_anim_pack_v2)
+npm run import-anim-pack
 ```
 
 ---
 
 ## Directory & File Structure
 
+See `progress.md` §3 for the current code map (config, core, entities, lighting, systems, net, ui, tests). The tree below is a quick index only.
+
 ```text
-hushfire/
-├── CLAUDE.md                   # This instruction file for Claude Code
-├── index.html                  # Main canvas entry page
-├── package.json                # Project dependencies & build scripts
-├── tsconfig.json               # TypeScript strict configuration
-├── vite.config.ts              # Vite dev server configuration
-├── docs/                       # Complete game design specifications
-│   ├── WEAPON_CUSTOMIZATION.md # Ballistics, sound radius, attachments & damage formulas
-│   ├── PLAN_AND_PHASES.md      # Detailed phase-by-phase implementation plan
-│   └── ART_SPECIFICATION.md    # Master asset manifest, color palettes & sprite dimensions
-├── public/
-│   └── assets/
-│       ├── branding/           # Key art & logo concepts
-│       ├── sprites/            # Top-down characters & zombies (.png and .svg)
-│       ├── weapons/            # Weapons & modular attachments (.png and .svg)
-│       ├── items/              # Pickups: ammo, medkit, battery, keycard
-│       └── fx/                 # Muzzle flashes, reticles, acoustic ripples, decals
-└── src/
-    ├── main.ts                 # Bootstrap & canvas mounting
-    ├── config/
-    │   ├── constants.ts        # Physics rates, colors, canvas constants
-    │   ├── weapons.ts          # Weapon data & attachment modifier calculations
-    │   └── zombies.ts          # Zombie types, speeds, awareness rates
-    ├── core/
-    │   ├── Game.ts             # Game orchestrator, loop, and state machine
-    │   ├── Input.ts            # Dual-player keyboard/mouse/gamepad input
-    │   ├── Camera.ts           # Smooth 2D tracking camera with dual-player zoom
-    │   └── SoundManager.ts     # Web Audio API spatial audio & sound synthesizer
-    ├── lighting/
-    │   ├── Raycaster.ts        # 2D line segment intersection & polygon builder
-    │   ├── Flashlight.ts       # Flashlight cone math, angles, and falloff
-    │   └── ShadowRenderer.ts   # Subtractive canvas lighting mask
-    ├── entities/
-    │   ├── Entity.ts           # Base spatial entity class
-    │   ├── Player.ts           # Operative with flashlight, health, inventory
-    │   ├── Zombie.ts           # Zombie sensory AI (Dormant, Investigating, Aggro)
-    │   ├── Projectile.ts       # Bullets, pellets, and retrievable bolts
-    │   └── Pickup.ts           # Pickups & interaction triggers
-    ├── systems/
-    │   ├── NoiseSystem.ts      # Radial sound propagation & wall occlusion
-    │   ├── CombatSystem.ts     # Firing, recoil, hit detection, muzzle light
-    │   ├── AISystem.ts         # Zombie sensory updates & pathfinding
-    │   └── MapManager.ts       # Map segments, walls, extraction beacon
-    └── ui/
-        ├── HUD.ts              # Minimal diegetic ammo, sound gauge, health
-        └── ArmoryMenu.ts       # Pre-mission weapon customizer screen
+src/
+  main.ts              Bootstrap: AnimationCatalog → SessionManager → MainMenu → ArmoryMenu → Game
+  config/              constants, difficulty, sectors, weapons, zombies, sectorModifiers
+  core/                Game, Input, Camera, AssetLoader, SoundManager, seededRand
+  graphics/animation/  AnimationCatalog, CharacterAnimController, sheet draw helpers
+  entities/            Player, Zombie, Projectile, Pickup, Entity
+  lighting/            Raycaster, Flashlight, ShadowRenderer
+  systems/             AISystem, CombatSystem, MapManager, NoiseSystem, HordeSurge, NavGrid
+  net/                 Protocol, GameSnapshot, iceConfig (optional TURN), SessionManager, roomCode
+  ui/                  HUD, ArmoryMenu, MainMenu, LobbyPanel, SectorRewardMenu, …
+scripts/               import-anim-pack.mjs (sharp → WebP), dev-playtest.mjs
+docs/                  Design specs, ANIMATION_IMPORT.md, PHASE7_ONLINE_LOBBY_PLAN.md
+public/assets/         sprites, backgrounds, fx, animations/ (per-character WebP+JSON sheets)
 ```
 
 ---
@@ -102,8 +74,8 @@ hushfire/
 
 ### 2. Acoustic Noise Calculation
 * When a weapon fires, spawn a `SoundEvent(x, y, radius)`.
-* For any zombie within `radius`, check if line-of-sight is blocked by walls. For each intervening wall, multiply radius by $(1 - 0.65)$.
-* If residual sound exceeds zombie awareness threshold ($0.3$), switch zombie state from `DORMANT` $\to$ `SUSPICIOUS` or `ENRAGED`.
+* For any zombie within `radius`, check if line-of-sight is blocked by walls. For each intervening wall, multiply radius by $(1 - 0.72)$ (`NOISE_WALL_DAMPENING` in `src/config/constants.ts`).
+* If residual sound exceeds the suspicious threshold ($0.38$), switch zombie state from `DORMANT` $\to$ `SUSPICIOUS`. Gunshots need $0.55$ to go straight to `ENRAGED`.
 
 ### 3. TypeScript Conventions
 * Enable `strict: true`. Avoid `any`; use strongly typed event interfaces.
@@ -113,12 +85,13 @@ hushfire/
 ### 4. Deployed Asset Paths (GitHub Pages)
 * This site deploys under a subpath (`vite.config.ts`'s `base: '/Hushfire/'` on GitHub Actions, `/` locally). Vite only rewrites actual imports and the `index.html` entry script for that base — it does **not** rewrite runtime string literals.
 * Never hardcode a leading-slash asset path like `'/assets/sprites/foo.png'` anywhere in `src/` — it resolves at the domain root and 404s under the Pages subpath, silently dropping to placeholder art with no error surfaced in the UI. Build every asset URL from `` `${import.meta.env.BASE_URL}assets/...` `` instead (see `src/core/AssetLoader.ts`).
-* After touching `AssetLoader.ts`, `vite.config.ts`'s `base`, or adding any new asset reference, verify by building with `GITHUB_ACTIONS=true npm run build`, serving `dist/` under a `/Hushfire/` subpath, and confirming the sprite/item/fx requests return 200 — not just that `npm run dev` looks fine, since dev always serves from `/` and won't catch this class of bug.
+* After touching `AssetLoader.ts`, `AnimationCatalog.ts`, `vite.config.ts`'s `base`, or adding any new asset reference, verify by building with `GITHUB_ACTIONS=true npm run build`, serving `dist/` under a `/Hushfire/` subpath, and confirming the sprite/item/fx/**animations** requests return 200 — not just that `npm run dev` looks fine, since dev always serves from `/` and won't catch this class of bug. See `docs/ANIMATION_IMPORT.md` for sheet updates.
 
 ### 5. Multiplayer Synchronization
-* Operative inputs are serialized as compact bitmasks (`uint8` for movement, `float32` for aim angle).
-* Host/Server is authoritative for zombie spawns, health, and extraction timers.
-* Client predicts local player movement and reconciles against server snapshots.
+* **Lobby (Phase 7 M1):** PeerJS room codes, loadout mirror, host-gated deploy — see `src/net/SessionManager.ts`.
+* **Gameplay sync (Phase 7 M2):** Host-authoritative `Game` simulates both operatives; guest sends `PlayerInputState` at 60 Hz (`{t:'input'}`); host broadcasts `{t:'snapshot'}` at ~30 Hz. Guest remaps slots (local P1 = host P2). Wire format in `src/net/GameSnapshot.ts`. Shared layout seed via `mulberry32` in `src/core/seededRand.ts`. Guest draws operatives with snapshot blending between updates; local input still predicts between snapshots.
+* No deterministic lockstep — `Math.random` / trig are not cross-browser-safe.
+* **NAT / TURN:** Optional `VITE_TURN_CREDENTIALS_URL` in `.env` (see `.env.example`, `src/net/iceConfig.ts`) for symmetric NAT or strict firewalls. Lobby shows a hint on connection errors.
 
 ---
 

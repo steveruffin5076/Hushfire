@@ -4,9 +4,14 @@ import { MainMenu } from './ui/MainMenu';
 import { ArmoryMenu, GameMode } from './ui/ArmoryMenu';
 import { ExtractionModal, RunStats } from './ui/ExtractionModal';
 import { PauseMenu } from './ui/PauseMenu';
+import { SectorRewardMenu } from './ui/SectorRewardMenu';
 import { WeaponLoadout } from './entities/Player';
 import { MenuGamepadNav } from './ui/MenuGamepadNav';
 import { Difficulty } from './config/difficulty';
+import { SectorModifierId } from './config/sectorModifiers';
+import { SessionManager } from './net/SessionManager';
+import { mulberry32 } from './core/seededRand';
+import { AnimationCatalog } from './graphics/animation/AnimationCatalog';
 import { recordRun, recordsForDifficulty } from './ui/RunRecords';
 
 window.addEventListener('DOMContentLoaded', async () => {
@@ -18,20 +23,30 @@ window.addEventListener('DOMContentLoaded', async () => {
   }
 
   const assets = new AssetLoader();
+  const animations = new AnimationCatalog();
   await assets.loadAll();
+  await animations.loadAll();
 
+  const session = new SessionManager();
   const mainMenu = new MainMenu(overlay);
   const armory = new ArmoryMenu(overlay);
   const extractionModal = new ExtractionModal(overlay);
   const pauseMenu = new PauseMenu(overlay);
+  const sectorRewardMenu = new SectorRewardMenu(overlay);
   let activeGame: Game | null = null;
 
-  const openArmory = () => {
-    armory.open((mode: GameMode, difficulty: Difficulty, p1: WeaponLoadout, p2: WeaponLoadout) => deploy(mode, difficulty, p1, p2));
-  };
-
-  const deploy = (mode: GameMode, difficulty: Difficulty, p1Loadout: WeaponLoadout, p2Loadout: WeaponLoadout) => {
+  const deploy = (
+    mode: GameMode,
+    difficulty: Difficulty,
+    p1Loadout: WeaponLoadout,
+    p2Loadout: WeaponLoadout,
+    runModifier: SectorModifierId,
+    net?: { seed: number; role: 'host' | 'guest' }
+  ) => {
     activeGame?.stop();
+    const solo = mode === 'solo';
+    const layoutRand = net ? mulberry32(net.seed) : Math.random;
+    const online = mode === 'online' && session.role !== 'LOCAL' && net ? { session, role: net.role } : undefined;
     activeGame = new Game(
       canvas,
       [p1Loadout, p2Loadout],
@@ -39,6 +54,7 @@ window.addEventListener('DOMContentLoaded', async () => {
       {
         onMissionEnd: (stats: RunStats) => {
           pauseMenu.hide();
+          sectorRewardMenu.hide();
           const newBest = recordRun(stats);
           extractionModal.show(stats, () => openArmory(), newBest, recordsForDifficulty(stats.difficulty));
         },
@@ -51,20 +67,69 @@ window.addEventListener('DOMContentLoaded', async () => {
                 pauseMenu.hide();
                 openArmory();
               },
-              onQuit: () => activeGame?.stop()
+              onQuit: () => {
+                activeGame?.stop();
+                session.destroy();
+              }
             });
           } else {
             pauseMenu.hide();
           }
+        },
+        onSectorReward: (info, onChosen) => {
+          sectorRewardMenu.show(info.sectorName, info.nextSectorName, onChosen);
         }
       },
-      mode === 'solo',
-      difficulty
+      solo,
+      difficulty,
+      runModifier,
+      layoutRand,
+      online,
+      animations.ready ? animations : null
     );
     activeGame.start();
   };
 
+  const openMainMenu = () => {
+    mainMenu.open({
+      onStart: () => openArmory(),
+      onCreateOnline: () => openArmory({ online: true, host: true }),
+      onJoinOnline: code => openArmory({ online: true, joinCode: code })
+    });
+  };
+
+  const openArmory = (opts: { online?: boolean; host?: boolean; joinCode?: string } = {}) => {
+    armory.open(
+      (mode, difficulty, p1, p2, runModifier, net) => deploy(mode, difficulty, p1, p2, runModifier, net),
+      {
+        session,
+        startOnline: opts.online ?? session.role !== 'LOCAL',
+        createHost: opts.host,
+        joinCode: opts.joinCode,
+        onBack: () => {
+          session.destroy();
+          openMainMenu();
+        }
+      }
+    );
+  };
+
   new MenuGamepadNav(overlay).start();
-  mainMenu.open(() => openArmory());
+
+  if (session.role === 'GUEST') {
+    mainMenu.close();
+    openArmory({ online: true });
+  } else {
+    openMainMenu();
+  }
+
+  (window as unknown as { render_game_to_text: () => string }).render_game_to_text = () =>
+    activeGame && activeGame.isRunning()
+      ? activeGame.renderGameToText()
+      : JSON.stringify({ mode: 'menu' });
+  (window as unknown as { advanceTime: (ms: number) => void }).advanceTime = (ms: number) => {
+    activeGame?.advanceTime(ms);
+  };
+
   console.log('HUSHFIRE Game Engine Initialized Successfully.');
 });

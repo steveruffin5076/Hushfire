@@ -4,11 +4,12 @@ import { CYAN, ORANGE, TEXT, MUTED, GREEN, RED, PANEL_BG, PANEL_BORDER, FIELD_BG
 import { showQuitScreen } from './QuitScreen';
 import { GameMode, loadArmoryState, saveArmoryState } from './LoadoutStorage';
 import { Difficulty, DIFFICULTIES, DIFFICULTY_ORDER } from '../config/difficulty';
+import { SECTOR_ALERT_SOUND_RADIUS_PX } from '../config/constants';
+import { pickSectorModifier, getSectorModifier, SectorModifierId } from '../config/sectorModifiers';
+import { SessionManager } from '../net/SessionManager';
+import { LobbyPanel } from './LobbyPanel';
 
 export type { GameMode };
-
-/** Below this a suppressed weapon's sound radius counts as stealthy relative to this game's ~280-1000px unsuppressed range. */
-const STEALTH_SOUND_THRESHOLD_PX = 150;
 
 const MUZZLE_LABELS: Record<MuzzleType, string> = {
   none: 'No Attachment',
@@ -34,9 +35,8 @@ const AMMO_LABELS: Record<AmmoType, string> = {
 };
 
 /**
- * Pre-mission screen: picks the game mode (solo — a single operative, no
- * partner — or 2-player local) and weapon loadout(s), then deploys. In
- * 2-player mode a second set of tabs lets you configure Operative 2 too.
+ * Pre-mission screen: solo or online co-op, plus weapon loadout(s). Online
+ * mode locks host to Operative 1 and guest to Operative 2 — no switching.
  */
 export class ArmoryMenu {
   private root: HTMLDivElement;
@@ -47,41 +47,68 @@ export class ArmoryMenu {
     this.container.appendChild(this.root);
   }
 
-  open(onDeploy: (mode: GameMode, difficulty: Difficulty, p1: WeaponLoadout, p2: WeaponLoadout) => void) {
+  open(
+    onDeploy: (
+      mode: GameMode,
+      difficulty: Difficulty,
+      p1: WeaponLoadout,
+      p2: WeaponLoadout,
+      runModifier: SectorModifierId,
+      net?: { seed: number; role: 'host' | 'guest' }
+    ) => void,
+    options: {
+      session?: SessionManager | null;
+      startOnline?: boolean;
+      createHost?: boolean;
+      joinCode?: string;
+      onBack?: () => void;
+    } = {}
+  ) {
+    const session = options.session ?? null;
     this.container.style.pointerEvents = 'auto';
 
     // Reopens on whatever mode and loadouts were last picked (see LoadoutStorage).
     const saved = loadArmoryState();
     const loadouts: [WeaponLoadout, WeaponLoadout] = saved.loadouts;
-    let mode: GameMode = saved.mode;
+    let mode: GameMode = options.startOnline || session?.role === 'GUEST' ? 'online' : saved.mode;
     let difficulty: Difficulty = saved.difficulty;
-    let editingOperative: 0 | 1 = 0;
+    const mySlot: 0 | 1 = session?.role === 'GUEST' ? 1 : 0;
+    let editingOperative: 0 | 1 = mode === 'online' ? mySlot : 0;
+    let runModifier = pickSectorModifier();
+    let lobbyPanel: LobbyPanel | null = null;
+    let broadcastTimer: ReturnType<typeof setTimeout> | null = null;
 
     this.root.innerHTML = '';
     this.root.style.cssText = `
       position: absolute; inset: 0; background: rgba(5,6,9,0.97);
-      display: flex; align-items: center; justify-content: center;
+      display: flex; flex-direction: column;
       font-family: 'Segoe UI', monospace; color: ${TEXT}; overflow: hidden;
     `;
 
-    // Everything visible lives in `stage` so it can be scaled as one unit to
-    // always fit the viewport (see fitStage below) instead of relying on
-    // scroll, which used to clip the header/deploy button off-screen on
-    // short windows.
+    const stageShell = document.createElement('div');
+    stageShell.style.cssText = `
+      flex: 1; min-height: 0; width: 100%; overflow: hidden; box-sizing: border-box;
+      display: flex; justify-content: center; align-items: flex-start;
+      padding: 52px 24px 10px;
+    `;
     const stage = document.createElement('div');
-    stage.style.cssText = 'display: flex; flex-direction: column; align-items: center; padding: 24px 20px;';
-    this.root.appendChild(stage);
+    stage.style.cssText = `
+      width: 100%; display: flex; flex-direction: column; transform-origin: top center;
+    `;
+    stageShell.appendChild(stage);
+    this.root.appendChild(stageShell);
 
-    // Recomputes stage's scale so its natural (untransformed) size always
-    // fits inside the current viewport, live on every resize.
     const fitStage = () => {
-      const availW = this.root.clientWidth - 24;
-      const availH = this.root.clientHeight - 24;
-      const naturalW = stage.offsetWidth;
-      const naturalH = stage.offsetHeight;
-      if (naturalW === 0 || naturalH === 0) return;
-      const scale = Math.min(1, availW / naturalW, availH / naturalH);
-      stage.style.transform = `scale(${scale})`;
+      requestAnimationFrame(() => {
+        stage.style.transform = 'none';
+        const availW = stageShell.clientWidth;
+        const availH = stageShell.clientHeight;
+        const naturalW = stage.offsetWidth;
+        const naturalH = stage.offsetHeight;
+        if (!naturalW || !naturalH) return;
+        const scale = Math.min(1, availW / naturalW, availH / naturalH);
+        stage.style.transform = `scale(${scale})`;
+      });
     };
     if (this.resizeHandler) window.removeEventListener('resize', this.resizeHandler);
     this.resizeHandler = fitStage;
@@ -99,10 +126,27 @@ export class ArmoryMenu {
     quitBtn.onclick = () => showQuitScreen(this.root);
     this.root.appendChild(quitBtn);
 
+    if (options.onBack) {
+      const backBtn = document.createElement('button');
+      backBtn.textContent = '← BACK TO MAIN MENU';
+      backBtn.style.cssText = `
+        position: absolute; top: 18px; left: 22px; background: none; border: 1px solid ${PANEL_BORDER};
+        color: ${MUTED}; font-size: 12px; letter-spacing: 2px; padding: 8px 14px; cursor: pointer;
+        font-family: inherit; border-radius: 3px;
+      `;
+      backBtn.onmouseenter = () => { backBtn.style.color = CYAN; backBtn.style.borderColor = CYAN; };
+      backBtn.onmouseleave = () => { backBtn.style.color = MUTED; backBtn.style.borderColor = PANEL_BORDER; };
+      backBtn.onclick = () => {
+        this.close();
+        options.onBack?.();
+      };
+      this.root.appendChild(backBtn);
+    }
+
     const header = document.createElement('div');
-    header.style.cssText = 'text-align: center; margin-bottom: 28px;';
+    header.style.cssText = 'text-align: center; margin-bottom: 12px; flex-shrink: 0; width: 100%;';
     header.innerHTML = `
-      <h1 style="margin:0; font-size: 44px; letter-spacing: 6px; font-weight: 800;">
+      <h1 style="margin:0; font-size: clamp(28px, 4vw, 44px); letter-spacing: 6px; font-weight: 800;">
         <span style="color:${TEXT}; text-shadow: 0 0 18px rgba(235,244,250,0.35);">HUSH</span><span style="color:${ORANGE}; text-shadow: 0 0 22px rgba(255,158,27,0.55);">FIRE</span>
       </h1>
       <div style="margin-top:8px; font-size:13px; letter-spacing:4px; color:${MUTED}; text-transform:uppercase;">
@@ -112,7 +156,11 @@ export class ArmoryMenu {
     stage.appendChild(header);
 
     const layout = document.createElement('div');
-    layout.style.cssText = 'display: flex; gap: 28px; flex-wrap: wrap; justify-content: center; max-width: 900px;';
+    layout.id = 'armory-layout';
+    layout.style.cssText = `
+      display: grid; width: 100%; gap: 20px; align-items: stretch;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    `;
     stage.appendChild(layout);
 
     // ---- Card 1: game mode & mission briefing ----
@@ -132,10 +180,10 @@ export class ArmoryMenu {
       flex: 1; padding: 12px 8px; font-size: 13px; letter-spacing: 1px; font-family: inherit;
       border-radius: 4px; cursor: pointer; border: 1px solid;
     `;
-    const soloBtn = this.buildModeButton('SOLO ONLY');
-    const coopBtn = this.buildModeButton('2-PLAYER LOCAL');
+    const soloBtn = this.buildModeButton('SOLO');
+    const onlineBtn = this.buildModeButton('ONLINE');
     modeRow.appendChild(soloBtn);
-    modeRow.appendChild(coopBtn);
+    modeRow.appendChild(onlineBtn);
 
     // Difficulty: three buttons plus a one-line summary of the selected level.
     const diffLabel = document.createElement('div');
@@ -165,48 +213,65 @@ export class ArmoryMenu {
       saveArmoryState({ mode, difficulty, loadouts });
     };
 
-    const operativeTabs = document.createElement('div');
-    operativeTabs.style.cssText = 'display: none; gap: 8px; margin-bottom: 14px;';
-    const op1Tab = this.buildOperativeTab('OPERATIVE 1');
-    const op2Tab = this.buildOperativeTab('OPERATIVE 2');
-    operativeTabs.appendChild(op1Tab);
-    operativeTabs.appendChild(op2Tab);
+    /** Online co-op: fixed slot per role — host = Op 1, guest = Op 2, no switching. */
+    const operativeSlotLabel = document.createElement('div');
+    operativeSlotLabel.style.cssText = `
+      display: none; margin-bottom: 14px; padding: 10px 14px; font-size: 12px; letter-spacing: 1px;
+      color: ${ORANGE}; font-weight: bold; border: 1px solid ${PANEL_BORDER}; border-radius: 3px;
+      text-align: center; background: ${FIELD_BG};
+    `;
 
     const loadoutBody = document.createElement('div');
 
-    const operativeTabBase = `
-      padding: 6px 14px; font-size: 11.5px; letter-spacing: 1px; font-family: inherit;
-      border-radius: 3px; cursor: pointer; border: 1px solid;
-    `;
+    const applyOnlineOperativeSlot = () => {
+      if (mode !== 'online') {
+        operativeSlotLabel.style.display = 'none';
+        editingOperative = 0;
+        return;
+      }
+      editingOperative = mySlot;
+      operativeSlotLabel.style.display = 'block';
+      operativeSlotLabel.textContent =
+        mySlot === 0
+          ? 'YOUR OPERATIVE: OPERATIVE 1 (HOST) — LOCKED'
+          : 'YOUR OPERATIVE: OPERATIVE 2 (GUEST) — LOCKED';
+    };
 
     const setMode = (next: GameMode) => {
       mode = next;
       const active = `background: ${CYAN}; color: #05050A; border-color: ${CYAN}; font-weight: bold;`;
       const inactive = `background: ${FIELD_BG}; color: ${MUTED}; border-color: ${PANEL_BORDER}; font-weight: normal;`;
       soloBtn.style.cssText = modeButtonBase + (mode === 'solo' ? active : inactive);
-      coopBtn.style.cssText = modeButtonBase + (mode === 'coop' ? active : inactive);
-      operativeTabs.style.display = mode === 'coop' ? 'flex' : 'none';
-      if (mode === 'solo') editingOperative = 0;
+      onlineBtn.style.cssText = modeButtonBase + (mode === 'online' ? active : inactive);
+      applyOnlineOperativeSlot();
+      lobbyMount.style.display = mode === 'online' ? 'block' : 'none';
+      readyBtn.style.display =
+        mode === 'online' && session && session.role !== 'LOCAL' ? 'inline-block' : 'none';
       renderProtocol();
       renderLoadout();
+      updateDeployButton();
+      fitStage();
     };
     soloBtn.onclick = () => setMode('solo');
-    coopBtn.onclick = () => setMode('coop');
-
-    const setOperative = (index: 0 | 1) => {
-      editingOperative = index;
-      const active = `background: ${ORANGE}; color: #05050A; border-color: ${ORANGE};`;
-      const inactive = `background: ${FIELD_BG}; color: ${MUTED}; border-color: ${PANEL_BORDER};`;
-      op1Tab.style.cssText = operativeTabBase + (index === 0 ? active : inactive);
-      op2Tab.style.cssText = operativeTabBase + (index === 1 ? active : inactive);
-      renderLoadout();
+    onlineBtn.onclick = () => {
+      if (session?.role === 'LOCAL') session.createHostSession().catch(() => updateDeployButton());
+      setMode('online');
     };
-    op1Tab.onclick = () => setOperative(0);
-    op2Tab.onclick = () => setOperative(1);
 
     const protocolBox = document.createElement('div');
     protocolBox.style.cssText = `background: ${PANEL_BG}; border: 1px solid ${PANEL_BORDER}; border-radius: 4px; padding: 14px 16px; margin-top: 4px;`;
     deployCard.body.appendChild(protocolBox);
+
+    const lobbyMount = document.createElement('div');
+    deployCard.body.appendChild(lobbyMount);
+
+    const broadcastLoadout = () => {
+      if (!session || mode !== 'online') return;
+      if (broadcastTimer) clearTimeout(broadcastTimer);
+      broadcastTimer = setTimeout(() => {
+        session.broadcastLoadout(loadouts[mySlot], session.localReady);
+      }, 120);
+    };
 
     // The last tip depends on mode: solo has no partner to revive you — going
     // down there is an instant elimination (see Game.ts's handleZombieContact).
@@ -215,21 +280,26 @@ export class ArmoryMenu {
         mode === 'solo'
           ? 'Going down alone is fatal — with no partner to revive you, it means instant elimination.'
           : 'Downed partners can be revived by standing nearby!';
+      const mod = getSectorModifier(runModifier);
       protocolBox.innerHTML = `
         <div style="color:${ORANGE}; font-size:12px; letter-spacing:1px; font-weight:bold; margin-bottom:9px;">SURVIVAL PROTOCOL:</div>
-        <ul style="margin:0; padding-left:18px; color:${TEXT}; font-size:13.5px; line-height:1.8;">
+        <div style="background:${FIELD_BG}; border:1px solid ${PANEL_BORDER}; border-radius:4px; padding:10px 12px; margin-bottom:10px;">
+          <div style="color:${CYAN}; font-size:12px; letter-spacing:1px; font-weight:bold;">RUN MODIFIER: ${mod.name}</div>
+          <div style="color:${MUTED}; font-size:12px; margin-top:4px; line-height:1.5;">${mod.blurb}</div>
+        </div>
+        <ul style="margin:0; padding-left:18px; color:${TEXT}; font-size:13px; line-height:1.55;">
           <li>Move through dark sectors to reach the Evac Point.</li>
           <li>Flashlights reveal the dark, but a direct beam on sleeping lurkers alerts them!</li>
           <li>Suppressed shots allow stealth kills. Unsilenced guns cause sector horde frenzies.</li>
           <li>${lastTip}</li>
         </ul>
       `;
+      fitStage();
     };
 
     // ---- Card 2: weapon loadout ----
     const loadoutCard = this.buildCard('[ 2. WEAPON LOADOUT & ATTACHMENTS ]', ORANGE);
-    loadoutCard.card.style.width = '380px';
-    loadoutCard.body.appendChild(operativeTabs);
+    loadoutCard.body.appendChild(operativeSlotLabel);
     loadoutCard.body.appendChild(loadoutBody);
     layout.appendChild(loadoutCard.card);
 
@@ -247,13 +317,14 @@ export class ArmoryMenu {
       onRightChange: (v: string) => void
     ): HTMLDivElement => {
       const row = document.createElement('div');
-      row.style.cssText = 'display: flex; gap: 16px; margin-bottom: 16px;';
+      row.style.cssText = 'display: flex; gap: 14px; margin-bottom: 12px;';
       row.appendChild(this.buildSelect(leftLabel, leftOptions, leftValue, onLeftChange));
       row.appendChild(this.buildSelect(rightLabel, rightOptions, rightValue, onRightChange));
       return row;
     };
 
     const renderLoadout = () => {
+      if (mode === 'online') editingOperative = mySlot;
       loadoutBody.innerHTML = '';
       const loadout = loadouts[editingOperative];
 
@@ -351,37 +422,138 @@ export class ArmoryMenu {
       );
 
       loadoutBody.appendChild(this.buildStatsPanel(loadout));
+      broadcastLoadout();
       // Every loadout or mode change ends up here, so this is the one place to persist.
       saveArmoryState({ mode, difficulty, loadouts });
-      // Loadout swaps can change this card's height (e.g. hidden vs. shown
-      // operative tabs), so re-fit on every re-render, not just on resize.
       fitStage();
     };
 
-    setDifficulty(difficulty);
-    setMode(mode);
-    setOperative(0);
+    const updateDeployButton = () => {
+      const online = mode === 'online' && session;
+      if (!online) {
+        deployBtn.textContent = 'DEPLOY TO SECTOR 1';
+        deployBtn.disabled = false;
+        deployBtn.style.opacity = '1';
+        return;
+      }
+      const bothReady = session.localReady && session.partnerReady && session.isConnected;
+      if (session.role === 'HOST') {
+        deployBtn.textContent = bothReady ? 'DEPLOY TO SECTOR 1' : 'WAITING FOR PARTNER';
+        deployBtn.disabled = !bothReady;
+      } else {
+        deployBtn.textContent = session.localReady ? 'WAITING FOR HOST' : 'NOT READY';
+        deployBtn.disabled = true;
+      }
+      deployBtn.style.opacity = deployBtn.disabled ? '0.65' : '1';
+    };
+
+    const readyBtn = document.createElement('button');
+    readyBtn.textContent = 'READY';
+    readyBtn.style.cssText = `
+      margin-top: 10px; padding: 10px 28px; font-size: 13px; letter-spacing: 2px; font-weight: bold;
+      background: ${FIELD_BG}; color: ${CYAN}; border: 1px solid ${PANEL_BORDER}; border-radius: 4px;
+      cursor: pointer; font-family: inherit; display: none;
+    `;
+    readyBtn.onclick = () => {
+      if (!session) return;
+      const nextReady = !session.localReady;
+      readyBtn.textContent = nextReady ? 'UNREADY' : 'READY';
+      session.broadcastLoadout(loadouts[mySlot], nextReady);
+      updateDeployButton();
+    };
 
     // ---- Deploy ----
     const deployBtn = document.createElement('button');
     deployBtn.textContent = 'DEPLOY TO SECTOR 1';
     deployBtn.style.cssText = `
-      margin-top: 30px; padding: 16px 56px; font-size: 16px; letter-spacing: 3px; font-weight: bold;
+      margin-top: 8px; padding: clamp(10px, 1.5vh, 16px) clamp(32px, 6vw, 56px);
+      font-size: clamp(13px, 1.6vw, 16px); letter-spacing: 3px; font-weight: bold;
       background: linear-gradient(180deg, #FFB23E, ${ORANGE}); color: #1A0D00; border: none; border-radius: 4px;
       cursor: pointer; font-family: inherit; box-shadow: 0 0 24px rgba(255,158,27,0.45);
     `;
     deployBtn.dataset.padDefault = '';
     deployBtn.onclick = () => {
+      if (mode === 'online' && session) {
+        if (session.role !== 'HOST' || deployBtn.disabled) return;
+        const seed = Math.floor(Math.random() * 0xffffffff);
+        session.hostDeploy(seed, runModifier, loadouts[0], session.partnerLoadout ?? loadouts[1]);
+        return;
+      }
       this.close();
-      onDeploy(mode, difficulty, loadouts[0], loadouts[1]);
+      onDeploy(mode, difficulty, loadouts[0], loadouts[1], runModifier);
     };
-    stage.appendChild(deployBtn);
+
+    const rerollModifierBtn = document.createElement('button');
+    rerollModifierBtn.textContent = 'REROLL MODIFIER';
+    rerollModifierBtn.style.cssText = `
+      margin-top: 10px; padding: 8px 20px; font-size: 12px; letter-spacing: 1px;
+      background: ${FIELD_BG}; color: ${CYAN}; border: 1px solid ${PANEL_BORDER}; border-radius: 4px;
+      cursor: pointer; font-family: inherit;
+    `;
+    rerollModifierBtn.onclick = () => {
+      runModifier = pickSectorModifier();
+      renderProtocol();
+    };
+
+    const actionsBar = document.createElement('div');
+    actionsBar.style.cssText = 'width: 100%; display: flex; flex-direction: column; align-items: center; flex-shrink: 0; margin-top: 12px; padding-bottom: 4px;';
+    actionsBar.appendChild(rerollModifierBtn);
+    actionsBar.appendChild(readyBtn);
+    actionsBar.appendChild(deployBtn);
+    stage.appendChild(actionsBar);
+
+    // Buttons must exist before setMode — it toggles readyBtn/deployBtn state.
+    setDifficulty(difficulty);
+    setMode(mode);
+
+    if (session) {
+      lobbyPanel = new LobbyPanel(session);
+      lobbyPanel.mount(lobbyMount);
+      readyBtn.style.display =
+        mode === 'online' && session.role !== 'LOCAL' ? 'inline-block' : 'none';
+      session.onStateChange = () => {
+        lobbyPanel?.refresh();
+        readyBtn.textContent = session.localReady ? 'UNREADY' : 'READY';
+        updateDeployButton();
+        if (session.partnerLoadout) {
+          loadouts[mySlot === 0 ? 1 : 0] = session.partnerLoadout;
+        }
+        fitStage();
+      };
+      session.onMessage = msg => {
+        if (msg.t === 'loadout') {
+          loadouts[mySlot === 0 ? 1 : 0] = msg.loadout;
+          lobbyPanel?.refresh();
+          updateDeployButton();
+        }
+      };
+      session.onDeploy = (seed, mod, hostLoadout, guestLoadout) => {
+        this.close();
+        const own = session.role === 'HOST' ? hostLoadout : guestLoadout;
+        const partner = session.role === 'HOST' ? guestLoadout : hostLoadout;
+        const role = session.role === 'HOST' ? 'host' : 'guest';
+        onDeploy('online', difficulty, own, partner, mod, { seed, role });
+      };
+      if (options.createHost && session.role === 'LOCAL') {
+        session.createHostSession().catch(() => updateDeployButton());
+      } else if (options.joinCode) {
+        session.joinSession(options.joinCode);
+      } else if (session.role === 'GUEST') {
+        session.joinSession(session.roomCode);
+      }
+    }
+
+    updateDeployButton();
     fitStage();
   }
 
   private buildCard(label: string, accent: string): { card: HTMLDivElement; body: HTMLDivElement } {
     const card = document.createElement('div');
-    card.style.cssText = `background: ${PANEL_BG}; border: 1px solid ${PANEL_BORDER}; border-radius: 6px; padding: 22px; width: 320px; box-shadow: 0 8px 30px rgba(0,0,0,0.4);`;
+    card.style.cssText = `
+      background: ${PANEL_BG}; border: 1px solid ${PANEL_BORDER}; border-radius: 6px; padding: 16px;
+      width: 100%; min-width: 0; height: 100%; box-sizing: border-box;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+    `;
 
     const heading = document.createElement('div');
     heading.textContent = label;
@@ -404,16 +576,6 @@ export class ArmoryMenu {
     btn.style.cssText = `
       flex: 1; padding: 12px 8px; font-size: 12px; letter-spacing: 1px; font-family: inherit;
       border: 1px solid ${PANEL_BORDER}; border-radius: 4px; cursor: pointer;
-    `;
-    return btn;
-  }
-
-  private buildOperativeTab(label: string): HTMLButtonElement {
-    const btn = document.createElement('button');
-    btn.textContent = label;
-    btn.style.cssText = `
-      padding: 6px 14px; font-size: 10.5px; letter-spacing: 1px; font-family: inherit;
-      border: 1px solid ${PANEL_BORDER}; border-radius: 3px; cursor: pointer; background: ${FIELD_BG}; color: ${MUTED};
     `;
     return btn;
   }
@@ -457,10 +619,10 @@ export class ArmoryMenu {
 
   private buildStatsPanel(loadout: WeaponLoadout): HTMLDivElement {
     const box = document.createElement('div');
-    box.style.cssText = `background: ${PANEL_BG}; border: 1px solid ${PANEL_BORDER}; border-radius: 4px; padding: 14px 16px; margin-top: 4px;`;
+    box.style.cssText = `background: ${PANEL_BG}; border: 1px solid ${PANEL_BORDER}; border-radius: 4px; padding: 10px 14px; margin-top: 2px;`;
 
     const row = (label: string, value: string, color: string) => `
-      <div style="display:flex; justify-content:space-between; align-items:center; font-size:13px; padding:5px 0; color:${MUTED};">
+      <div style="display:flex; justify-content:space-between; align-items:center; font-size:12.5px; padding:3px 0; color:${MUTED};">
         <span>${label}:</span><span style="color:${color}; font-weight:bold;">${value}</span>
       </div>
     `;
@@ -477,7 +639,7 @@ export class ArmoryMenu {
       const ammoMod = AMMO_MODIFIERS[ammoType];
       const damage = Math.round(weapon.baseDamage * muzzleMod.dmgMult * ammoMod.dmgMult);
       const soundRadius = Math.round(weapon.baseSoundRadiusPx * muzzleMod.soundMult * ammoMod.soundMult);
-      const stealthy = soundRadius <= STEALTH_SOUND_THRESHOLD_PX;
+      const stealthy = soundRadius <= SECTOR_ALERT_SOUND_RADIUS_PX;
 
       return (
         row('EFFECTIVE DAMAGE', `${damage} DMG / shot`, TEXT) +

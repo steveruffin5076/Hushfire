@@ -1,4 +1,14 @@
-import { CANVAS_WIDTH, CANVAS_HEIGHT, REVIVE_RANGE_PX, FLASHLIGHT_BATTERY_MAX, BATTERY_PICKUP_CHARGE } from '../config/constants';
+import {
+  CANVAS_WIDTH,
+  CANVAS_HEIGHT,
+  REVIVE_RANGE_PX,
+  FLASHLIGHT_BATTERY_MAX,
+  BATTERY_PICKUP_CHARGE,
+  SECTOR_HORDE_COOLDOWN_SEC,
+  SNEAK_NOISE_RADIUS,
+  WALK_NOISE_RADIUS,
+  SPRINT_NOISE_RADIUS
+} from '../config/constants';
 import { InputManager, PlayerInputState } from './Input';
 import { Camera } from './Camera';
 import { getSharedSoundManager, SoundManager } from './SoundManager';
@@ -15,8 +25,22 @@ import { SURGE_START_INTERVAL_SEC, surgeInterval, surgeSize, pickSurgeArchetype 
 import { CombatSystem, Decal, bloodDecal, HIT_FLASH_SEC, BIO_CARRIER_BLAST_RADIUS, collectStuckBolts } from '../systems/CombatSystem';
 import { HUD } from '../ui/HUD';
 import { RunStats } from '../ui/ExtractionModal';
+import type { SectorReward } from '../ui/SectorRewardMenu';
+import { SECTORS } from '../config/sectors';
+import { SectorModifierId, getSectorModifier } from '../config/sectorModifiers';
 import { AssetLoader, AssetKey } from './AssetLoader';
+import {
+  AnimationCatalog,
+  playerAnimId,
+  zombieAnimId
+} from '../graphics/animation/AnimationCatalog';
+import type { CharacterAnimId } from '../graphics/animation/sheetTypes';
+import { CharacterAnimController } from '../graphics/animation/CharacterAnimController';
 import { WEAPON_REGISTRY, MUZZLE_MODIFIERS } from '../config/weapons';
+import { SessionManager } from '../net/SessionManager';
+import { inputToNet, netToInput } from '../net/Protocol';
+import type { NetPlayerSnap, NetSnapshotMessage } from '../net/GameSnapshot';
+import { Pickup } from '../entities/Pickup';
 
 const FIXED_DT = 1 / 60;
 // Contact damage now comes from the run's difficulty (config/difficulty.ts):
@@ -27,6 +51,17 @@ const HORDE_MAX_ZOMBIES = 18;
 const BLAST_RING_SEC = 0.7;
 /** "HORDE INCOMING" shows for this long before each evac wave. */
 const SURGE_WARNING_SEC = 2;
+/** Guest render blend between ~30 Hz snapshots (not sim state). */
+const GUEST_SNAP_BLEND_SPEED = 22;
+
+type GuestPoseBlend = { fx: number; fy: number; fa: number; tx: number; ty: number; ta: number; t: number };
+
+function lerpAngleRad(a: number, b: number, t: number): number {
+  let d = b - a;
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d < -Math.PI) d += Math.PI * 2;
+  return a + d * t;
+}
 
 // Draw sizes, per docs/ART_SPECIFICATION.md §2-3. Sprites are authored at
 // 128x128, so these are all still *down*scales — 128 is the ceiling before the
@@ -34,11 +69,14 @@ const SURGE_WARNING_SEC = 2;
 // image-rendering: pixelated, which would make it crunchy rather than soft).
 // Sized up 1.35x from the previous 70/64/58/76/80; the archetype ordering from
 // the art spec (stalker smallest, brute largest) is preserved.
+// Brute baked sheets are 275×556 (pre-rotated); width-scale makes them ~2× cell
+// aspect vs 556×304 zombies — use a lower width target so on-screen height lands
+// ~113px tall (operatives ~51px, bio-carrier ~56px) while still the largest infected.
 const ZOMBIE_SPRITE_SIZE: Record<ZombieArchetype, number> = {
   lurker: 86,
   audio_stalker: 78,
   bio_carrier: 102,
-  armored_brute: 108
+  armored_brute: 56
 };
 const PLAYER_SPRITE_SIZE = 94;
 
@@ -70,10 +108,20 @@ const ZOMBIE_HEALTH_BAR_GAP = 6;
 
 const PICKUP_SPRITE_SIZE = 30;
 
+export interface OnlineGameConfig {
+  session: SessionManager;
+  role: 'host' | 'guest';
+}
+
 export interface GameCallbacks {
   onMissionEnd: (stats: RunStats) => void;
   /** Fired whenever Esc flips the pause state, so the host page can show/hide its own pause UI. */
   onPauseChange?: (paused: boolean) => void;
+  /** Sector 1/2 exit reached — pick a supply drop before the next sector loads. */
+  onSectorReward?: (
+    info: { sectorName: string; nextSectorName: string },
+    onChosen: (reward: SectorReward) => void
+  ) => void;
 }
 
 export class Game {
@@ -98,6 +146,8 @@ export class Game {
   private missionTime = 0;
   /** Real-time freeze-frame on a big impact — simulation pauses, rendering doesn't. */
   private hitStopTimer = 0;
+  /** Set the first time advanceTime() is called, so the real-time rAF loop stops scheduling itself and a test's deterministic steps are the only ones that run. See advanceTime()'s own comment. */
+  private manualStepping = false;
   /** Red vignette on taking damage, faded out each tick. */
   private damageFlashAlpha = 0;
   private readonly handleKeyDown = (e: KeyboardEvent) => {
@@ -152,12 +202,36 @@ export class Game {
   private projectiles: Projectile[] = [];
   private decals: Decal[] = [];
   private hordeSpawnTimer = SURGE_START_INTERVAL_SEC;
+  /** Cooldown between reinforcement waves drawn in by loud sector-alerting gunfire. */
+  private sectorHordeCooldown = 0;
+  /** Brief "HORDE INCOMING" banner before a sector-alert reinforcement wave. */
+  private sectorHordeWarningTimer = 0;
+  private waitingForReward = false;
   /** Run-wide stealth stat: zombies that went ENRAGED while alive. */
   private zombiesAlerted = 0;
   /** Bio-Carrier death bursts, drawn as expanding rings showing who heard them. */
   private blasts: { x: number; y: number; age: number }[] = [];
   private dryFireCooldown = new Map<number, number>();
   private hitSoundCooldown = new Map<number, number>();
+  private readonly runModifier: SectorModifierId;
+  private readonly layoutRand: () => number;
+  private readonly netRole: 'local' | 'host' | 'guest' = 'local';
+  private session: SessionManager | null = null;
+  private netTick = 0;
+  private netInputSeq = 0;
+  private netSnapshotAccum = 0;
+  private guestRemoteInput: PlayerInputState | null = null;
+  private pendingSnapshot: NetSnapshotMessage | null = null;
+  private guestMissionEnded = false;
+  private guestBlendP1: GuestPoseBlend = { fx: 0, fy: 0, fa: 0, tx: 0, ty: 0, ta: 0, t: 1 };
+  private guestBlendP2: GuestPoseBlend = { fx: 0, fy: 0, fa: 0, tx: 0, ty: 0, ta: 0, t: 1 };
+  private readonly guestZombieBlend = new Map<number, GuestPoseBlend>();
+  private readonly animations: AnimationCatalog | null;
+  private readonly p1Anim: CharacterAnimController | null;
+  private readonly p2Anim: CharacterAnimController | null;
+  private readonly zombieAnims = new Map<number, { key: CharacterAnimId; ctrl: CharacterAnimController }>();
+  /** Previous zombie positions — walk sheets only advance when the sim actually moved them. */
+  private readonly zombiePrevWorld = new Map<number, { x: number; y: number }>();
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -166,8 +240,17 @@ export class Game {
     private callbacks: GameCallbacks,
     /** True operative-of-one: Player 2 never spawns into play — no companion, human or AI. */
     private solo = false,
-    difficulty: Difficulty = 'normal'
+    difficulty: Difficulty = 'normal',
+    runModifier: SectorModifierId = 'scavenger',
+    layoutRand: () => number = Math.random,
+    online?: OnlineGameConfig,
+    animations: AnimationCatalog | null = null
   ) {
+    this.animations = animations;
+    this.p1Anim = animations?.createController(playerAnimId(1)) ?? null;
+    this.p2Anim = animations?.createController(playerAnimId(2)) ?? null;
+    this.runModifier = runModifier;
+    this.layoutRand = layoutRand;
     this.difficultyDef = DIFFICULTIES[difficulty];
     this.ai = new AISystem(this.difficultyDef.noticeMult);
     this.applyDifficultyToSector();
@@ -197,12 +280,285 @@ export class Game {
     // makes every system that already filters on isEliminated/alive (AI targeting,
     // camera framing, HUD, revive, combat) treat it as if it were never there.
     if (this.solo) this.p2.eliminate();
+    this.wireSheetFootfalls(this.p1, this.p1Anim);
+    this.wireSheetFootfalls(this.p2, this.p2Anim);
+
+    this.map.loadSector(0, this.layoutRand, this.runModifier);
+    if (this.runModifier === 'blackout') {
+      for (const player of [this.p1, this.p2]) {
+        if (!player.isEliminated) player.flashlightBattery = FLASHLIGHT_BATTERY_MAX / 2;
+      }
+    }
 
     this.combat = new CombatSystem(this.map, this.noise, {
-      onZombieKilled: (zombie, killer) => this.onZombieKilled(zombie, killer)
+      onZombieKilled: (zombie, killer) => this.onZombieKilled(zombie, killer),
+      onSectorAlertingShot: player => this.onSectorAlertingShot(player)
     });
 
     this.spawnZombies();
+
+    if (online) {
+      this.netRole = online.role;
+      this.session = online.session;
+      this.wireNetSession();
+    }
+  }
+
+  private wireNetSession() {
+    if (!this.session) return;
+    this.session.onRemoteInput = msg => {
+      if (this.netRole === 'host') this.guestRemoteInput = netToInput(msg);
+    };
+    this.session.onSnapshot = msg => {
+      if (this.netRole === 'guest') {
+        this.pendingSnapshot = msg;
+        if (msg.missionOver && !this.guestMissionEnded) {
+          this.guestMissionEnded = true;
+          this.endMission(msg.missionOver.victory);
+        }
+      }
+    };
+  }
+
+  private static emptyInput(): PlayerInputState {
+    return {
+      moveX: 0,
+      moveY: 0,
+      aimAngle: 0,
+      isFiring: false,
+      isSprinting: false,
+      isSneaking: false,
+      isReloading: false,
+      isInteracting: false,
+      isSwitchingWeapon: false,
+      selectPrimary: false,
+      selectSecondary: false,
+      isTogglingFlashlight: false
+    };
+  }
+
+  private capturePlayerSnap(player: Player): NetPlayerSnap {
+    return {
+      x: player.x,
+      y: player.y,
+      angle: player.angle,
+      hp: player.health,
+      maxHp: player.maxHealth,
+      downed: player.isDowned,
+      eliminated: player.isEliminated,
+      activeWeaponId: player.activeWeaponId,
+      activeSlot: player.activeSlot,
+      mag: player.currentMag,
+      reserve: player.reserveAmmo,
+      reloading: player.isReloading,
+      flashlightOn: player.flashlightOn,
+      battery: player.flashlightBattery,
+      hasKeycard: player.hasKeycard
+    };
+  }
+
+  private applyPlayerSnap(player: Player, snap: NetPlayerSnap) {
+    player.x = snap.x;
+    player.y = snap.y;
+    player.angle = snap.angle;
+    player.health = snap.hp;
+    player.isDowned = snap.downed;
+    if (snap.eliminated && !player.isEliminated) player.eliminate();
+    player.activeSlot = snap.activeSlot;
+    player.currentMag = snap.mag;
+    player.reserveAmmo = snap.reserve;
+    player.isReloading = snap.reloading;
+    player.flashlightOn = snap.flashlightOn;
+    player.flashlightBattery = snap.battery;
+    player.hasKeycard = snap.hasKeycard;
+  }
+
+  private buildSnapshot(missionOver?: { victory: boolean }): NetSnapshotMessage {
+    const zone = this.map.extractionZone;
+    return {
+      t: 'snapshot',
+      tick: this.netTick,
+      missionTime: this.missionTime,
+      sectorIndex: this.map.sectorIndex,
+      objectiveProgress: this.map.objectiveProgress,
+      objectiveComplete: this.map.objectiveComplete,
+      evac:
+        zone.radius > 0
+          ? {
+              active: zone.isActive,
+              occupied: zone.isOccupied,
+              holdoutTimer: zone.holdoutTimer,
+              complete: zone.isComplete
+            }
+          : null,
+      p1: this.capturePlayerSnap(this.p1),
+      p2: this.capturePlayerSnap(this.p2),
+      zombies: this.zombies
+        .filter(z => z.alive || z.isDying)
+        .map(z => ({
+          id: z.id,
+          x: z.x,
+          y: z.y,
+          angle: z.angle,
+          hp: z.health,
+          archetype: z.archetype,
+          state: z.state
+        })),
+      pickups: this.map.pickups.map(p => ({ x: p.x, y: p.y, type: p.type })),
+      projectiles: this.projectiles.map(p => ({
+        x: p.x,
+        y: p.y,
+        angle: p.angle,
+        stuck: p.stuck,
+        ownerId: p.ownerId
+      })),
+      paused: this.paused,
+      missionOver
+    };
+  }
+
+  private guestPlayerDrawPose(player: Player, blend: GuestPoseBlend): { x: number; y: number; angle: number } {
+    if (this.netRole !== 'guest' || blend.t >= 1) {
+      return { x: player.x, y: player.y, angle: player.angle };
+    }
+    const t = blend.t;
+    return {
+      x: blend.fx + (blend.tx - blend.fx) * t,
+      y: blend.fy + (blend.ty - blend.fy) * t,
+      angle: lerpAngleRad(blend.fa, blend.ta, t)
+    };
+  }
+
+  private markGuestSnapBlendFrom() {
+    if (this.netRole !== 'guest') return;
+    const p1 = this.guestPlayerDrawPose(this.p1, this.guestBlendP1);
+    const p2 = this.guestPlayerDrawPose(this.p2, this.guestBlendP2);
+    this.guestBlendP1.fx = p1.x;
+    this.guestBlendP1.fy = p1.y;
+    this.guestBlendP1.fa = p1.angle;
+    this.guestBlendP2.fx = p2.x;
+    this.guestBlendP2.fy = p2.y;
+    this.guestBlendP2.fa = p2.angle;
+  }
+
+  private markGuestSnapBlendTo() {
+    if (this.netRole !== 'guest') return;
+    this.guestBlendP1.tx = this.p1.x;
+    this.guestBlendP1.ty = this.p1.y;
+    this.guestBlendP1.ta = this.p1.angle;
+    this.guestBlendP1.t = 0;
+    this.guestBlendP2.tx = this.p2.x;
+    this.guestBlendP2.ty = this.p2.y;
+    this.guestBlendP2.ta = this.p2.angle;
+    this.guestBlendP2.t = 0;
+  }
+
+  private guestZombieDrawPose(z: Zombie): { x: number; y: number; angle: number } {
+    const blend = this.guestZombieBlend.get(z.id);
+    if (this.netRole !== 'guest' || !blend || blend.t >= 1) {
+      return { x: z.x, y: z.y, angle: z.angle };
+    }
+    const t = blend.t;
+    return {
+      x: blend.fx + (blend.tx - blend.fx) * t,
+      y: blend.fy + (blend.ty - blend.fy) * t,
+      angle: lerpAngleRad(blend.fa, blend.ta, t)
+    };
+  }
+
+  private markGuestZombieBlendFrom() {
+    if (this.netRole !== 'guest') return;
+    for (const z of this.zombies) {
+      const pose = this.guestZombieDrawPose(z);
+      const b = this.guestZombieBlend.get(z.id) ?? {
+        fx: pose.x,
+        fy: pose.y,
+        fa: pose.angle,
+        tx: pose.x,
+        ty: pose.y,
+        ta: pose.angle,
+        t: 1
+      };
+      b.fx = pose.x;
+      b.fy = pose.y;
+      b.fa = pose.angle;
+      this.guestZombieBlend.set(z.id, b);
+    }
+  }
+
+  private markGuestZombieBlendTo() {
+    if (this.netRole !== 'guest') return;
+    const live = new Set<number>();
+    for (const z of this.zombies) {
+      live.add(z.id);
+      let b = this.guestZombieBlend.get(z.id);
+      if (!b) {
+        b = { fx: z.x, fy: z.y, fa: z.angle, tx: z.x, ty: z.y, ta: z.angle, t: 1 };
+        this.guestZombieBlend.set(z.id, b);
+        continue;
+      }
+      b.tx = z.x;
+      b.ty = z.y;
+      b.ta = z.angle;
+      b.t = 0;
+    }
+    for (const id of this.guestZombieBlend.keys()) {
+      if (!live.has(id)) this.guestZombieBlend.delete(id);
+    }
+  }
+
+  private advanceGuestBlends(dt: number) {
+    if (this.netRole !== 'guest') return;
+    this.guestBlendP1.t = Math.min(1, this.guestBlendP1.t + dt * GUEST_SNAP_BLEND_SPEED);
+    this.guestBlendP2.t = Math.min(1, this.guestBlendP2.t + dt * GUEST_SNAP_BLEND_SPEED);
+    for (const b of this.guestZombieBlend.values()) {
+      b.t = Math.min(1, b.t + dt * GUEST_SNAP_BLEND_SPEED);
+    }
+  }
+
+  private applyGuestSnapshot(snap: NetSnapshotMessage) {
+    this.missionTime = snap.missionTime;
+    this.paused = snap.paused;
+
+    if (snap.sectorIndex !== this.map.sectorIndex) {
+      this.map.loadSector(snap.sectorIndex, this.layoutRand, this.runModifier);
+      this.applyDifficultyToSector();
+    }
+    this.map.objectiveProgress = snap.objectiveProgress;
+    this.map.objectiveComplete = snap.objectiveComplete;
+    if (snap.objectiveComplete) this.map.completeObjective();
+
+    const zone = this.map.extractionZone;
+    if (snap.evac && zone.radius > 0) {
+      zone.isActive = snap.evac.active;
+      zone.isOccupied = snap.evac.occupied;
+      zone.holdoutTimer = snap.evac.holdoutTimer;
+      zone.isComplete = snap.evac.complete;
+    }
+
+    this.markGuestSnapBlendFrom();
+    // Guest's local P1 is the host's P2; partner is host's P1.
+    this.applyPlayerSnap(this.p1, snap.p2);
+    this.applyPlayerSnap(this.p2, snap.p1);
+    this.markGuestSnapBlendTo();
+
+    this.markGuestZombieBlendFrom();
+    this.zombies = snap.zombies.map(
+      z => {
+        const zombie = new Zombie(z.x, z.y, z.angle, z.archetype, this.difficultyDef.zombieHpMult);
+        zombie.health = z.hp;
+        zombie.state = z.state;
+        return zombie;
+      }
+    );
+    this.markGuestZombieBlendTo();
+
+    this.map.pickups = snap.pickups.map(p => new Pickup(p.x, p.y, p.type));
+    this.projectiles = snap.projectiles.map(p => {
+      const bolt = new Projectile(p.x, p.y, p.angle, 0, p.ownerId, 0);
+      if (p.stuck) bolt.stick();
+      return bolt;
+    });
   }
 
   /** The evac holdout length is per difficulty, not per sector — overrides what MapManager loaded. */
@@ -215,6 +571,9 @@ export class Game {
 
   private spawnZombies() {
     this.zombies = this.map.layout.zombies.map(s => new Zombie(s.x, s.y, s.angle, s.archetype, this.difficultyDef.zombieHpMult));
+    if (this.runModifier !== 'heavy' || this.zombies.length >= HORDE_MAX_ZOMBIES) return;
+    const spawn = this.map.rollSurgeSpawn(this.layoutRand);
+    this.zombies.push(new Zombie(spawn.x, spawn.y, 0, 'armored_brute', this.difficultyDef.zombieHpMult));
   }
 
   private onZombieKilled(zombie: Zombie, _killer: Player) {
@@ -237,6 +596,96 @@ export class Game {
     this.running = true;
     this.lastTime = performance.now();
     requestAnimationFrame(t => this.tick(t));
+  }
+
+  /** So the window-level render_game_to_text hook (see docs/develop-web-game skill) can tell a live run from a stopped one without reaching into private state. */
+  public isRunning(): boolean {
+    return this.running;
+  }
+
+  /**
+   * Deterministic test-only frame stepper (see docs/develop-web-game skill; wired
+   * to `window.advanceTime` in main.ts). Advances the simulation by `ms` of
+   * gameplay time in fixed 1/60s steps — ignoring wall-clock time — then renders
+   * once, so a Playwright-driven test can step frames reproducibly instead of
+   * racing real timers. Mirrors tick()'s own pause/hit-stop handling so a paused
+   * or frozen game behaves the same under advanceTime as it does under real play.
+   */
+  public advanceTime(ms: number) {
+    if (!this.running) return;
+    this.manualStepping = true;
+    const steps = Math.max(1, Math.round(ms / (FIXED_DT * 1000)));
+    for (let i = 0; i < steps; i++) {
+      if (!this.running) break;
+      if (this.input.poll()) this.togglePause();
+      if (this.paused) {
+        this.input.endFrame();
+        continue;
+      }
+      if (this.hitStopTimer > 0) {
+        this.hitStopTimer -= FIXED_DT;
+        continue;
+      }
+      this.update(FIXED_DT);
+    }
+    this.render();
+  }
+
+  /**
+   * Test-only state dump (see docs/develop-web-game skill; wired to
+   * `window.render_game_to_text` in main.ts). Kept succinct and biased toward
+   * what's currently on screen — no history — per the skill's own guidance.
+   */
+  public renderGameToText(): string {
+    const zone = this.map.extractionZone;
+    const obj = this.map.sector.objective;
+    const playerPayload = (p: Player) => ({
+      id: p.playerNumber,
+      x: Math.round(p.x),
+      y: Math.round(p.y),
+      angle: Number(p.angle.toFixed(2)),
+      hp: Math.round(p.health),
+      maxHp: p.maxHealth,
+      downed: p.isDowned,
+      eliminated: p.isEliminated,
+      weapon: p.activeWeaponId,
+      mag: p.currentMag,
+      reserve: p.reserveAmmo,
+      reloading: p.isReloading,
+      flashlightOn: p.flashlightOn,
+      battery: Math.round(p.flashlightBattery),
+      hasKeycard: p.hasKeycard
+    });
+
+    return JSON.stringify({
+      mode: this.paused ? 'paused' : 'playing',
+      // Coordinate system: world-space pixels, origin top-left, +x right, +y down — same space as sectors.ts.
+      missionTimeSec: Number(this.missionTime.toFixed(1)),
+      sector: this.map.sector.name,
+      runModifier: this.runModifier,
+      objective: { label: obj.label, progress: Number(this.map.objectiveProgress.toFixed(2)), complete: this.map.objectiveComplete },
+      extraction:
+        zone.radius > 0
+          ? { active: zone.isActive, occupied: zone.isOccupied, holdoutTimerSec: Number(zone.holdoutTimer.toFixed(1)), complete: zone.isComplete }
+          : null,
+      players: [this.p1, this.p2].filter(p => !p.isEliminated || p === this.p1).map(playerPayload),
+      zombies: this.zombies.map(z => ({
+        x: Math.round(z.x),
+        y: Math.round(z.y),
+        archetype: z.archetype,
+        state: z.state,
+        hp: Math.round(z.health),
+        maxHp: z.maxHealth,
+        alive: z.alive
+      })),
+      pickups: this.map.pickups.map(pk => ({ x: pk.x, y: pk.y, type: pk.type })),
+      score: {
+        kills: this.p1.killCount + this.p2.killCount,
+        shotsFired: this.p1.shotsFired + this.p2.shotsFired,
+        silentKills: this.p1.silentKills + this.p2.silentKills,
+        zombiesAlerted: this.zombiesAlerted
+      }
+    });
   }
 
   public stop() {
@@ -268,6 +717,13 @@ export class Game {
 
   private tick(timestamp: number) {
     if (!this.running) return;
+    // Once a test has taken over stepping via advanceTime(), stop scheduling the
+    // real-time rAF loop — otherwise both drive update()/render() concurrently
+    // and every advanceTime() call gets extra, wall-clock-timed physics steps
+    // mixed in on top of its own deterministic ones (silently makes the movement
+    // test numbers wrong, though it doesn't affect real play, which never calls
+    // advanceTime). See docs/develop-web-game skill.
+    if (this.manualStepping) return;
     const frameDt = Math.min((timestamp - this.lastTime) / 1000, 0.25);
     this.lastTime = timestamp;
 
@@ -303,14 +759,25 @@ export class Game {
   }
 
   private update(dt: number) {
+    if (this.netRole === 'guest') {
+      this.updateGuestClient(dt);
+      return;
+    }
+
     this.missionTime += dt;
+    this.netTick++;
 
     const in1 = this.input.getPlayer1Input({ x: this.p1.x, y: this.p1.y });
-    const in2 = this.input.getPlayer2Input({ x: this.p2.x, y: this.p2.y }, { x: this.p1.x, y: this.p1.y });
+    const in2 =
+      this.netRole === 'host'
+        ? (this.guestRemoteInput ?? Game.emptyInput())
+        : this.input.getPlayer2Input({ x: this.p2.x, y: this.p2.y }, { x: this.p1.x, y: this.p1.y });
     this.input.endFrame();
 
     if (!this.p1.isEliminated) this.p1.update(dt, in1, this.map);
     if (!this.p2.isEliminated) this.p2.update(dt, in2, this.map);
+
+    this.updateCharacterAnimations(dt);
 
     this.handleFootsteps(this.p1);
     this.handleFootsteps(this.p2);
@@ -329,6 +796,7 @@ export class Game {
 
     this.combat.updateProjectiles(dt, this.projectiles, this.zombies, [this.p1, this.p2], this.decals);
     this.projectiles = collectStuckBolts(this.projectiles, [this.p1, this.p2]);
+    this.tickDecals(dt);
 
     const screams = this.ai.update(dt, this.zombies, [this.p1, this.p2], this.map);
     for (const pos of screams) {
@@ -342,6 +810,8 @@ export class Game {
 
     this.handleZombieContact(dt, this.p1);
     this.handleZombieContact(dt, this.p2);
+
+    this.updateSectorHorde(dt);
 
     for (const zombie of this.zombies) zombie.updateJuice(dt);
     // A dying zombie stays around (excluded from combat/AI targeting via its own
@@ -365,6 +835,121 @@ export class Game {
     );
 
     this.checkMissionEnd();
+
+    if (this.netRole === 'host' && this.session) {
+      this.netSnapshotAccum += dt;
+      if (this.netSnapshotAccum >= 1 / 30) {
+        this.netSnapshotAccum -= 1 / 30;
+        this.session.sendSnapshot(this.buildSnapshot());
+      }
+    }
+  }
+
+  private animForPlayer(player: Player): CharacterAnimController | null {
+    return player.playerNumber === 1 ? this.p1Anim : this.p2Anim;
+  }
+
+  private playerMoveMult(player: Player): number {
+    if (player.movementState === 'sprint') return 1.4;
+    if (player.movementState === 'sneak') return 0.72;
+    return 1;
+  }
+
+  private updatePlayerAnim(player: Player, anim: CharacterAnimController | null, dt: number) {
+    if (!anim || player.isEliminated) return;
+    anim.update(dt, {
+      isDowned: player.isDowned,
+      isMoving: !player.isDowned && player.noiseRadius > 0,
+      moveSpeedMult: this.playerMoveMult(player),
+      isPlayer: true
+    });
+  }
+
+  private updateCharacterAnimations(dt: number) {
+    this.updatePlayerAnim(this.p1, this.p1Anim, dt);
+    if (!this.p2.isEliminated) this.updatePlayerAnim(this.p2, this.p2Anim, dt);
+    for (const z of this.zombies) {
+      if (z.isDying) continue;
+      const key = zombieAnimId(z.archetype, z.archetype === 'lurker' && z.state === 'ENRAGED');
+      let entry = this.zombieAnims.get(z.id);
+      if (!entry || entry.key !== key) {
+        const ctrl = this.animations?.createController(key) ?? null;
+        if (!ctrl) continue;
+        entry = { key, ctrl };
+        this.zombieAnims.set(z.id, entry);
+      }
+      const prev = this.zombiePrevWorld.get(z.id);
+      const moved =
+        prev !== undefined && Math.hypot(z.x - prev.x, z.y - prev.y) > 0.25;
+      entry.ctrl.update(dt, {
+        isDowned: false,
+        isMoving: moved,
+        moveSpeedMult: 1,
+        isPlayer: false
+      });
+      this.zombiePrevWorld.set(z.id, { x: z.x, y: z.y });
+    }
+    const live = new Set(this.zombies.filter(z => !z.isDying).map(z => z.id));
+    for (const id of this.zombieAnims.keys()) {
+      if (!live.has(id)) this.zombieAnims.delete(id);
+    }
+    for (const id of this.zombiePrevWorld.keys()) {
+      if (!live.has(id)) this.zombiePrevWorld.delete(id);
+    }
+  }
+
+  /** Guest sends local input and renders host-authoritative state from snapshots. */
+  private updateGuestClient(dt: number) {
+    const in1 = this.input.getPlayer1Input({ x: this.p1.x, y: this.p1.y });
+    this.input.endFrame();
+
+    if (this.session) {
+      this.netInputSeq++;
+      this.session.sendInput(inputToNet(this.netInputSeq, in1));
+    }
+
+    if (this.pendingSnapshot) {
+      this.applyGuestSnapshot(this.pendingSnapshot);
+      this.pendingSnapshot = null;
+    } else if (!this.p1.isEliminated) {
+      this.p1.update(dt, in1, this.map);
+    }
+
+    this.advanceGuestBlends(dt);
+
+    this.updateCharacterAnimations(dt);
+    this.tickDecals(dt);
+
+    for (const zombie of this.zombies) zombie.updateJuice(dt);
+    this.zombies = this.zombies.filter(z => z.alive || z.isDying);
+    const p1Pose = this.guestPlayerDrawPose(this.p1, this.guestBlendP1);
+    const p2Pose = this.guestPlayerDrawPose(this.p2, this.guestBlendP2);
+    this.camera.update(
+      [
+        { x: p1Pose.x, y: p1Pose.y, alive: !this.p1.isEliminated },
+        { x: p2Pose.x, y: p2Pose.y, alive: !this.p2.isEliminated }
+      ],
+      dt
+    );
+    this.damageFlashAlpha = Math.max(0, this.damageFlashAlpha - dt * 2.5);
+  }
+
+  private footstepNoiseRadius(player: Player): number {
+    if (player.movementState === 'sneak') return SNEAK_NOISE_RADIUS;
+    if (player.movementState === 'sprint') return SPRINT_NOISE_RADIUS;
+    return WALK_NOISE_RADIUS;
+  }
+
+  private wireSheetFootfalls(player: Player, anim: CharacterAnimController | null) {
+    if (!anim) return;
+    anim.onFootfall = () => {
+      if (player.isEliminated || player.isDowned || player.noiseRadius <= 0) return;
+      const radius = this.footstepNoiseRadius(player);
+      this.noise.emit({ x: player.x, y: player.y, radius, type: 'footstep' });
+      const listener = this.audioListener();
+      const wallsToListener = this.map.countWallsCrossed(player.position, listener);
+      this.sound.playFootstep(listener, player.position, wallsToListener);
+    };
   }
 
   /** Midpoint between living operatives — P2 hears the world from between both ears in co-op. */
@@ -376,10 +961,23 @@ export class Game {
   }
 
   private handleFootsteps(player: Player) {
+    if (this.animations?.ready && this.animForPlayer(player)) return;
     if (!player.justStepped) return;
     this.noise.emit({ x: player.x, y: player.y, radius: player.noiseRadius, type: 'footstep' });
     const listener = this.audioListener();
     this.sound.playFootstep(listener, player.position, this.map.countWallsCrossed(player.position, listener));
+  }
+
+  private tickDecals(dt: number) {
+    for (const d of this.decals) {
+      if (d.life === undefined) continue;
+      d.life -= dt;
+      if (d.vx) d.x += d.vx * dt;
+      if (d.vy) d.y += d.vy * dt;
+      d.vx = (d.vx ?? 0) * 0.92;
+      d.vy = (d.vy ?? 0) * 0.92;
+    }
+    this.decals = this.decals.filter(d => d.life === undefined || d.life > 0);
   }
 
   private handleReload(player: Player, input: PlayerInputState) {
@@ -407,6 +1005,7 @@ export class Game {
       const suppressed = player.activeMuzzle === 'suppressor';
       this.sound.playGunshot(listener, player.position, this.map.countWallsCrossed(player.position, listener), suppressed);
       this.camera.addTrauma(suppressed ? 0.06 : 0.12);
+      this.animForPlayer(player)?.triggerRecoil();
       return;
     }
 
@@ -461,9 +1060,13 @@ export class Game {
       const dist = Math.hypot(zombie.x - player.x, zombie.y - player.y);
       if (dist > zombie.radius + player.radius + ZOMBIE_CONTACT_RANGE_PAD) continue;
 
+      if (this.tryConsumeCooldown(this.hitSoundCooldown, zombie.id, 0.55)) {
+        this.zombieAnims.get(zombie.id)?.ctrl.triggerAttack();
+      }
+
       if (player.isDowned) {
         player.eliminate();
-        this.triggerPlayerHitJuice(true);
+        this.triggerZombieContactFlash(true);
       } else {
         player.takeDamage(this.difficultyDef.contactDps * dt);
         // Gate the shake/flash on the same cooldown as the hit sound — contact
@@ -471,24 +1074,25 @@ export class Game {
         // screen shake at max for the whole grapple instead of reading as hits.
         if (this.tryConsumeCooldown(this.hitSoundCooldown, player.id, 0.4)) {
           this.sound.playPlayerHit(this.audioListener(), player.position);
-          this.triggerPlayerHitJuice(false);
+          this.triggerZombieContactFlash(false);
         }
         if (player.health <= 0) {
           // Solo has no partner who could ever reach you — going down would just be
           // a helpless crawl until a zombie finishes the job, so skip straight there.
           if (this.solo) player.eliminate();
           else player.down();
-          this.triggerPlayerHitJuice(true);
+          this.triggerZombieContactFlash(true);
         }
       }
     }
   }
 
-  /** Camera shake + a red screen flash on either operative taking a hit — bigger for a down/elimination than a routine bite. */
-  private triggerPlayerHitJuice(big: boolean) {
+  /** Brief red vignette + shake when a zombie actually damages an operative (contact only). */
+  private triggerZombieContactFlash(big: boolean) {
     this.camera.addTrauma(big ? 0.7 : 0.22);
     if (big) this.triggerHitStop(0.1);
-    this.damageFlashAlpha = Math.min(1, this.damageFlashAlpha + (big ? 1 : 0.5));
+    // Pulse — do not stack during continuous contact DPS or the screen stays red.
+    this.damageFlashAlpha = big ? 0.75 : 0.38;
   }
 
   /** Idle groans, paced by how agitated each zombie is — the main audible cue for offscreen threats. */
@@ -566,6 +1170,52 @@ export class Game {
     }
   }
 
+  /**
+   * Loud unsuppressed fire wakes every zombie in the sector (ignoring walls) and
+   * can call edge reinforcements on a cooldown — the "sector horde frenzy" the
+   * armory warns about. Evac holdout already runs its own surge loop.
+   */
+  private onSectorAlertingShot(player: Player) {
+    const source = { x: player.x, y: player.y };
+    for (const zombie of this.zombies) {
+      if (!zombie.alive || zombie.state === 'ENRAGED') continue;
+      zombie.alert('ENRAGED', source);
+    }
+
+    const zone = this.map.extractionZone;
+    if (zone.isActive) return;
+    if (this.sectorHordeCooldown > 0 || this.sectorHordeWarningTimer > 0) return;
+    if (this.zombies.length >= HORDE_MAX_ZOMBIES) return;
+
+    this.sectorHordeWarningTimer = SURGE_WARNING_SEC;
+    this.sectorHordeCooldown = this.runModifier === 'hush' ? SECTOR_HORDE_COOLDOWN_SEC / 2 : SECTOR_HORDE_COOLDOWN_SEC;
+  }
+
+  private updateSectorHorde(dt: number) {
+    if (this.sectorHordeWarningTimer > 0) {
+      this.sectorHordeWarningTimer -= dt;
+      if (this.sectorHordeWarningTimer > 0) return;
+      this.spawnSectorHordeWave();
+    }
+
+    if (this.sectorHordeCooldown > 0) this.sectorHordeCooldown -= dt;
+  }
+
+  private spawnSectorHordeWave() {
+    const zone = this.map.extractionZone;
+    if (zone.isActive) return;
+
+    const waveSize = surgeSize(!this.p2.isEliminated);
+    const attract = { x: this.p1.x, y: this.p1.y };
+    for (let i = 0; i < waveSize && this.zombies.length < HORDE_MAX_ZOMBIES; i++) {
+      const spawn = this.map.rollSurgeSpawn(Math.random);
+      const zombie = new Zombie(spawn.x, spawn.y, 0, pickSurgeArchetype(Math.random()), this.difficultyDef.zombieHpMult);
+      zombie.alert('ENRAGED', attract);
+      zombie.alertCounted = true;
+      this.zombies.push(zombie);
+    }
+  }
+
   /** Holdout climax: the siren draws a rolling horde at the pad, arriving faster as the clock runs down (see HordeSurge.ts). */
   private updateHordeSurge(dt: number) {
     this.hordeSpawnTimer -= dt;
@@ -600,23 +1250,61 @@ export class Game {
   /** Walking into the exit zone after finishing the objective advances to the next sector. */
   private updateSectorExit() {
     const exit = this.map.sector.exitZone;
-    if (!exit || !this.map.objectiveComplete) return;
+    if (!exit || !this.map.objectiveComplete || this.waitingForReward) return;
 
     // Every operative still in the fight must be standing in the exit — a
     // downed partner has to be revived first, not dragged along for free.
     const atExit = (p: Player) => !p.isDowned && Math.hypot(p.x - exit.x, p.y - exit.y) <= exit.radius;
     const team = [this.p1, this.p2].filter(p => !p.isEliminated);
-    if (team.length > 0 && team.every(atExit)) this.advanceSector();
+    if (team.length === 0 || !team.every(atExit)) return;
+
+    const nextSector = SECTORS[this.map.sectorIndex + 1];
+    if (!nextSector || !this.callbacks.onSectorReward) {
+      this.advanceSector();
+      return;
+    }
+
+    this.waitingForReward = true;
+    this.paused = true;
+    this.callbacks.onSectorReward(
+      { sectorName: this.map.sector.name, nextSectorName: nextSector.name },
+      reward => {
+        this.applySectorReward(reward);
+        this.advanceSector();
+        this.waitingForReward = false;
+        this.paused = false;
+      }
+    );
+  }
+
+  private applySectorReward(reward: SectorReward) {
+    const team = [this.p1, this.p2].filter(p => !p.isEliminated);
+    for (const player of team) {
+      switch (reward) {
+        case 'medkit':
+          player.health = Math.min(player.maxHealth, player.health + 50);
+          break;
+        case 'ammo':
+          player.addAmmoPickup();
+          break;
+        case 'battery':
+          player.flashlightBattery = Math.min(FLASHLIGHT_BATTERY_MAX, player.flashlightBattery + BATTERY_PICKUP_CHARGE);
+          break;
+      }
+    }
   }
 
   private advanceSector() {
-    this.map.loadSector(this.map.sectorIndex + 1);
+    this.map.loadSector(this.map.sectorIndex + 1, this.layoutRand, this.runModifier);
     this.applyDifficultyToSector();
     this.zombies = [];
     this.projectiles = [];
     this.decals = [];
     this.blasts = [];
     this.hordeSpawnTimer = SURGE_START_INTERVAL_SEC;
+    this.sectorHordeCooldown = 0;
+    this.sectorHordeWarningTimer = 0;
+    this.waitingForReward = false;
     this.spawnZombies();
 
     const spawns = this.map.sector.playerSpawns;
@@ -638,6 +1326,9 @@ export class Game {
   }
 
   private endMission(victory: boolean) {
+    if (this.netRole === 'host' && this.session) {
+      this.session.sendSnapshot(this.buildSnapshot({ victory }));
+    }
     this.stop();
     this.callbacks.onMissionEnd({
       victory,
@@ -647,7 +1338,8 @@ export class Game {
       sectorReached: this.map.sector.name,
       zombiesAlerted: this.zombiesAlerted,
       silentKills: this.p1.silentKills + this.p2.silentKills,
-      difficulty: this.difficultyDef.label
+      difficulty: this.difficultyDef.label,
+      runModifier: getSectorModifier(this.runModifier).name
     });
   }
 
@@ -673,7 +1365,7 @@ export class Game {
     ctx.restore();
 
     this.renderLighting(ctx);
-    this.hud.renderScreenSpace(ctx, this.p1, this.p2, this.map);
+    this.hud.renderScreenSpace(ctx, this.p1, this.p2, this.map, this.runModifier);
     this.renderBlasts(ctx);
     this.renderSurgeWarning(ctx);
     this.renderDamageFlash(ctx);
@@ -706,10 +1398,12 @@ export class Game {
     }
   }
 
-  /** Flashing banner for the last couple of seconds before each evac wave, so surges never arrive unannounced. */
+  /** Flashing banner before evac waves and sector-alert reinforcement waves. */
   private renderSurgeWarning(ctx: CanvasRenderingContext2D) {
     const zone = this.map.extractionZone;
-    if (!zone.isActive || zone.isComplete || this.hordeSpawnTimer > SURGE_WARNING_SEC) return;
+    const evacWarning = zone.isActive && !zone.isComplete && this.hordeSpawnTimer <= SURGE_WARNING_SEC;
+    const sectorWarning = this.sectorHordeWarningTimer > 0;
+    if (!evacWarning && !sectorWarning) return;
     const blink = Math.floor(performance.now() / 180) % 2 === 0;
     if (!blink) return;
     const text = '⚠ HORDE INCOMING';
@@ -754,6 +1448,15 @@ export class Game {
 
   private renderDecals(ctx: CanvasRenderingContext2D) {
     for (const d of this.decals) {
+      if (d.kind === 'casing') {
+        ctx.save();
+        ctx.translate(d.x, d.y);
+        ctx.rotate(d.angle);
+        ctx.fillStyle = d.color;
+        ctx.fillRect(-3, -1.2, 6, 2.4);
+        ctx.restore();
+        continue;
+      }
       if (d.kind === 'blood' && this.assets.draw(ctx, 'blood_splatter', d.x, d.y, d.angle, d.r * 3.2, 0.85)) continue;
       ctx.fillStyle = d.color;
       ctx.beginPath();
@@ -862,10 +1565,12 @@ export class Game {
 
   private renderZombies(ctx: CanvasRenderingContext2D) {
     for (const z of this.zombies) {
+      const pose = this.guestZombieDrawPose(z);
       const aggro = z.state === 'ENRAGED';
       const key: AssetKey =
         z.archetype === 'lurker' && aggro ? 'zombie_lurker_aggro' : (`zombie_${z.archetype}` as AssetKey);
       const size = ZOMBIE_SPRITE_SIZE[z.archetype];
+      const zAnim = this.zombieAnims.get(z.id)?.ctrl;
 
       // Death: a quick squash-pop, then an eased shrink to nothing, rather than
       // just vanishing the instant health hits zero.
@@ -875,23 +1580,38 @@ export class Game {
         scale = t < 0.3 ? 1 + (t / 0.3) * 0.25 : 1.25 * (1 - (t - 0.3) / 0.7) ** 2;
       }
 
-      ctx.save();
-      ctx.translate(z.x, z.y);
-      ctx.rotate(z.angle);
-      ctx.scale(scale, scale);
+      if (zAnim && !z.isDying) {
+        ctx.save();
+        if (scale !== 1) {
+          ctx.translate(pose.x, pose.y);
+          ctx.scale(scale, scale);
+          zAnim.draw(ctx, size, pose.angle, 0, 0);
+        } else {
+          zAnim.draw(ctx, size, pose.angle, pose.x, pose.y);
+        }
+        ctx.restore();
+      } else {
+        ctx.save();
+        ctx.translate(pose.x, pose.y);
+        ctx.rotate(pose.angle);
+        ctx.scale(scale, scale);
 
-      if (!this.assets.drawCentered(ctx, key, size)) {
-        ctx.fillStyle = aggro ? '#7E9B6E' : z.state === 'SUSPICIOUS' ? '#6B7F58' : '#54654A';
-        ctx.beginPath();
-        ctx.arc(0, 0, z.radius, 0, Math.PI * 2);
-        ctx.fill();
+        if (!this.assets.drawCentered(ctx, key, size)) {
+          ctx.fillStyle = aggro ? '#7E9B6E' : z.state === 'SUSPICIOUS' ? '#6B7F58' : '#54654A';
+          ctx.beginPath();
+          ctx.arc(0, 0, z.radius, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
       }
 
-      if (!z.isDying) {
-        // Eye tell reads the sensory state, which the base sprite can't convey.
-        // Offsets are ratios of this archetype's draw size so the eyes sit on the
-        // face at every size — they used to be shared absolutes tuned for the
-        // 64px lurker, which left the 80px brute's eyes floating off its head.
+      // Legacy eye/bio tells were tuned for flat placeholder circles; on baked
+      // sheets they land on the wrong part of the silhouette (often on the player
+      // when grappling) — the art already reads state.
+      if (!z.isDying && !zAnim) {
+        ctx.save();
+        ctx.translate(pose.x, pose.y);
+        ctx.rotate(pose.angle);
         const eyeX = size * ZOMBIE_EYE_X;
         const eyeY = size * ZOMBIE_EYE_Y;
         const eyeR = size * ZOMBIE_EYE_R;
@@ -901,8 +1621,6 @@ export class Game {
         ctx.arc(eyeX, eyeY, eyeR, 0, Math.PI * 2);
         ctx.fill();
 
-        // Bio-Carrier tell: a slow toxic pulse, so players learn before the
-        // kill that this one bursts and wakes everything nearby.
         if (z.archetype === 'bio_carrier') {
           const pulse = (Math.sin(performance.now() / 260) + 1) / 2;
           ctx.strokeStyle = `rgba(140, 230, 60, ${(0.35 + pulse * 0.45).toFixed(3)})`;
@@ -911,19 +1629,17 @@ export class Game {
           ctx.arc(0, 0, size * (0.5 + pulse * 0.08), 0, Math.PI * 2);
           ctx.stroke();
         }
-      }
 
-      if (z.hitFlashTimer > 0) {
-        // Additive white pulse, not a mask — cheap way to sell "that connected" without needing sprite silhouettes.
-        ctx.globalCompositeOperation = 'lighter';
-        ctx.fillStyle = `rgba(255, 255, 255, ${((z.hitFlashTimer / HIT_FLASH_SEC) * 0.7).toFixed(3)})`;
-        ctx.beginPath();
-        ctx.arc(0, 0, z.radius, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.globalCompositeOperation = 'source-over';
+        if (z.hitFlashTimer > 0) {
+          ctx.globalCompositeOperation = 'lighter';
+          ctx.fillStyle = `rgba(255, 255, 255, ${((z.hitFlashTimer / HIT_FLASH_SEC) * 0.7).toFixed(3)})`;
+          ctx.beginPath();
+          ctx.arc(0, 0, z.radius, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.globalCompositeOperation = 'source-over';
+        }
+        ctx.restore();
       }
-
-      ctx.restore();
 
       if (!z.isDying) {
         const healthPct = z.health / z.maxHealth;
@@ -933,7 +1649,7 @@ export class Game {
           // clears the top of it instead of landing across the chest.
           const barW = size * ZOMBIE_HEALTH_BAR_W;
           ctx.fillStyle = '#FF5252';
-          ctx.fillRect(z.x - barW / 2, z.y - size / 2 - ZOMBIE_HEALTH_BAR_GAP, barW * healthPct, 3);
+          ctx.fillRect(pose.x - barW / 2, pose.y - size / 2 - ZOMBIE_HEALTH_BAR_GAP, barW * healthPct, 3);
         }
       }
     }
@@ -942,33 +1658,40 @@ export class Game {
   private renderPlayers(ctx: CanvasRenderingContext2D) {
     for (const p of [this.p1, this.p2]) {
       if (p.isEliminated) continue;
+      const blend = p.playerNumber === 1 ? this.guestBlendP1 : this.guestBlendP2;
+      const pose = this.guestPlayerDrawPose(p, blend);
       const key: AssetKey = p.isDowned
         ? 'player_downed'
         : p.playerNumber === 1
         ? 'player_infiltrator'
         : 'player_breacher';
+      const anim = this.animForPlayer(p);
 
-      ctx.save();
-      ctx.translate(p.x, p.y);
-      ctx.rotate(p.angle);
+      if (anim) {
+        anim.draw(ctx, PLAYER_SPRITE_SIZE, pose.angle, pose.x, pose.y);
+      } else {
+        ctx.save();
+        ctx.translate(pose.x, pose.y);
+        ctx.rotate(pose.angle);
 
-      if (!this.assets.drawCentered(ctx, key, PLAYER_SPRITE_SIZE)) {
-        ctx.fillStyle = p.playerNumber === 1 ? (p.isDowned ? '#8E3232' : '#4A5468') : p.isDowned ? '#8E3232' : '#53614C';
-        ctx.beginPath();
-        ctx.arc(0, 0, p.radius, 0, Math.PI * 2);
-        ctx.fill();
-        if (!p.isDowned) {
-          ctx.fillStyle = '#9AA6BE';
-          ctx.fillRect(8, -3, 16, 6);
+        if (!this.assets.drawCentered(ctx, key, PLAYER_SPRITE_SIZE)) {
+          ctx.fillStyle = p.playerNumber === 1 ? (p.isDowned ? '#8E3232' : '#4A5468') : p.isDowned ? '#8E3232' : '#53614C';
+          ctx.beginPath();
+          ctx.arc(0, 0, p.radius, 0, Math.PI * 2);
+          ctx.fill();
+          if (!p.isDowned) {
+            ctx.fillStyle = '#9AA6BE';
+            ctx.fillRect(8, -3, 16, 6);
+          }
         }
+        ctx.restore();
       }
-      ctx.restore();
 
       if (p.isDowned) {
         ctx.strokeStyle = '#FF5252';
         ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.arc(p.x, p.y, REVIVE_RING_RADIUS, -Math.PI / 2, -Math.PI / 2 + (p.reviveProgress / 3) * Math.PI * 2);
+        ctx.arc(pose.x, pose.y, REVIVE_RING_RADIUS, -Math.PI / 2, -Math.PI / 2 + (p.reviveProgress / 3) * Math.PI * 2);
         ctx.stroke();
       }
     }

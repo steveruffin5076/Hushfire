@@ -3,6 +3,7 @@ import { Pickup, PickupType } from '../entities/Pickup';
 import { SECTORS, SectorDef, BoxDef } from '../config/sectors';
 import { rawSurgeSpawnPoint } from './HordeSurge';
 import { SectorLayout, rollSectorLayout } from '../config/sectorLayout';
+import { SectorModifierId, filterPickupsForModifier } from '../config/sectorModifiers';
 import { NavGrid } from './NavGrid';
 import { closestPointOnSegment, lineOfSight, countWallsCrossed } from './Geometry';
 
@@ -52,7 +53,7 @@ export class MapManager {
   }
 
   /** `rand` picks this visit's zombie/pickup spots — injectable so tests can pin a layout. */
-  loadSector(index: number, rand: () => number = Math.random) {
+  loadSector(index: number, rand: () => number = Math.random, modifier?: SectorModifierId) {
     const sector = SECTORS[Math.min(index, SECTORS.length - 1)];
     this.sectorIndex = index;
     this.sector = sector;
@@ -71,7 +72,8 @@ export class MapManager {
     this.walls.push(...this.doorWalls);
 
     this.layout = rollSectorLayout(sector, rand);
-    this.pickups = this.layout.pickups.map(p => new Pickup(p.x, p.y, p.type));
+    const pickupDefs = modifier ? filterPickupsForModifier(this.layout.pickups, modifier) : this.layout.pickups;
+    this.pickups = pickupDefs.map(p => new Pickup(p.x, p.y, p.type));
 
     const evac = sector.evacZone;
     this.extractionZone = {

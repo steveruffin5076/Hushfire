@@ -1,88 +1,328 @@
 /**
- * HUSHFIRE — Multiplayer Session Manager
- * Handles room code generation, URL hash sharing (#ROOM-XXXX),
- * WebRTC DataChannel / WebSocket peer connections, and local fallback.
+ * PeerJS-backed online lobby transport (Phase 7 milestone 1).
+ * Room code lives in the URL hash; the peer id is `hushfire-${roomCode}`.
  */
+import Peer, { DataConnection, PeerOptions } from 'peerjs';
+import type { NetMessage } from './Protocol';
+import { PROTO_VERSION } from './Protocol';
+import type { NetInputMessage, NetSnapshotMessage } from './GameSnapshot';
+import { generateRoomCode, isRoomHash, normalizeRoomCode, peerIdForRoom } from './roomCode';
+import { resolveIceServers } from './iceConfig';
+import type { WeaponLoadout } from '../entities/Player';
+import type { SectorModifierId } from '../config/sectorModifiers';
 
 export type SessionRole = 'HOST' | 'GUEST' | 'LOCAL';
+export type SessionState = 'IDLE' | 'SIGNALING' | 'CONNECTED' | 'CLOSED' | 'ERROR';
 
-export interface NetworkMessage {
-  type: 'HANDSHAKE' | 'READY' | 'INPUT' | 'SNAPSHOT' | 'CHAT' | 'REVIVE';
-  senderId: number;
-  /** Arrives from another machine, so it's untrusted until narrowed per message `type` (Phase 7 will add typed schemas). */
-  payload: unknown;
-}
+const HOST_RETRY_MAX = 3;
+/** Guest-only: fail fast when the host peer or ICE path never answers. */
+const GUEST_CONNECT_TIMEOUT_MS = 20_000;
 
 export class SessionManager {
   public role: SessionRole = 'LOCAL';
-  public roomCode: string = '';
-  public isConnected: boolean = false;
-  private onMessageCallback?: (msg: NetworkMessage) => void;
+  public roomCode = '';
+  public state: SessionState = 'IDLE';
+  public error: string | null = null;
+  public connectStartedAt = 0;
+  public localReady = false;
+  public partnerReady = false;
+  public partnerLoadout: WeaponLoadout | null = null;
+
+  onStateChange?: () => void;
+  onMessage?: (msg: NetMessage) => void;
+  onDeploy?: (seed: number, runModifier: SectorModifierId, hostLoadout: WeaponLoadout, guestLoadout: WeaponLoadout) => void;
+  onRemoteInput?: (msg: NetInputMessage) => void;
+  onSnapshot?: (msg: NetSnapshotMessage) => void;
+
+  private peer: Peer | null = null;
+  private conn: DataConnection | null = null;
+  private queue: NetMessage[] = [];
+  private destroyed = false;
+  private connectTimeout: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
-    // Check if player loaded the page with a room hash (e.g. #HUSH-1234)
     const hash = window.location.hash.replace('#', '').trim();
-    if (hash.startsWith('HUSH-')) {
-      this.roomCode = hash;
+    if (isRoomHash(hash)) {
+      this.roomCode = normalizeRoomCode(hash);
       this.role = 'GUEST';
     }
   }
 
-  /**
-   * Generates a 4-digit room code and updates browser URL
-   */
-  public createHostSession(): string {
-    const randomDigits = Math.floor(1000 + Math.random() * 9000);
-    this.roomCode = `HUSH-${randomDigits}`;
-    this.role = 'HOST';
-    window.location.hash = this.roomCode;
-    console.log(`[Session] Created Host Room: ${this.roomCode}`);
-    return this.roomCode;
+  get isConnected(): boolean {
+    return this.state === 'CONNECTED';
   }
 
-  /**
-   * Joins an existing room by code
-   */
-  public joinSession(code: string) {
-    this.roomCode = code.toUpperCase().trim();
+  /** Host claims a room and waits for a guest dial-in. */
+  async createHostSession(): Promise<string> {
+    this.destroy(false);
+    this.role = 'HOST';
+    for (let attempt = 0; attempt < HOST_RETRY_MAX; attempt++) {
+      this.roomCode = generateRoomCode();
+      window.location.hash = this.roomCode;
+      try {
+        await this.openHostPeer();
+        return this.roomCode;
+      } catch (err) {
+        if (!this.isUnavailableId(err)) continue;
+      }
+    }
+    this.setError('Could not claim a room code — try again.');
+    throw new Error(this.error ?? 'host create failed');
+  }
+
+  /** Guest dials an existing room from a pasted code or invite link. */
+  joinSession(code: string) {
+    this.destroy(false);
+    this.roomCode = normalizeRoomCode(code);
     this.role = 'GUEST';
     window.location.hash = this.roomCode;
-    console.log(`[Session] Joining Room: ${this.roomCode}`);
+    void this.connectAsGuest();
   }
 
-  /**
-   * Gets the direct invite link to send to a friend
-   */
-  public getShareableLink(): string {
+  /** Re-attempt signaling after ERROR — keeps the same room code for hosts. */
+  retryConnection() {
+    if (this.role === 'GUEST' && this.roomCode) {
+      this.joinSession(this.roomCode);
+      return;
+    }
+    if (this.role === 'HOST' && this.roomCode) {
+      void this.resumeHostSession();
+    }
+  }
+
+  getShareableLink(): string {
     const url = new URL(window.location.href);
     url.hash = this.roomCode;
     return url.toString();
   }
 
-  /**
-   * Registers a message listener for incoming network packets
-   */
-  public onMessage(callback: (msg: NetworkMessage) => void) {
-    this.onMessageCallback = callback;
+  send(msg: NetMessage) {
+    if (this.role === 'LOCAL') return;
+    if (this.conn?.open) this.conn.send(msg);
+    else this.queue.push(msg);
   }
 
-  /**
-   * Broadcasts a network packet to the connected peer
-   */
-  public send(_msg: NetworkMessage) {
-    if (this.role === 'LOCAL') {
-      // In local mode, bypass network loop
-      return;
+  broadcastLoadout(loadout: WeaponLoadout, ready: boolean) {
+    this.localReady = ready;
+    this.send({ t: 'loadout', loadout, ready });
+    this.onStateChange?.();
+  }
+
+  hostDeploy(seed: number, runModifier: SectorModifierId, hostLoadout: WeaponLoadout, guestLoadout: WeaponLoadout) {
+    if (this.role !== 'HOST') return;
+    this.send({ t: 'deploy', seed, runModifier, hostLoadout, guestLoadout });
+    this.onDeploy?.(seed, runModifier, hostLoadout, guestLoadout);
+  }
+
+  sendInput(msg: NetInputMessage) {
+    if (this.role !== 'GUEST') return;
+    this.send(msg);
+  }
+
+  sendSnapshot(msg: NetSnapshotMessage) {
+    if (this.role !== 'HOST') return;
+    this.send(msg);
+  }
+
+  destroy(clearHash = true) {
+    this.destroyed = true;
+    this.clearConnectTimeout();
+    this.send({ t: 'bye' });
+    this.conn?.close();
+    this.peer?.destroy();
+    this.conn = null;
+    this.peer = null;
+    this.queue = [];
+    this.state = 'CLOSED';
+    this.error = null;
+    this.connectStartedAt = 0;
+    this.localReady = false;
+    this.partnerReady = false;
+    this.partnerLoadout = null;
+    if (clearHash) window.location.hash = '';
+    this.onStateChange?.();
+    this.destroyed = false;
+  }
+
+  private setState(next: SessionState) {
+    this.state = next;
+    if (next === 'CONNECTED' || next === 'ERROR' || next === 'CLOSED') this.clearConnectTimeout();
+    this.onStateChange?.();
+  }
+
+  private startGuestConnectTimeout() {
+    if (this.role !== 'GUEST') return;
+    this.clearConnectTimeout();
+    this.connectTimeout = setTimeout(() => {
+      if (this.state !== 'SIGNALING' || this.role !== 'GUEST') return;
+      this.setError(
+        'Connection timed out. Ask the host to stay in the lobby, open the full invite link, and retry. ' +
+          'School/corporate Wi‑Fi or VPN often blocks peer-to-peer links without a TURN relay.'
+      );
+      this.peer?.destroy();
+      this.peer = null;
+      this.conn = null;
+    }, GUEST_CONNECT_TIMEOUT_MS);
+  }
+
+  private clearConnectTimeout() {
+    if (this.connectTimeout) clearTimeout(this.connectTimeout);
+    this.connectTimeout = null;
+  }
+
+  private setError(message: string) {
+    this.error = message;
+    this.setState('ERROR');
+  }
+
+  private async resumeHostSession(): Promise<void> {
+    this.clearConnectTimeout();
+    this.error = null;
+    this.conn?.close();
+    this.conn = null;
+    this.peer?.destroy();
+    this.peer = null;
+    this.queue = [];
+    this.partnerReady = false;
+    this.partnerLoadout = null;
+    try {
+      await this.openHostPeer();
+    } catch {
+      this.setError('Could not reopen the room — create a new session and send a fresh link.');
     }
-    // WebRTC DataChannel or WebSocket send call
-    // When using PeerJS: this.peerConnection.send(JSON.stringify(_msg));
   }
 
-  /**
-   * Dispatches an inbound packet to the registered listener. Called by the
-   * WebRTC/WebSocket transport once it is wired up in Phase 7.
-   */
-  public dispatchIncoming(msg: NetworkMessage) {
-    this.onMessageCallback?.(msg);
+  private async buildPeerOpts(): Promise<PeerOptions> {
+    return {
+      debug: 1,
+      config: { iceServers: await resolveIceServers() }
+    };
+  }
+
+  private openHostPeer(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      void this.buildPeerOpts().then(peerOpts => {
+        this.setState('SIGNALING');
+        this.connectStartedAt = 0;
+        const id = peerIdForRoom(this.roomCode);
+        const peer = new Peer(id, peerOpts);
+        this.peer = peer;
+
+      peer.on('open', () => {
+        peer.on('connection', conn => {
+          if (this.conn?.open) {
+            conn.close();
+            return;
+          }
+          this.attach(conn);
+        });
+        resolve();
+      });
+
+      peer.on('error', err => {
+        if (this.isUnavailableId(err)) reject(err);
+        else this.setError(this.describePeerError(err));
+      });
+
+      peer.on('disconnected', () => {
+        if (!this.destroyed) peer.reconnect();
+      });
+      }).catch(reject);
+    });
+  }
+
+  private async connectAsGuest() {
+    const peerOpts = await this.buildPeerOpts();
+    this.setState('SIGNALING');
+    this.connectStartedAt = Date.now();
+    this.startGuestConnectTimeout();
+    const peer = new Peer(peerOpts);
+    this.peer = peer;
+
+    peer.on('open', () => {
+      const conn = peer.connect(peerIdForRoom(this.roomCode), { reliable: true, serialization: 'json' });
+      conn.on('error', () => {
+        if (this.state === 'SIGNALING') {
+          this.setError('Room not found — the host must create the session and stay in the lobby.');
+        }
+      });
+      this.attach(conn);
+      conn.on('open', () => {
+        this.send({ t: 'hello', code: this.roomCode, proto: PROTO_VERSION });
+      });
+    });
+
+    peer.on('error', err => this.setError(this.describePeerError(err)));
+    peer.on('disconnected', () => {
+      if (!this.destroyed) peer.reconnect();
+    });
+  }
+
+  private attach(conn: DataConnection) {
+    this.conn = conn;
+    conn.on('open', () => {
+      this.flushQueue();
+      if (this.role === 'HOST') this.send({ t: 'hello', code: this.roomCode, proto: PROTO_VERSION });
+      this.setState('CONNECTED');
+    });
+    conn.on('data', data => this.handleData(data as NetMessage));
+    conn.on('close', () => this.handleDrop('Partner left the session.'));
+    conn.on('error', err => this.handleDrop(err.message));
+  }
+
+  private handleData(msg: NetMessage) {
+    switch (msg.t) {
+      case 'hello':
+        if (msg.proto !== PROTO_VERSION) {
+          this.setError('Partner is on a different game version.');
+          return;
+        }
+        if (normalizeRoomCode(msg.code) !== this.roomCode) return;
+        break;
+      case 'loadout':
+        this.partnerLoadout = msg.loadout;
+        this.partnerReady = msg.ready;
+        this.onStateChange?.();
+        break;
+      case 'deploy':
+        this.onDeploy?.(msg.seed, msg.runModifier, msg.hostLoadout, msg.guestLoadout);
+        break;
+      case 'input':
+        this.onRemoteInput?.(msg);
+        break;
+      case 'snapshot':
+        this.onSnapshot?.(msg);
+        break;
+      case 'bye':
+        this.handleDrop('Partner left the session.');
+        break;
+    }
+    this.onMessage?.(msg);
+  }
+
+  private flushQueue() {
+    if (!this.conn?.open) return;
+    for (const msg of this.queue) this.conn.send(msg);
+    this.queue = [];
+  }
+
+  private handleDrop(message: string) {
+    if (this.state === 'CLOSED' || this.state === 'ERROR') return;
+    this.setError(message);
+    this.conn = null;
+  }
+
+  private isUnavailableId(err: unknown): boolean {
+    return typeof err === 'object' && err !== null && 'type' in err && (err as { type?: string }).type === 'unavailable-id';
+  }
+
+  private describePeerError(err: unknown): string {
+    if (typeof err === 'object' && err !== null && 'type' in err) {
+      const type = (err as { type?: string }).type;
+      if (type === 'peer-unavailable') return 'Room not found — the host may have closed the tab.';
+      if (type === 'unavailable-id') return 'Room code already taken.';
+      if (type === 'network' || type === 'server-error') return 'Network error — check your connection and try again.';
+    }
+    return 'Connection failed.';
   }
 }

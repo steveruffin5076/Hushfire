@@ -6,15 +6,40 @@ import { WEAPON_REGISTRY, MUZZLE_MODIFIERS, AMMO_MODIFIERS } from '../config/wea
 import { NoiseSystem } from './NoiseSystem';
 import { MapManager } from './MapManager';
 import { angleBetween } from './Geometry';
+import { isSectorAlertingShot } from './HordeSurge';
 
 export interface Decal {
   x: number;
   y: number;
   r: number;
   color: string;
-  kind: 'blood' | 'toxic';
+  kind: 'blood' | 'toxic' | 'casing';
   /** Random rotation so repeat splatters don't look stamped. */
   angle: number;
+  /** Seconds until removed (casings only). */
+  life?: number;
+  vx?: number;
+  vy?: number;
+}
+
+const CASING_BARREL_OFFSET = 35;
+const CASING_EJECT_SPEED = 150;
+
+export function brassCasingDecal(player: Player): Decal {
+  const bx = player.x + Math.cos(player.angle) * CASING_BARREL_OFFSET;
+  const by = player.y + Math.sin(player.angle) * CASING_BARREL_OFFSET;
+  const eject = player.angle + (Math.random() > 0.5 ? 1 : -1) * (Math.PI / 2 + 0.25 + Math.random() * 0.35);
+  return {
+    x: bx,
+    y: by,
+    r: 2.5,
+    color: '#C4A035',
+    kind: 'casing',
+    angle: Math.random() * Math.PI * 2,
+    life: 2.8,
+    vx: Math.cos(eject) * CASING_EJECT_SPEED,
+    vy: Math.sin(eject) * CASING_EJECT_SPEED
+  };
 }
 
 export function bloodDecal(x: number, y: number, r: number, color: string): Decal {
@@ -23,6 +48,8 @@ export function bloodDecal(x: number, y: number, r: number, color: string): Deca
 
 export interface CombatEvents {
   onZombieKilled?: (zombie: Zombie, killer: Player) => void;
+  /** Loud, unsuppressed gunfire that should wake the sector and can call reinforcements. */
+  onSectorAlertingShot?: (player: Player) => void;
 }
 
 const MELEE_RANGE = 46;
@@ -71,6 +98,9 @@ export class CombatSystem {
     const soundRadius = weapon.baseSoundRadiusPx * muzzleMod.soundMult * ammoMod.soundMult;
     player.noiseRadius = Math.max(player.noiseRadius, soundRadius);
     this.noise.emit({ x: player.x, y: player.y, radius: soundRadius, type: weapon.isSilentByDefault ? 'footstep' : 'gunshot' });
+    if (isSectorAlertingShot(soundRadius, weapon.isSilentByDefault)) {
+      this.events.onSectorAlertingShot?.(player);
+    }
 
     const damage = weapon.baseDamage * muzzleMod.dmgMult * ammoMod.dmgMult;
 
@@ -85,13 +115,15 @@ export class CombatSystem {
     }
 
     const pelletCount = weapon.pelletCount ?? 1;
-    const spreadRad = pelletCount > 1 ? (18 * Math.PI) / 180 : 0.015;
+    const baseSpreadRad = pelletCount > 1 ? (18 * Math.PI) / 180 : 0.015;
+    const spreadRad = baseSpreadRad * muzzleMod.recoilMult;
 
     for (let i = 0; i < pelletCount; i++) {
-      const jitter = pelletCount > 1 ? (Math.random() - 0.5) * spreadRad : (Math.random() - 0.5) * spreadRad;
+      const jitter = (Math.random() - 0.5) * spreadRad;
       const angle = player.angle + jitter;
       this.hitscan(player, angle, damage / pelletCount, ammoMod.armorPen, zombies, decals);
     }
+    decals.push(brassCasingDecal(player));
   }
 
   private hitscan(player: Player, angle: number, damage: number, armorPen: number, zombies: Zombie[], decals: Decal[]) {

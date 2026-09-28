@@ -112,9 +112,7 @@ export const WEAPON_REGISTRY: Record<string, WeaponDef> = {
   }
 };
 
-// recoilMult is intentionally unused right now (no spread/accuracy model exists
-// yet) — muzzle_brake/compensator's sound & damage numbers are set to stand on
-// their own as real tradeoffs rather than leaning on a stat nothing reads.
+// recoilMult scales hitscan spread in CombatSystem (lower = tighter grouping).
 export const MUZZLE_MODIFIERS: Record<MuzzleType, { soundMult: number; flashMult: number; recoilMult: number; dmgMult: number }> = {
   none: { soundMult: 1.0, flashMult: 1.0, recoilMult: 1.0, dmgMult: 1.0 },
   // Was 0.15: that made any gun near-silent for only -10% damage (a suppressed

@@ -53,7 +53,6 @@ const ASSET_PATHS: Record<AssetKey, string> = {
  */
 export class AssetLoader {
   private images = new Map<AssetKey, HTMLImageElement>();
-
   async loadAll(): Promise<void> {
     const entries = Object.entries(ASSET_PATHS) as [AssetKey, string][];
     await Promise.all(
@@ -73,6 +72,10 @@ export class AssetLoader {
           })
       )
     );
+  }
+
+  getImage(key: AssetKey): HTMLImageElement | undefined {
+    return this.images.get(key);
   }
 
   has(key: AssetKey): boolean {

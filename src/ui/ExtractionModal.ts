@@ -12,6 +12,8 @@ export interface RunStats {
   silentKills: number;
   /** Difficulty label the run was played on. */
   difficulty: string;
+  /** Per-run sector twist (blackout, scavenger, hush, heavy). */
+  runModifier?: string;
 }
 
 /** DOM-based win/loss run summary shown at the end of a mission. */
@@ -45,6 +47,7 @@ export class ExtractionModal {
     };
 
     stat('DIFFICULTY', stats.difficulty);
+    if (stats.runModifier) stat('RUN MODIFIER', stats.runModifier);
     stat('FURTHEST SECTOR', stats.sectorReached);
     stat('TIME SURVIVED', `${Math.round(stats.timeSurvivedSec)}s`);
     stat('ZOMBIES ELIMINATED', `${stats.totalKills}`);

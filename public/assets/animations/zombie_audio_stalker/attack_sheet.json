@@ -1,0 +1,22 @@
+{
+  "cell_width": 593,
+  "cell_height": 325,
+  "layout": "row",
+  "clips": [
+    {
+      "name": "attack",
+      "frames": 10,
+      "frame_ms": 70,
+      "loop": false,
+      "events": {
+        "strike": 5
+      }
+    }
+  ],
+  "pivot_cell_px": [
+    250.2,
+    157.2
+  ],
+  "note": "pivot matches walk/downed world anchor; play once per swing",
+  "image": "attack_sheet.webp"
+}
