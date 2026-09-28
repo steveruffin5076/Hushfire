@@ -1,6 +1,7 @@
 import { LetterGrade, betterGrade, missionLetterGrade } from './LetterGrade';
 import { RunStats } from './ExtractionModal';
 import { KeyValueStorage } from './LoadoutStorage';
+import { missionXpFromRun } from './PlayerProgress';
 
 const STORAGE_KEY = 'hushfire.profile.v1';
 
@@ -8,12 +9,15 @@ export interface PlayerProfile {
   totalWins: number;
   bestGrade: LetterGrade | null;
   totalKillsBest: number;
+  /** Lifetime career XP (level derived via PlayerProgress). */
+  totalXp: number;
 }
 
 export const defaultPlayerProfile = (): PlayerProfile => ({
   totalWins: 0,
   bestGrade: null,
-  totalKillsBest: 0
+  totalKillsBest: 0,
+  totalXp: 0
 });
 
 const defaultStorage = (): KeyValueStorage | null => {
@@ -36,6 +40,7 @@ export function loadPlayerProfile(storage: KeyValueStorage | null = defaultStora
       base.bestGrade = o.bestGrade;
     }
     if (typeof o.totalKillsBest === 'number') base.totalKillsBest = o.totalKillsBest;
+    if (typeof o.totalXp === 'number' && o.totalXp >= 0) base.totalXp = Math.floor(o.totalXp);
   } catch {
     // ignore
   }
@@ -57,6 +62,7 @@ export function recordPlayerProfile(stats: RunStats, storage: KeyValueStorage | 
   if (stats.victory) profile.totalWins++;
   profile.bestGrade = betterGrade(grade, profile.bestGrade);
   if (stats.totalKills > profile.totalKillsBest) profile.totalKillsBest = stats.totalKills;
+  profile.totalXp += missionXpFromRun(stats, grade);
   savePlayerProfile(profile, storage);
   return grade;
 }
