@@ -16,7 +16,7 @@ npm install        # after any pull that touched package.json
 npm run dev        # http://localhost:3000
 npm run typecheck  # tsc --noEmit (covers src/ and tests/)
 npm run lint       # ESLint + typescript-eslint; `any` is an error
-npm test           # Vitest (see §6; count grows with each PR)
+npm test           # Vitest, 299 tests in tests/
 npm run build      # tsc && vite build → dist/
 ```
 
@@ -210,6 +210,10 @@ images/                   Raw art uploads from the owner (source material, not l
 - **ICE config** (`tests/iceConfig.test.ts`): STUN fallback + optional TURN URL merge.
 - **Crossbow warm-up** (`tests/crossbowWarmup.test.ts`): first-shot readiness after deploy.
 - **AI pathing** (`tests/aiPathing.test.ts`): no straight-line grind when A* returns no route.
+- **Restart hygiene** (`tests/inputDispose.test.ts`): every `window` listener removed on `InputManager.dispose()`.
+- **Bleed-out** (`tests/bleedout.test.ts`): downed operative eliminated after `BLEEDOUT_SEC`.
+- **Personal bests** (`tests/runRecords.test.ts`): `localStorage` merge + category labels.
+- **Zombie separation** (`tests/aiSeparation.test.ts`): overlapping enraged zombies pushed apart.
 - **Deterministic Playwright loop:** `Game.renderGameToText()` + `Game.advanceTime()` wired in `main.ts`. Example: `node scripts/dev-playtest.mjs http://localhost:3000/`.
 
 ---
