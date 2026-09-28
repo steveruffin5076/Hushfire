@@ -32,6 +32,7 @@ const idle = (overrides: Partial<PlayerInputState> = {}): PlayerInputState => ({
   selectPrimary: false,
   selectSecondary: false,
   isTogglingFlashlight: false,
+  isTogglingNvg: false,
   ...overrides
 });
 

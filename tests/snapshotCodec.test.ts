@@ -16,7 +16,8 @@ describe('network snapshot codec', () => {
       isSwitchingWeapon: false,
       selectPrimary: false,
       selectSecondary: true,
-      isTogglingFlashlight: false
+      isTogglingFlashlight: false,
+      isTogglingNvg: false
     };
     const wire = inputToNet(42, input);
     expect(wire.t).toBe('input');

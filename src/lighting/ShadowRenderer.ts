@@ -49,7 +49,8 @@ export class ShadowRenderer {
     viewRect: ViewRect,
     beams: FlashlightBeam[],
     muzzleFlashes: MuzzleFlashPulse[],
-    carryLights: RadialLight[] = []
+    carryLights: RadialLight[] = [],
+    nvgLights: RadialLight[] = []
   ) {
     const offCanvas = this.getOffscreen(canvasWidth, canvasHeight);
     const ctx = offCanvas.getContext('2d')!;
@@ -93,6 +94,15 @@ export class ShadowRenderer {
       ]);
     }
 
+    for (const light of nvgLights) {
+      this.punchDisc(ctx, light, [
+        [0, 1],
+        [0.35, 0.92],
+        [0.7, 0.55],
+        [1, 0]
+      ]);
+    }
+
     // Punching a hole only reveals the (very dark) floor underneath — a real
     // flashlight should also actively brighten what it's shining on. Add a
     // warm glow with additive blending on top of the revealed area.
@@ -123,6 +133,17 @@ export class ShadowRenderer {
       grad.addColorStop(0, 'rgba(226, 236, 255, 0.3)');
       grad.addColorStop(0.6, 'rgba(206, 220, 245, 0.18)');
       grad.addColorStop(1, 'rgba(180, 196, 225, 0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(light.origin.x, light.origin.y, light.radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    for (const light of nvgLights) {
+      const grad = ctx.createRadialGradient(light.origin.x, light.origin.y, 0, light.origin.x, light.origin.y, light.radius);
+      grad.addColorStop(0, 'rgba(120, 255, 160, 0.38)');
+      grad.addColorStop(0.55, 'rgba(60, 200, 110, 0.22)');
+      grad.addColorStop(1, 'rgba(20, 80, 40, 0)');
       ctx.fillStyle = grad;
       ctx.beginPath();
       ctx.arc(light.origin.x, light.origin.y, light.radius, 0, Math.PI * 2);
