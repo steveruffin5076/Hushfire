@@ -62,6 +62,8 @@ export class ArmoryMenu {
       startOnline?: boolean;
       createHost?: boolean;
       joinCode?: string;
+      /** Set for daily runs: the day's twist, not rerollable. */
+      fixedModifier?: SectorModifierId;
       onBack?: () => void;
     } = {}
   ) {
@@ -75,7 +77,10 @@ export class ArmoryMenu {
     let difficulty: Difficulty = saved.difficulty;
     const mySlot: 0 | 1 = session?.role === 'GUEST' ? 1 : 0;
     let editingOperative: 0 | 1 = mode === 'online' ? mySlot : 0;
-    let runModifier = pickSectorModifier();
+    // Daily runs lock the day's twist (derived from the UTC seed) so every
+    // player faces the same run; campaign/survival roll one, rerollable below.
+    const fixedModifier = options.fixedModifier;
+    let runModifier = fixedModifier ?? pickSectorModifier();
     let lobbyPanel: LobbyPanel | null = null;
     let broadcastTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -285,7 +290,7 @@ export class ArmoryMenu {
       protocolBox.innerHTML = `
         <div style="color:${ORANGE}; font-size:12px; letter-spacing:1px; font-weight:bold; margin-bottom:9px;">SURVIVAL PROTOCOL:</div>
         <div style="background:${FIELD_BG}; border:1px solid ${PANEL_BORDER}; border-radius:4px; padding:10px 12px; margin-bottom:10px;">
-          <div style="color:${CYAN}; font-size:12px; letter-spacing:1px; font-weight:bold;">RUN MODIFIER: ${mod.name}</div>
+          <div style="color:${CYAN}; font-size:12px; letter-spacing:1px; font-weight:bold;">RUN MODIFIER${fixedModifier ? ' (FIXED TODAY)' : ''}: ${mod.name}</div>
           <div style="color:${MUTED}; font-size:12px; margin-top:4px; line-height:1.5;">${mod.blurb}</div>
         </div>
         <ul style="margin:0; padding-left:18px; color:${TEXT}; font-size:13px; line-height:1.55;">
@@ -505,7 +510,8 @@ export class ArmoryMenu {
 
     const actionsBar = document.createElement('div');
     actionsBar.style.cssText = 'width: 100%; display: flex; flex-direction: column; align-items: center; flex-shrink: 0; margin-top: 12px; padding-bottom: 4px;';
-    actionsBar.appendChild(rerollModifierBtn);
+    // A daily twist is the same for everyone, so it can't be rerolled.
+    if (!fixedModifier) actionsBar.appendChild(rerollModifierBtn);
     actionsBar.appendChild(readyBtn);
     actionsBar.appendChild(deployBtn);
     stage.appendChild(actionsBar);

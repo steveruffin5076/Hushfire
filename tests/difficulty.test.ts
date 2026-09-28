@@ -62,4 +62,24 @@ describe('difficulty levels', () => {
     expect(surgeInterval(1000, DIFFICULTIES.easy.surgeMinIntervalSec)).toBe(6);
     expect(surgeInterval(1000)).toBe(SURGE_MIN_INTERVAL_SEC);
   });
+
+  it('overrides the loaded sector holdout with the run difficulty', () => {
+    // Regression: survival starts on Sector 3, and the difficulty override used
+    // to run before that load, so EASY/HARD survival silently held for 120s.
+    for (const difficulty of DIFFICULTY_ORDER) {
+      const map = new MapManager();
+      map.loadSector(2);
+      map.setExtractionHoldout(DIFFICULTIES[difficulty].holdoutSec);
+      expect(map.extractionZone.holdoutDurationSec).toBe(DIFFICULTIES[difficulty].holdoutSec);
+      expect(map.extractionZone.holdoutTimer).toBe(DIFFICULTIES[difficulty].holdoutSec);
+    }
+  });
+
+  it('leaves sectors without an evac pad untouched', () => {
+    const map = new MapManager();
+    map.loadSector(0);
+    map.setExtractionHoldout(DIFFICULTIES.easy.holdoutSec);
+    expect(map.extractionZone.radius).toBe(0);
+    expect(map.extractionZone.holdoutDurationSec).toBe(120);
+  });
 });

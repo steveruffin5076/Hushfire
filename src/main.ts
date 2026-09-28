@@ -16,7 +16,7 @@ import { recordRun, recordsForDifficulty } from './ui/RunRecords';
 import { recordPlayerProfile, loadPlayerProfile } from './ui/PlayerProfile';
 import { nextGradeGoal } from './ui/LetterGrade';
 import { RunKind } from './config/runKind';
-import { dailyChallengeRand } from './ui/dailyChallenge';
+import { dailyChallengeRand, dailyChallengeModifier } from './ui/dailyChallenge';
 import { SettingsMenu } from './ui/SettingsMenu';
 import { loadGameSettings } from './ui/GameSettings';
 import { getSharedSoundManager } from './core/SoundManager';
@@ -133,7 +133,8 @@ window.addEventListener('DOMContentLoaded', async () => {
       onDaily: () => {
         pendingRunKind = 'daily';
         pendingLayoutRand = dailyChallengeRand();
-        openArmory();
+        // Same UTC seed as the layout, so everyone faces the same twist today.
+        openArmory({ fixedModifier: dailyChallengeModifier() });
       },
       onSurvival: () => {
         pendingRunKind = 'survival';
@@ -153,7 +154,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     });
   };
 
-  const openArmory = (opts: { online?: boolean; host?: boolean; joinCode?: string } = {}) => {
+  const openArmory = (opts: { online?: boolean; host?: boolean; joinCode?: string; fixedModifier?: SectorModifierId } = {}) => {
     armory.open(
       (mode, difficulty, p1, p2, runModifier, net) => deploy(mode, difficulty, p1, p2, runModifier, net),
       {
@@ -161,6 +162,7 @@ window.addEventListener('DOMContentLoaded', async () => {
         startOnline: opts.online ?? session.role !== 'LOCAL',
         createHost: opts.host,
         joinCode: opts.joinCode,
+        fixedModifier: opts.fixedModifier,
         onBack: () => {
           session.destroy();
           openMainMenu();

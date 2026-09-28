@@ -103,6 +103,20 @@ export class MapManager {
     this.wallsRevision++;
   }
 
+  /**
+   * Sets the evac holdout length on the currently loaded sector. The length is
+   * a run property (difficulty), not a map property, so it must be applied
+   * *after* the sector that owns the pad is loaded — survival loads Sector 3 in
+   * the Game constructor, and applying it before that silently kept NORMAL's
+   * 120s on EASY and HARD. No-op for sectors without a pad.
+   */
+  setExtractionHoldout(seconds: number) {
+    const zone = this.extractionZone;
+    if (zone.radius <= 0) return;
+    zone.holdoutDurationSec = seconds;
+    zone.holdoutTimer = seconds;
+  }
+
   /** Marks the sector objective done and opens any blast doors it was holding shut. */
   completeObjective() {
     if (this.objectiveComplete) return;
