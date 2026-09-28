@@ -13,14 +13,32 @@ const memoryStorage = (initial: Record<string, string> = {}): KeyValueStorage & 
 
 describe('armory persistence', () => {
   it('falls back to solo + defaults when nothing is saved', () => {
-    expect(loadArmoryState(memoryStorage())).toEqual({ mode: 'solo', difficulty: 'normal', loadouts: DEFAULT_LOADOUTS });
-    expect(loadArmoryState(null)).toEqual({ mode: 'solo', difficulty: 'normal', loadouts: DEFAULT_LOADOUTS });
+    expect(loadArmoryState(memoryStorage())).toEqual({
+      mode: 'solo',
+      difficulty: 'normal',
+      loadouts: DEFAULT_LOADOUTS,
+      runModifier: 'blackout'
+    });
+    expect(loadArmoryState(null)).toEqual({
+      mode: 'solo',
+      difficulty: 'normal',
+      loadouts: DEFAULT_LOADOUTS,
+      runModifier: 'blackout'
+    });
   });
 
   it('returns copies, never the shared defaults', () => {
     const state = loadArmoryState(memoryStorage());
     state.loadouts[0].primaryWeapon = 'shotgun';
     expect(DEFAULT_LOADOUTS[0].primaryWeapon).toBe('mpx');
+  });
+
+  it('round-trips run modifier', () => {
+    const storage = memoryStorage();
+    const state = loadArmoryState(storage);
+    state.runModifier = 'hush';
+    saveArmoryState(state, storage);
+    expect(loadArmoryState(storage).runModifier).toBe('hush');
   });
 
   it('round-trips mode and both loadouts', () => {
@@ -79,7 +97,12 @@ describe('armory persistence', () => {
   });
 
   it('survives corrupt JSON and storage that throws', () => {
-    expect(loadArmoryState(memoryStorage({ 'hushfire.armory.v1': '{not json' }))).toEqual({ mode: 'solo', difficulty: 'normal', loadouts: DEFAULT_LOADOUTS });
+    expect(loadArmoryState(memoryStorage({ 'hushfire.armory.v1': '{not json' }))).toEqual({
+      mode: 'solo',
+      difficulty: 'normal',
+      loadouts: DEFAULT_LOADOUTS,
+      runModifier: 'blackout'
+    });
     const throwing: KeyValueStorage = {
       getItem: () => {
         throw new Error('blocked');
