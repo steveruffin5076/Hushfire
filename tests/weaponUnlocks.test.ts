@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { clampLoadoutToUnlocks, isWeaponUnlocked } from '../src/ui/WeaponUnlocks';
+import { clampLoadoutToUnlocks, isGearUnlocked, isWeaponUnlocked } from '../src/ui/WeaponUnlocks';
+import { WEAPON_REGISTRY } from '../src/config/weapons';
 import { defaultPlayerProfile } from '../src/ui/PlayerProfile';
 import { DEFAULT_LOADOUTS } from '../src/ui/LoadoutStorage';
 
@@ -14,6 +15,22 @@ describe('weapon unlocks', () => {
     expect(isWeaponUnlocked('crossbow', p)).toBe(false);
     p.totalWins = 1;
     expect(isWeaponUnlocked('crossbow', p)).toBe(true);
+  });
+
+  it('lists expanded SMG, rifle, and pistol roster in registry', () => {
+    expect(WEAPON_REGISTRY.mp5sd?.type).toBe('primary');
+    expect(WEAPON_REGISTRY.ak12?.type).toBe('primary');
+    expect(WEAPON_REGISTRY.p226?.type).toBe('secondary');
+  });
+
+  it('gear unlocks follow profile milestones', () => {
+    const p = defaultPlayerProfile();
+    expect(isGearUnlocked('nvg', p)).toBe(false);
+    p.totalWins = 1;
+    expect(isGearUnlocked('nvg', p)).toBe(true);
+    expect(isGearUnlocked('flare_pack', p)).toBe(false);
+    p.totalWins = 2;
+    expect(isGearUnlocked('flare_pack', p)).toBe(true);
   });
 
   it('clampLoadoutToUnlocks resets locked weapons for a fresh profile', () => {
