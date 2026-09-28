@@ -1,8 +1,8 @@
 # HUSHFIRE — Progress & Handoff
 
-Last updated: 2026-09-28 (enhancement roadmap: retention, online polish, Sector 1 scroll, survival/daily). Written as a handoff for another developer or AI assistant, e.g. Cursor. Read this first, then `CLAUDE.md`.
+Last updated: 2026-09-28 (post–enhancement roadmap + code-review fixes on PR #38). Written as a handoff for another developer or AI assistant, e.g. Cursor. Read this first, then `CLAUDE.md`.
 
-**Status in one line:** the full game is playable and deployed. Title → armory → 3 sectors → evac, **solo** (one operative) or **online co-op** (two operatives over PeerJS), on keyboard/mouse, gamepad or touch. **Phase 7 M1–M2 (lobby + host-authoritative gameplay sync) are wired.** Same-machine 2-player couch co-op was removed from the armory (legacy `coop` saves migrate to solo).
+**Status in one line:** the full game is playable and deployed. Title → **campaign**, **daily challenge**, or **survival** (or online co-op) → armory → up to 3 sectors → evac. **Solo** (one operative) or **online co-op** (PeerJS, `PROTO_VERSION` 3). Keyboard/mouse, gamepad, or touch. Retention: mission letter grades, armory weapon unlocks, personal bests. **Phase 7 M1–M2** (lobby + host-authoritative sync) are wired. Same-machine couch co-op was removed (legacy `coop` saves → solo).
 
 - Live site: https://steveruffin5076.github.io/Hushfire/
 - Repo: https://github.com/steveruffin5076/Hushfire (default branch `main`)
@@ -16,7 +16,7 @@ npm install        # after any pull that touched package.json
 npm run dev        # http://localhost:3000
 npm run typecheck  # tsc --noEmit (covers src/ and tests/)
 npm run lint       # ESLint + typescript-eslint; `any` is an error
-npm test           # Vitest, 306 tests in tests/
+npm test           # Vitest, 308 tests in 34 files under tests/
 npm run build      # tsc && vite build → dist/
 ```
 
@@ -43,25 +43,29 @@ src/
   config/
     constants.ts          Speeds, noise radii, thresholds, flashlight battery, sector-alert constants
     difficulty.ts         EASY/NORMAL/HARD table (HP, contact dmg, notice, evac hold, wave speed)
-    sectors.ts            3 sector definitions: wall boxes, doors, spawns, zombies+alts, pickups+alts, objective, exit/evac
+    runKind.ts            campaign | daily | survival
+    tutorial.ts           First-run acoustic HUD hints (localStorage gate)
+    sectors.ts            3 sector definitions: wall boxes, doors, spawns, zombies+alts, pickups+alts, objective, exit/evac (S1 scroll via worldMaxX)
     sectorLayout.ts       Per-run shuffle: picks one spot per zombie/pickup from its alts
     weapons.ts            Weapons + muzzle/rail/ammo modifiers
     zombies.ts            Zombie archetypes (lurker, audio_stalker, bio_carrier, armored_brute)
   core/
-    Game.ts               Orchestrator (~1100 lines): fixed 60 Hz update, render, pickups, objectives, sector advance, evac, end
+    Game.ts               Orchestrator (~1800 lines): fixed 60 Hz update, render, pickups, objectives, sector advance, evac, survival loop, net guest/host
+    seededRand.ts         mulberry32 for daily layout seed
     Input.ts              Keyboard/mouse for P1 and P2, merges gamepad + touch; poll()/endFrame()/resetEdges()
     Gamepad.ts            Pure gamepad mapping + pad assignment rules
     TouchControls.ts      On-screen twin-stick controls for P1 (drawn on canvas)
     Camera.ts             Follow/zoom/shake; worldToScreen/screenToWorld
     AssetLoader.ts        All sprite/bg/fx URLs (BASE_URL-safe)
-    SoundManager.ts       Web Audio synth, spatial panning, wall muffling
+    SoundManager.ts       Web Audio synth, spatial panning, wall muffling, ambient tension bed
+  graphics/animation/     Walk/downed sprite sheets: AnimationCatalog, CharacterAnimController, drawSheetFrame
   entities/               Entity, Player (ammo, battery, revive), Zombie, Projectile (bolts), Pickup
-  lighting/               Raycaster (cone polygons), Flashlight, ShadowRenderer (darkness mask)
+  lighting/               Raycaster (cone polygons), Flashlight (beam cache + wallsRevision), ShadowRenderer
   systems/
     AISystem.ts           Zombie senses (light, close-range notice) + movement/pathing
     NoiseSystem.ts        Sound events → SUSPICIOUS/ENRAGED, wall dampening
     CombatSystem.ts       Firing, hitscan, melee/backstab, armour, bolts, sector-alert callback
-    MapManager.ts         Walls, collision, pickups, doors, extraction zone, NavGrid, surge spawn validation
+    MapManager.ts         Walls, collision, pickups, doors, wallsRevision, extraction zone, NavGrid, surge spawn validation
     NavGrid.ts            A* grid pathfinding
     Geometry.ts           Segment math, angleBetween
     HordeSurge.ts         Evac wave pacing, isSectorAlertingShot, mix, raw edge spawn points
@@ -70,10 +74,12 @@ src/
     GameSnapshot.ts       input/snapshot wire types, inputToNet/netToInput
     roomCode.ts           generateRoomCode, peerIdForRoom, hash parsing
     SessionManager.ts     PeerJS transport: lobby + gameplay input/snapshot relay
-  ui/                     HUD, ArmoryMenu (+ online lobby), MainMenu (+ create/join), PauseMenu,
-                          SectorRewardMenu, ExtractionModal, LobbyPanel, QuitScreen,
-                          LoadoutStorage (localStorage), MenuGamepadNav, StealthRating, theme
-tests/                    24 Vitest files (see §6)
+  ui/                     HUD (+ tutorial hints), ArmoryMenu (+ online lobby, weapon unlock gates),
+                          MainMenu (campaign / daily / survival / settings / online), SettingsMenu,
+                          PauseMenu, SectorRewardMenu (host pick + guest wait/reveal), ExtractionModal,
+                          LobbyPanel, QuitScreen, LoadoutStorage, WeaponUnlocks, PlayerProfile,
+                          LetterGrade, RunRecords, dailyChallenge, GameSettings, MenuGamepadNav, StealthRating, theme
+tests/                    34 Vitest files (see §6)
 docs/                     Design specs + PHASE7_ONLINE_LOBBY_PLAN.md
 public/assets/            Processed game art (sprites, backgrounds, branding, items, fx)
 images/                   Raw art uploads from the owner (source material, not loaded by the game)
@@ -84,7 +90,7 @@ images/                   Raw art uploads from the owner (source material, not l
 ## 4. What's done
 
 ### Core loop
-- Title screen (key art) → armory (mode, difficulty, loadouts) → Sector 1 Transit → Sector 2 Bio-Lab → Sector 3 Helipad → end screen.
+- Title screen (key art) → **START GAME** (campaign), **DAILY CHALLENGE** (UTC-seeded layout), **SURVIVAL** (Sector 3 helipad loop), **SETTINGS**, or online create/join → armory (mode, difficulty, loadouts) → Sector 1 Transit → Sector 2 Bio-Lab → Sector 3 Helipad → end screen (survival: waves cleared on helipad).
 - **Sector objectives:**
   - S1: find the keycard, override the blast door.
   - S2: hold the lockdown terminal for 3.5 s.
@@ -125,7 +131,15 @@ images/                   Raw art uploads from the owner (source material, not l
 - **Layout shuffle:** every zombie and pickup has 2 alternative spots (`alts`), and one is picked per run. Types and counts never change, so sector HP stays 358 → 466 → 498.
 - **Evac horde waves:** every 10 s down to the difficulty minimum. Co-op waves are 2 zombies. Mix: lurker 40 / stalker 25 / bio 25 / brute 10%. Capped at 18 zombies. Spawns are validated so they never land inside Sector 3's off-roof blocker boxes (`MapManager.rollSurgeSpawn`).
 - **Warnings:** "HORDE INCOMING" banner 2 s before each evac wave and before sector-alert reinforcement waves.
-- **End screen:** difficulty, sector reached, time, kills, shots, silent kills, zombies alerted, stealth rating (GHOST 0 / SHADOW ≤3 / OPERATOR ≤8 / LOUD). **Personal bests** per difficulty persist in `localStorage` (`RunRecords.ts`): longest survival, most kills, fewest alerts on a win.
+- **End screen:** difficulty, sector reached, time, kills, shots, silent kills, zombies alerted, stealth rating (GHOST 0 / SHADOW ≤3 / OPERATOR ≤8 / LOUD). **Mission letter grade** S/A/B/C/D/F from time, alerts, and damage (`LetterGrade.ts`). **Personal bests** per difficulty in `localStorage` (`RunRecords.ts`). Profile tracks wins, best grade, kills — drives **armory weapon unlocks** (`WeaponUnlocks.ts`: crossbow, M4, shotgun, revolver).
+
+### Retention & settings
+- **Weapon unlocks:** MPX, Glock, knife always available; others gated with hints in the armory. Saved loadouts are **clamped** on load so locked weapons cannot deploy (`clampLoadoutToUnlocks` — PR #38).
+- **Daily challenge:** shared UTC date seed (`dailyChallenge.ts`); label on title + armory.
+- **Survival:** after Sector 3 evac, re-hold helipad for escalating waves (`runKind: 'survival'`).
+- **Settings** (`GameSettings.ts` / `SettingsMenu.ts`): master volume, pause when the tab loses focus.
+- **Tutorial:** one-time acoustic tips in the HUD (`config/tutorial.ts`).
+- **Sector 1 scroll:** `worldMaxX` 1940, camera bounds follow (`Camera.setWorldBounds`).
 
 ### Sector modifiers (per-run twist)
 - Rolled in the armory with **REROLL MODIFIER**; shown on the protocol panel, HUD, and end screen.
@@ -141,7 +155,7 @@ images/                   Raw art uploads from the owner (source material, not l
 - **PeerJS transport** (`peerjs@1.5.5`): room code maps to peer id `hushfire-HUSH-XXXXX`. STUN via Google + Metered STUN fallback. Optional TURN via `VITE_TURN_CREDENTIALS_URL` (see `.env.example`, `src/net/iceConfig.ts`). Outbound queue while the DataChannel opens.
 - **Armory online mode:** full-width equal-column layout, viewport scale-to-fit (no page/panel scroll), ← BACK TO MAIN MENU, room code + copy-link, connection status, ready pills, **RETRY CONNECTION** on error, debounced loadout broadcast (120 ms), host-gated deploy with shared seed. Fixed operative slots: host = Op 1, guest = Op 2 (locked).
 - **Connection fixes:** host no longer times out while waiting for a guest (guest-only 20 s timeout); `retryConnection()` reopens the same room for hosts.
-- **Gameplay sync (M2):** host runs the authoritative `Game`; guest sends input at 60 Hz and renders ~30 Hz snapshots. Slot remap: guest's local P1 = host's P2. Shared layout seed via `mulberry32(seed)` on deploy. Wire format: `src/net/GameSnapshot.ts`.
+- **Gameplay sync (M2):** host runs the authoritative `Game`; guest sends input at 60 Hz and renders ~30 Hz snapshots with pose blending. Slot remap: guest's local P1 = host's P2. Shared layout seed via `mulberry32(seed)` on deploy. Wire format: `src/net/GameSnapshot.ts` (`PROTO_VERSION` 3 includes sector-reward messages).
 - **Dependency:** `peerjs` in `package.json`.
 
 ### Controls
@@ -156,8 +170,9 @@ images/                   Raw art uploads from the owner (source material, not l
   - Upright phones get a "rotate to landscape" prompt.
 - The armory remembers mode, difficulty and both loadouts in `localStorage`. Saves from older builds are checked field by field.
 
-### Art
+### Art & animation
 - P1, P2 and all zombie archetypes, including the lurker aggro variant, use the owner's uploaded top-down art.
+- **Walk/downed cycles:** `public/assets/animations/<character>/` WebP sheets + JSON; runtime via `graphics/animation/` (`tests/animationAssets.test.ts`).
 - Each sector has a background image.
 - **Sector 3:** off-roof blocker walls stop anyone walking over the sky. Horde surge spawns use the same box set — raw map-edge rolls can land inside a blocker, so `rollSurgeSpawn` rejects them and `resolveCircleCollision` ejects any circle trapped in a box interior.
 - **Sector 2:** no door, because nothing in the art anchors one.
@@ -172,20 +187,20 @@ images/                   Raw art uploads from the owner (source material, not l
 - **Online co-op limits:**
   - **TURN not configured on GitHub Pages** — strict NAT / school Wi‑Fi / VPN often blocks STUN-only P2P. Sign up at [Metered Open Relay](https://www.metered.ca/tools/openrelay/), set `VITE_TURN_CREDENTIALS_URL` in CI secrets, rebuild.
   - Free `0.peerjs.com` PeerServer has no SLA — consider self-hosted `peerjs-server` for production.
-  - Guest has no client-side prediction or snapshot interpolation (may feel laggy on high-latency links).
-  - **Sector reward picker is host-only** — only the host sees `SectorRewardMenu` between sectors; choice is not synced to guest over the wire yet.
-  - **Two-browser playtest still needed** on localhost and GitHub Pages after connection/layout fixes.
-- **2026-09-25 playtest pass:** automated balance review (`tests/playtestBalance.test.ts`) confirms EASY/HARD contact DPS, evac pacing and sector HP scale as intended. Owner previously confirmed movement/firing on the live site and sector-alert horde behaviour.
+  - Guest movement is lightly blended between snapshots; there is no full input prediction (may feel laggy on high-latency links).
+  - **Sector reward:** host picks the drop; guest sees a wait screen then a reveal (`sector_reward_open` / `sector_reward_pick`, `PROTO_VERSION` 3). Still needs a full two-browser playtest off-LAN once TURN is configured.
+- **Stale open PRs:** #34 / #35 predate current `main` — safe to close without merge.
+- **2026-09-25 playtest pass:** automated balance review (`tests/playtestBalance.test.ts`) confirms EASY/HARD contact DPS, evac pacing and sector HP scale as intended.
 
-### Recently fixed (2026-09-25)
+### Recently fixed
 
-- **Restart leaks:** `InputManager.dispose()` removes all window listeners; `getSharedSoundManager()` shares one `AudioContext` across games.
-- **Co-op downed hang:** `BLEEDOUT_SEC` (25 s) escalates downed → eliminated (`tests/bleedout.test.ts`).
-- **Co-op audio:** `Game.audioListener()` midpoint for spatial SFX.
-- **Scream SFX:** `playZombieScream` on horde cascade (`tests/noise.test.ts`).
-- **Zombie separation:** soft push in `AISystem` (`tests/aiSeparation.test.ts`).
-- **Personal bests:** `RunRecords.ts` + end-screen banner (`tests/runRecords.test.ts`).
-- **PR CI:** `pull_request` trigger on deploy workflow; deploy only on push to `main`.
+**2026-09-25:** restart leaks (`InputManager.dispose`, shared `SoundManager`); online bleed-out (`BLEEDOUT_SEC`); co-op audio listener midpoint; scream SFX; zombie separation; personal bests (`RunRecords`); PR CI on `pull_request`.
+
+**2026-09-28 (PR #36):** stability port onto online `main` (above + progress handoff).
+
+**2026-09-28 (PR #37):** letter grades, weapon unlocks, daily/survival modes, settings, sector-reward net messages, Sector 1 tunnel, tutorial HUD, ambient bed, decal cap, flashlight beam cache, removed committed `*.tar.gz`.
+
+**2026-09-28 (PR #38 — open):** `clampLoadoutToUnlocks` + starter P2 default; flashlight cache keyed on `MapManager.wallsRevision`; guest reward UI cleared when sector-advance snapshot arrives early.
 
 ---
 
@@ -213,22 +228,26 @@ images/                   Raw art uploads from the owner (source material, not l
 - **Restart hygiene** (`tests/inputDispose.test.ts`): every `window` listener removed on `InputManager.dispose()`.
 - **Bleed-out** (`tests/bleedout.test.ts`): downed operative eliminated after `BLEEDOUT_SEC`.
 - **Personal bests** (`tests/runRecords.test.ts`): `localStorage` merge + category labels.
+- **Letter grades** (`tests/letterGrade.test.ts`), **weapon unlocks** (`tests/weaponUnlocks.test.ts`), **daily seed** (`tests/dailyChallenge.test.ts`), **tutorial gate** (`tests/tutorial.test.ts`).
+- **Loadout clamp** (`tests/loadoutStorage.test.ts`): locked weapons stripped when loading armory saves.
 - **Zombie separation** (`tests/aiSeparation.test.ts`): overlapping enraged zombies pushed apart.
+- **Animation pack** (`tests/animationAssets.test.ts`): walk/downed sheets present for all characters.
 - **Deterministic Playwright loop:** `Game.renderGameToText()` + `Game.advanceTime()` wired in `main.ts`. Example: `node scripts/dev-playtest.mjs http://localhost:3000/`.
 
 ---
 
 ## 7. What's next (recommended order)
 
-1. **Add `VITE_TURN_CREDENTIALS_URL` GitHub secret** — CI build now passes the env var through; owner must paste the Metered Open Relay URL and retest guest connect off-LAN.
-2. **Two-browser online playtest** — sector-reward sync is wired (`PROTO_VERSION` 3); verify host pick → guest reveal on a full run.
-3. **Human balance playtest** — especially Sector 1's eastern tunnel (`worldMaxX` 1940) and survival wave pacing.
-4. **Expand scrollable maps** — Sector 2/3 still viewport-sized; reuse `worldMaxX` + camera bounds pattern.
-5. **Self-hosted PeerServer** or paid TURN if strict NAT blocks remain common.
+1. **Merge PR #38** (code-review fixes) if not already on `main`.
+2. **Add `VITE_TURN_CREDENTIALS_URL` GitHub secret** — CI passes the env var through; owner pastes Metered Open Relay URL and redeploys.
+3. **Two-browser online playtest** — full run: lobby → both sectors → host reward pick → guest reveal → evac (off-LAN once TURN works).
+4. **Human balance playtest** — Sector 1 eastern tunnel (`worldMaxX` 1940) and survival wave pacing.
+5. **Expand scrollable maps** — Sector 2/3 still viewport-sized; reuse `worldMaxX` + `Camera.setWorldBounds`.
+6. **Close stale PRs #34 / #35** and optionally self-host PeerServer if `0.peerjs.com` is unreliable.
 
 ---
 
-## 9. Cursor task list (2026-09-25)
+## 8. Cursor task list (2026-09-25, updated 2026-09-28)
 
 | # | Task | Status |
 |---|------|--------|
@@ -251,16 +270,17 @@ images/                   Raw art uploads from the owner (source material, not l
 | 17 | Online two-browser playtest | ⏸ owner task |
 | 18 | Guest sector-reward sync | ✅ `sector_reward_open` / `sector_reward_pick` + guest wait/reveal UI |
 | 19 | Guest snapshot interpolation | ✅ blend poses in `Game.ts` (existing); guest local movement predict between snaps |
-| 20 | Walk-cycle art frames in `generate_assets.py` | ⏸ not started — extend the script with pose-parameterized SVG functions (e.g. 4-frame cycle: legs together / left-forward / legs together / right-forward) per player + zombie archetype, output as `<entity>_walk0..3.png` or one sprite sheet. Cursor can write the new pose functions; **running the script to regenerate `public/assets/sprites/*.png` is the owner's call**, per the "never run `generate_assets.py`" hard constraint. |
-| 21 | Frame-swap animation in renderer | ⏸ not started — once walk frames exist, update `AssetLoader.ts` to load the frame set per entity and the render code in `Game.ts` (currently draws one static sprite rotated with `ctx.rotate`) to pick a frame by distance traveled / elapsed time instead of a fixed image. Pure code, no art dependency once task 20 ships frames. |
-| 22 | Restart leaks + bleed-out + personal bests + PR CI | ✅ ported from `cursor/recommended-next-steps-e159` onto current `main` |
-| 23 | Enhancement roadmap (retention + polish) | ✅ letter grades, weapon unlocks, daily/survival modes, settings, ambient bed, tutorial hints, Sector 1 scroll, decal cap, beam cache, repo tar cleanup |
+| 20 | Walk-cycle art (animation pack) | ✅ WebP walk/downed sheets under `public/assets/animations/` |
+| 21 | Frame-swap animation in renderer | ✅ `CharacterAnimController` + sheet draw path in `Game.ts` |
+| 22 | Restart leaks + bleed-out + personal bests + PR CI | ✅ PR #36 |
+| 23 | Enhancement roadmap (retention + polish) | ✅ PR #37 on `main` |
+| 24 | Post-roadmap code review | ⏸ PR #38 — loadout unlock clamp, `wallsRevision` beam cache, guest reward snapshot resync |
 
 ---
 
-## 8. History
+## 9. History
 
-All work landed through PRs #1–#33 on `main`: deploy pipeline, art pipeline, asset-path fix, title screen, sprite and background replacements, wall alignment, lighting, flashlight battery, `.gitignore`, test suite, lint, loadout saving, gamepad, touch, gamepad menus, design-review bug fixes and tuning, layout shuffle, difficulty levels, Sector 3 roof edge, bolts/radio/door cleanup, progress handoff rewrite (PR #32), horde surge spawn-in-wall fix (PR #33). See `git log --merges` for details.
+All work landed through PRs #1–#37 on `main` (plus #38 pending): deploy pipeline, art pipeline, asset-path fix, title screen, sprites/backgrounds, wall alignment, lighting, battery, test suite, lint, loadout saving, gamepad/touch, online lobby + M2 sync, sector modifiers, horde fixes, progress handoff (#32–#33), stability (#36), enhancement roadmap (#37). See `git log --merges` for details.
 
 **2026-09-25 sessions:**
 - Sector-alert horde frenzy — loud gunfire (>150 px) wakes every zombie and calls edge reinforcements. Owner playtested and confirmed.
@@ -273,3 +293,5 @@ All work landed through PRs #1–#33 on `main`: deploy pipeline, art pipeline, a
 **2026-09-28:** Restart leak fixes (`InputManager.dispose`, shared `SoundManager`), online downed bleed-out (`BLEEDOUT_SEC`), spatial audio listener midpoint, scream SFX + zombie separation, `RunRecords` personal bests, `pull_request` CI — merged onto the online `main` tree (PR #36).
 
 **2026-09-28 (enhancement roadmap):** Mission letter grades + armory weapon unlocks (`PlayerProfile`), daily seeded runs, helipad survival loop, settings menu (volume / pause-on-blur), sector-reward net sync, Sector 1 `worldMaxX` tunnel, acoustic tutorial HUD, ambient tension bed, flashlight beam cache + decal cap, removed committed `*.tar.gz` bundles.
+
+**2026-09-28 (code review, PR #38):** `clampLoadoutToUnlocks` on armory load + starter P2 default (no locked shotgun/revolver); flashlight cache keyed on `MapManager.wallsRevision` (blast doors); guest sector-advance snapshot clears stuck reward wait UI. **308 tests** after new unlock/loadout tests.

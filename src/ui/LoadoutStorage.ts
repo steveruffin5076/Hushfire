@@ -1,6 +1,7 @@
 import { WEAPON_REGISTRY, MUZZLE_MODIFIERS, RAIL_MODIFIERS, AMMO_MODIFIERS } from '../config/weapons';
 import { WeaponLoadout } from '../entities/Player';
 import { Difficulty, DIFFICULTIES } from '../config/difficulty';
+import { clampLoadoutToUnlocks } from './WeaponUnlocks';
 
 export type GameMode = 'solo' | 'online';
 
@@ -22,12 +23,12 @@ export const DEFAULT_LOADOUTS: [WeaponLoadout, WeaponLoadout] = [
     secondaryAmmoType: 'standard'
   },
   {
-    primaryWeapon: 'shotgun',
-    secondaryWeapon: 'revolver',
-    primaryMuzzle: 'muzzle_brake',
-    secondaryMuzzle: 'muzzle_brake',
+    primaryWeapon: 'mpx',
+    secondaryWeapon: 'knife',
+    primaryMuzzle: 'compensator',
+    secondaryMuzzle: 'none',
     primaryRail: 'flood_light',
-    secondaryRail: 'flood_light',
+    secondaryRail: 'spotlight',
     primaryAmmoType: 'standard',
     secondaryAmmoType: 'standard'
   }
@@ -87,7 +88,10 @@ export function loadArmoryState(storage: KeyValueStorage | null = defaultStorage
     // Legacy saves used 'coop' for same-screen local play (removed) or online.
     mode: parsed.mode === 'online' ? 'online' : 'solo',
     difficulty: pick(parsed.difficulty, DIFFICULTIES, 'normal'),
-    loadouts: [sanitizeLoadout(loadouts[0], DEFAULT_LOADOUTS[0]), sanitizeLoadout(loadouts[1], DEFAULT_LOADOUTS[1])]
+    loadouts: [
+      clampLoadoutToUnlocks(sanitizeLoadout(loadouts[0], DEFAULT_LOADOUTS[0])),
+      clampLoadoutToUnlocks(sanitizeLoadout(loadouts[1], DEFAULT_LOADOUTS[1]))
+    ]
   };
 }
 
