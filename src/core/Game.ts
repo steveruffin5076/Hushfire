@@ -1502,25 +1502,28 @@ export class Game {
 
   private renderFloor(ctx: CanvasRenderingContext2D) {
     const worldW = Math.max(CANVAS_WIDTH, this.map.worldMaxX());
+    const worldH = CANVAS_HEIGHT;
     const bgKey = this.map.sector.backgroundKey;
-    if (bgKey) this.assets.drawStretched(ctx, bgKey, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    const drewBg = !!(bgKey && this.assets.drawStretched(ctx, bgKey, 0, 0, worldW, worldH));
 
-    ctx.fillStyle = '#2A2F3A';
-    ctx.fillRect(0, 0, worldW, CANVAS_HEIGHT);
+    if (!drewBg) {
+      ctx.fillStyle = '#2A2F3A';
+      ctx.fillRect(0, 0, worldW, worldH);
 
-    ctx.strokeStyle = '#363C49';
-    ctx.lineWidth = 1;
-    for (let x = 0; x < worldW; x += 40) {
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, CANVAS_HEIGHT);
-      ctx.stroke();
-    }
-    for (let y = 0; y < CANVAS_HEIGHT; y += 40) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(worldW, y);
-      ctx.stroke();
+      ctx.strokeStyle = '#363C49';
+      ctx.lineWidth = 1;
+      for (let x = 0; x < worldW; x += 40) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, worldH);
+        ctx.stroke();
+      }
+      for (let y = 0; y < worldH; y += 40) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(worldW, y);
+        ctx.stroke();
+      }
     }
   }
 
