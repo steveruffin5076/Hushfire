@@ -252,9 +252,11 @@ images/                   Raw art uploads from the owner (source material, not l
 
 ---
 
-## 10. Planned content (design backlog — not implemented)
+## 10. Content expansion (weapons + operative gear)
 
-Owner-approved direction to implement later. Extend the same patterns as today: `WEAPON_REGISTRY` + `WeaponUnlocks.ts` + armory UI; new gear is **not** a muzzle/rail/ammo attachment.
+**Armory (implemented):** extra primaries/secondaries in `WEAPON_REGISTRY` with unlocks in `WeaponUnlocks.ts`; operative gear in `config/operativeGear.ts` + **OPERATIVE GEAR** dropdown in `ArmoryMenu`. Gear is **not** a muzzle/rail/ammo attachment.
+
+**In-mission gear gameplay (not yet):** NVG toggle and throwable flares are selected in the armory and stored on `Player.operativeGear` but do not change lighting/noise yet — follow-up `GearSystem` task.
 
 ### 10.1 Weapon roster expansion (unlock ladder)
 
@@ -320,8 +322,9 @@ New **gear** slot per operative in armory (alongside primary/secondary), hotkey 
 | 24 | Post-roadmap code review | ✅ PR #38 — loadout unlock clamp, `wallsRevision` beam cache, guest reward snapshot resync |
 | 25 | PR #39 run-breaking fixes | ✅ keycard vs scavenger, survival holdout, daily modifier seed |
 | 26 | Sector background visible in play | ✅ `renderFloor` no longer paints over JPEG |
-| 27 | Extra SMG / rifle / pistol tiers | ⏸ design in §10.1 — ids/stats/unlocks not in repo yet |
-| 28 | Operative gear (NVG, flare) | ⏸ design in §10.2 — not in repo yet |
+| 27 | Extra SMG / rifle / pistol tiers | ✅ armory + `WEAPON_REGISTRY` + unlocks |
+| 28 | Operative gear (NVG, flare) | ⏸ armory + loadout wired; in-mission behaviour TBD |
+| 29 | NVG + flare gameplay | ⏸ `GearSystem`, lighting, noise, HUD charges |
 
 ---
 
