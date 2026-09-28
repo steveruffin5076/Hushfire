@@ -1,6 +1,6 @@
 # HUSHFIRE — Progress & Handoff
 
-Last updated: 2026-09-28 (`main` at PR #38 merge; stale PRs #34/#35 closed). Written as a handoff for another developer or AI assistant, e.g. Cursor. Read this first, then `CLAUDE.md`.
+Last updated: 2026-09-28 (`main`: PR #39 gameplay fixes, sector background render fix). Written as a handoff for another developer or AI assistant, e.g. Cursor. Read this first, then `CLAUDE.md`.
 
 **Status in one line:** the full game is playable and deployed. Title → **campaign**, **daily challenge**, or **survival** (or online co-op) → armory → up to 3 sectors → evac. **Solo** (one operative) or **online co-op** (PeerJS, `PROTO_VERSION` 3). Keyboard/mouse, gamepad, or touch. Retention: mission letter grades, armory weapon unlocks, personal bests. **Phase 7 M1–M2** (lobby + host-authoritative sync) are wired. Same-machine couch co-op was removed (legacy `coop` saves → solo).
 
@@ -16,7 +16,7 @@ npm install        # after any pull that touched package.json
 npm run dev        # http://localhost:3000
 npm run typecheck  # tsc --noEmit (covers src/ and tests/)
 npm run lint       # ESLint + typescript-eslint; `any` is an error
-npm test           # Vitest, 308 tests in 34 files under tests/
+npm test           # Vitest, 317 tests in 34 files under tests/
 npm run build      # tsc && vite build → dist/
 ```
 
@@ -173,7 +173,9 @@ images/                   Raw art uploads from the owner (source material, not l
 ### Art & animation
 - P1, P2 and all zombie archetypes, including the lurker aggro variant, use the owner's uploaded top-down art.
 - **Walk/downed cycles:** `public/assets/animations/<character>/` WebP sheets + JSON; runtime via `graphics/animation/` (`tests/animationAssets.test.ts`).
-- Each sector has a background image.
+- **In-mission sector backgrounds:** `public/assets/backgrounds/sector1_bg.jpg`, `sector2_bg.jpg`, `sector3_bg.jpg` (1280×720 JPEGs, keyed in `sectors.ts` → `AssetLoader`). `Game.renderFloor()` stretches the active sector art across the play width (`worldMaxX` on Sector 1). If the image fails to load, the gray grid placeholder is used instead.
+- **Title screen:** `public/assets/branding/hushfire_menu_bg.jpg`.
+- **Armory UI:** no background image today — dark overlay only (`ArmoryMenu`); optional follow-up: reuse menu art or add `armory_bg.jpg`.
 - **Sector 3:** off-roof blocker walls stop anyone walking over the sky. Horde surge spawns use the same box set — raw map-edge rolls can land inside a blocker, so `rollSurgeSpawn` rejects them and `resolveCircleCollision` ejects any circle trapped in a box interior.
 - **Sector 2:** no door, because nothing in the art anchors one.
 
@@ -200,6 +202,10 @@ images/                   Raw art uploads from the owner (source material, not l
 **2026-09-28 (PR #37):** letter grades, weapon unlocks, daily/survival modes, settings, sector-reward net messages, Sector 1 tunnel, tutorial HUD, ambient bed, decal cap, flashlight beam cache, removed committed `*.tar.gz`.
 
 **2026-09-28 (PR #38, merged):** `clampLoadoutToUnlocks` + starter P2 default; flashlight cache keyed on `MapManager.wallsRevision`; guest reward UI cleared when sector-advance snapshot arrives early.
+
+**2026-09-28 (PR #39, merged):** Scavenger modifier no longer strips the Sector 1 keycard; survival evac holdout respects difficulty after Sector 3 load; daily run modifier derived from UTC seed (reroll hidden).
+
+**2026-09-28:** Sector JPEGs were on disk but invisible in play — `renderFloor()` drew art then painted an opaque gray fill on top; fixed so art shows under the darkness mask (fallback grid only when load fails).
 
 ---
 
@@ -239,9 +245,48 @@ images/                   Raw art uploads from the owner (source material, not l
 
 1. **Add `VITE_TURN_CREDENTIALS_URL` GitHub secret** — CI passes the env var through; owner pastes Metered Open Relay URL and redeploys.
 2. **Two-browser online playtest** — full run: lobby → both sectors → host reward pick → guest reveal → evac (off-LAN once TURN works).
-3. **Human balance playtest** — Sector 1 eastern tunnel (`worldMaxX` 1940) and survival wave pacing.
+3. **Human balance playtest** — Sector 1 eastern tunnel (`worldMaxX` 1940) and survival wave pacing; confirm sector backgrounds read correctly under flashlights after the `renderFloor` fix.
 4. **Expand scrollable maps** — Sector 2/3 still viewport-sized; reuse `worldMaxX` + `Camera.setWorldBounds`.
-5. **Optional:** self-host PeerServer if `0.peerjs.com` is unreliable.
+5. **Content backlog (§10)** — extra SMG / rifle / pistol tiers + operative gear (NVG, flare); not started in code.
+6. **Optional:** armory background art; self-host PeerServer if `0.peerjs.com` is unreliable.
+
+---
+
+## 10. Planned content (design backlog — not implemented)
+
+Owner-approved direction to implement later. Extend the same patterns as today: `WEAPON_REGISTRY` + `WeaponUnlocks.ts` + armory UI; new gear is **not** a muzzle/rail/ammo attachment.
+
+### 10.1 Weapon roster expansion (unlock ladder)
+
+Current guns stay; add tiers using **`PlayerProfile`** rules (wins, grade, kills) like existing unlocks — not a separate XP level unless we add `careerLevel` later.
+
+| Tier | Slot | Suggested id | Display name | Example unlock |
+|------|------|--------------|--------------|----------------|
+| 0 | SMG | `mpx` | MPX-S Tactical | Always (starter) |
+| 1 | SMG | `mp5sd` | MP5SD | 1 win |
+| 2 | SMG | `vector` | Vector .45 | Win + grade C or better |
+| 3 | SMG | `p90` | P90 | 25+ kills in one run |
+| 0 | Rifle | `crossbow` | Viper Tac-Crossbow | 1 win (existing) |
+| 1 | Rifle | `m4a1` | M4A1 CQB | Win + grade B+ (existing) |
+| 2 | Rifle | `ak12` | AK-12 | 2 wins |
+| 3 | Rifle | `dmr` | DMR / marksman | Grade A+ on a win |
+| 0 | Pistol | `glock17` | Glock 17 | Always (starter) |
+| 1 | Pistol | `p226` | P226 (suppressed) | 5+ kills in one run |
+| 2 | Pistol | `deagle` | Desert Eagle | 10+ kills in one run |
+| 3 | Pistol | `revolver` | Colt Python .357 | Grade A+ (existing) |
+
+**Implementation notes:** add defs in `config/weapons.ts` (sound radius, mag, stealth tier vs 150 px sector-alert); sprites in `public/assets/weapons/`; register in `UNLOCK_RULES` / `UNLOCK_HINT`; `clampLoadoutToUnlocks` already resets locked ids. Balance: at most one suppressed gun per tier should stay “stealth ready” (≤150 px).
+
+### 10.2 Operative gear (separate from weapon attachments)
+
+New **gear** slot per operative in armory (alongside primary/secondary), hotkey in mission — distinct from muzzle / rail / ammo.
+
+| Gear | Purpose | Suggested behaviour |
+|------|---------|---------------------|
+| **Night vision (NVG)** | See without a wide flashlight cone | Toggle; green-tinted view, reduced reliance on rail lights (tradeoff: worse long-range ID or separate gear battery). Unlock example: first win. |
+| **Flare pack** | Area light + noise | Limited charges per sector/run; thrown projectile; bright pool ~8–12 s; large `NoiseSystem` event. Unlock example: clear Sector 2 once or survival wave 3. |
+
+**Implementation sketch:** `operativeGear: 'none' \| 'nvg' \| 'flare_pack'` on loadout or `Player`; `GearSystem` for flare projectile; lighting pass hook for NVG; unlocks mirror `WeaponUnlocks`. Online: host-authoritative flare + gear state in snapshots when built.
 
 ---
 
@@ -273,12 +318,16 @@ images/                   Raw art uploads from the owner (source material, not l
 | 22 | Restart leaks + bleed-out + personal bests + PR CI | ✅ PR #36 |
 | 23 | Enhancement roadmap (retention + polish) | ✅ PR #37 on `main` |
 | 24 | Post-roadmap code review | ✅ PR #38 — loadout unlock clamp, `wallsRevision` beam cache, guest reward snapshot resync |
+| 25 | PR #39 run-breaking fixes | ✅ keycard vs scavenger, survival holdout, daily modifier seed |
+| 26 | Sector background visible in play | ✅ `renderFloor` no longer paints over JPEG |
+| 27 | Extra SMG / rifle / pistol tiers | ⏸ design in §10.1 — ids/stats/unlocks not in repo yet |
+| 28 | Operative gear (NVG, flare) | ⏸ design in §10.2 — not in repo yet |
 
 ---
 
 ## 9. History
 
-All work landed through PRs #1–#38 on `main`: deploy pipeline, art pipeline, asset-path fix, title screen, sprites/backgrounds, wall alignment, lighting, battery, test suite, lint, loadout saving, gamepad/touch, online lobby + M2 sync, sector modifiers, horde fixes, progress handoff (#32–#33), stability (#36), enhancement roadmap (#37), code-review fixes (#38). Stale branches #34/#35 closed without merge. See `git log --merges` for details.
+All work landed through PRs #1–#39 on `main` (+ follow-up commits): deploy pipeline, art pipeline, asset-path fix, title screen, sprites/backgrounds, wall alignment, lighting, battery, test suite, lint, loadout saving, gamepad/touch, online lobby + M2 sync, sector modifiers, horde fixes, progress handoff (#32–#33), stability (#36), enhancement roadmap (#37), code-review fixes (#38), gameplay soft-lock fixes (#39), sector `renderFloor` background fix. Stale branches #34/#35 closed without merge. See `git log --merges` for details.
 
 **2026-09-25 sessions:**
 - Sector-alert horde frenzy — loud gunfire (>150 px) wakes every zombie and calls edge reinforcements. Owner playtested and confirmed.
@@ -292,4 +341,6 @@ All work landed through PRs #1–#38 on `main`: deploy pipeline, art pipeline, a
 
 **2026-09-28 (enhancement roadmap):** Mission letter grades + armory weapon unlocks (`PlayerProfile`), daily seeded runs, helipad survival loop, settings menu (volume / pause-on-blur), sector-reward net sync, Sector 1 `worldMaxX` tunnel, acoustic tutorial HUD, ambient tension bed, flashlight beam cache + decal cap, removed committed `*.tar.gz` bundles.
 
-**2026-09-28 (code review, PR #38):** `clampLoadoutToUnlocks` on armory load + starter P2 default (no locked shotgun/revolver); flashlight cache keyed on `MapManager.wallsRevision` (blast doors); guest sector-advance snapshot clears stuck reward wait UI. **308 tests** after new unlock/loadout tests.
+**2026-09-28 (code review, PR #38):** `clampLoadoutToUnlocks` on armory load + starter P2 default (no locked shotgun/revolver); flashlight cache keyed on `MapManager.wallsRevision` (blast doors); guest sector-advance snapshot clears stuck reward wait UI.
+
+**2026-09-28 (PR #39 + render fix):** Modifier/keycard/holdout/daily determinism; sector background art visible again in `renderFloor`. **317 tests**.
