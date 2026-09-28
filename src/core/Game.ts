@@ -1470,7 +1470,8 @@ export class Game {
 
     this.renderLighting(ctx);
     this.renderNvgScreenTint(ctx);
-    this.hud.renderScreenSpace(ctx, this.p1, this.p2, this.map, this.runModifier, this.tutorialBanner);
+    const localKeyboardCoop = this.netRole === 'local' && !this.solo;
+    this.hud.renderScreenSpace(ctx, this.p1, this.p2, this.map, this.runModifier, this.tutorialBanner, localKeyboardCoop);
     this.renderBlasts(ctx);
     this.renderSurgeWarning(ctx);
     this.renderDamageFlash(ctx);
