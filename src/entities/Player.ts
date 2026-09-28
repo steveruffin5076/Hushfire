@@ -1,5 +1,6 @@
 import { Entity } from './Entity';
 import { MuzzleType, RailType, AmmoType, WeaponDef, WEAPON_REGISTRY } from '../config/weapons';
+import { OperativeGearId } from '../config/operativeGear';
 import { PlayerInputState } from '../core/Input';
 import { MapManager } from '../systems/MapManager';
 import {
@@ -29,6 +30,8 @@ export interface WeaponLoadout {
   secondaryRail: RailType;
   primaryAmmoType: AmmoType;
   secondaryAmmoType: AmmoType;
+  /** Optional in saved JSON — defaults to `none` in Player and armory sanitize. */
+  operativeGear?: OperativeGearId;
 }
 
 const PLAYER_RADIUS = 16;
@@ -46,6 +49,7 @@ export class Player extends Entity {
   private footstepTimer = 0;
 
   public loadout: WeaponLoadout;
+  public operativeGear: OperativeGearId;
   public activeSlot: 'primary' | 'secondary' = 'primary';
   private ammoBySlot: { primary: { mag: number; reserve: number }; secondary: { mag: number; reserve: number } };
   public isReloading = false;
@@ -72,6 +76,7 @@ export class Player extends Entity {
     super(x, y, PLAYER_RADIUS, maxHealth);
     this.playerNumber = playerNumber;
     this.loadout = loadout;
+    this.operativeGear = loadout.operativeGear ?? 'none';
     const primary = WEAPON_REGISTRY[loadout.primaryWeapon];
     const secondary = WEAPON_REGISTRY[loadout.secondaryWeapon];
     this.ammoBySlot = {

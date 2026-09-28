@@ -109,8 +109,104 @@ export const WEAPON_REGISTRY: Record<string, WeaponDef> = {
     baseSoundRadiusPx: 400,
     muzzleFlashRadiusPx: 72,
     reserveAmmo: 51
+  },
+  mp5sd: {
+    id: 'mp5sd',
+    name: 'MP5SD Integral',
+    type: 'primary',
+    baseDamage: 20,
+    fireRateRPM: 750,
+    magSize: 30,
+    reloadTimeSec: 1.9,
+    baseSoundRadiusPx: 280,
+    muzzleFlashRadiusPx: 40
+  },
+  vector: {
+    id: 'vector',
+    name: 'Vector .45 ACP',
+    type: 'primary',
+    baseDamage: 24,
+    fireRateRPM: 900,
+    magSize: 25,
+    reloadTimeSec: 2.0,
+    baseSoundRadiusPx: 420,
+    muzzleFlashRadiusPx: 85
+  },
+  p90: {
+    id: 'p90',
+    name: 'P90 PDW',
+    type: 'primary',
+    baseDamage: 19,
+    fireRateRPM: 850,
+    magSize: 50,
+    reloadTimeSec: 2.1,
+    baseSoundRadiusPx: 390,
+    muzzleFlashRadiusPx: 75
+  },
+  ak12: {
+    id: 'ak12',
+    name: 'AK-12 Assault',
+    type: 'primary',
+    baseDamage: 40,
+    fireRateRPM: 600,
+    magSize: 30,
+    reloadTimeSec: 2.3,
+    baseSoundRadiusPx: 670,
+    muzzleFlashRadiusPx: 155,
+    reserveAmmo: 90
+  },
+  dmr: {
+    id: 'dmr',
+    name: 'DMR Marksman',
+    type: 'primary',
+    baseDamage: 72,
+    fireRateRPM: 120,
+    magSize: 10,
+    reloadTimeSec: 2.6,
+    baseSoundRadiusPx: 720,
+    muzzleFlashRadiusPx: 170,
+    reserveAmmo: 40
+  },
+  p226: {
+    id: 'p226',
+    name: 'P226 Suppressed',
+    type: 'secondary',
+    baseDamage: 28,
+    fireRateRPM: 360,
+    magSize: 15,
+    reloadTimeSec: 1.6,
+    baseSoundRadiusPx: 320,
+    muzzleFlashRadiusPx: 55,
+    reserveAmmo: 45
+  },
+  deagle: {
+    id: 'deagle',
+    name: 'Desert Eagle .50',
+    type: 'secondary',
+    baseDamage: 72,
+    fireRateRPM: 180,
+    magSize: 7,
+    reloadTimeSec: 2.4,
+    baseSoundRadiusPx: 780,
+    muzzleFlashRadiusPx: 200,
+    reserveAmmo: 28
   }
 };
+
+/** Armory dropdown order (tier progression within each slot). */
+export const PRIMARY_WEAPON_ARMORY_ORDER: string[] = [
+  'mpx',
+  'mp5sd',
+  'vector',
+  'p90',
+  'crossbow',
+  'm4a1',
+  'ak12',
+  'dmr',
+  'shotgun'
+];
+
+export const SECONDARY_WEAPON_ARMORY_ORDER: string[] = ['glock17', 'p226', 'deagle', 'revolver', 'knife'];
 
 // recoilMult scales hitscan spread in CombatSystem (lower = tighter grouping).
 export const MUZZLE_MODIFIERS: Record<MuzzleType, { soundMult: number; flashMult: number; recoilMult: number; dmgMult: number }> = {

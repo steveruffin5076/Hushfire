@@ -1,4 +1,15 @@
-import { WEAPON_REGISTRY, MUZZLE_MODIFIERS, RAIL_MODIFIERS, AMMO_MODIFIERS, MuzzleType, RailType, AmmoType } from '../config/weapons';
+import {
+  WEAPON_REGISTRY,
+  MUZZLE_MODIFIERS,
+  RAIL_MODIFIERS,
+  AMMO_MODIFIERS,
+  MuzzleType,
+  RailType,
+  AmmoType,
+  PRIMARY_WEAPON_ARMORY_ORDER,
+  SECONDARY_WEAPON_ARMORY_ORDER
+} from '../config/weapons';
+import { OPERATIVE_GEAR_ORDER, OPERATIVE_GEAR_REGISTRY, OperativeGearId } from '../config/operativeGear';
 import { WeaponLoadout } from '../entities/Player';
 import { CYAN, ORANGE, TEXT, MUTED, GREEN, RED, PANEL_BG, PANEL_BORDER, FIELD_BG } from './theme';
 import { showQuitScreen } from './QuitScreen';
@@ -8,7 +19,7 @@ import { SECTOR_ALERT_SOUND_RADIUS_PX } from '../config/constants';
 import { pickSectorModifier, getSectorModifier, SectorModifierId } from '../config/sectorModifiers';
 import { SessionManager } from '../net/SessionManager';
 import { LobbyPanel } from './LobbyPanel';
-import { isWeaponUnlocked, weaponUnlockHint } from './WeaponUnlocks';
+import { gearUnlockHint, isGearUnlocked, isWeaponUnlocked, weaponUnlockHint } from './WeaponUnlocks';
 
 export type { GameMode };
 
@@ -329,14 +340,25 @@ export class ArmoryMenu {
       return row;
     };
 
-    const weaponOptions = (type: 'primary' | 'secondary'): [string, string][] =>
-      Object.values(WEAPON_REGISTRY)
-        .filter(w => w.type === type)
-        .map(w => {
-          const locked = !isWeaponUnlocked(w.id);
-          const tag = locked ? ` 🔒 (${weaponUnlockHint(w.id)})` : '';
-          return [w.id, w.name + tag] as [string, string];
+    const weaponOptions = (type: 'primary' | 'secondary'): [string, string][] => {
+      const order = type === 'primary' ? PRIMARY_WEAPON_ARMORY_ORDER : SECONDARY_WEAPON_ARMORY_ORDER;
+      return order
+        .filter(id => WEAPON_REGISTRY[id]?.type === type)
+        .map(id => {
+          const w = WEAPON_REGISTRY[id];
+          const locked = !isWeaponUnlocked(id);
+          const tag = locked ? ` 🔒 (${weaponUnlockHint(id)})` : '';
+          return [id, w.name + tag] as [string, string];
         });
+    };
+
+    const gearOptions = (): [string, string][] =>
+      OPERATIVE_GEAR_ORDER.map(id => {
+        const g = OPERATIVE_GEAR_REGISTRY[id];
+        const locked = !isGearUnlocked(id);
+        const tag = locked && id !== 'none' ? ` 🔒 (${gearUnlockHint(id)})` : '';
+        return [id, g.name + tag] as [string, string];
+      });
 
     const renderLoadout = () => {
       if (mode === 'online') editingOperative = mySlot;
@@ -433,6 +455,24 @@ export class ArmoryMenu {
           }
         )
       );
+
+      const gearRow = document.createElement('div');
+      gearRow.style.cssText = 'margin-bottom: 12px;';
+      gearRow.appendChild(
+        this.buildSelect(
+          'OPERATIVE GEAR:',
+          gearOptions(),
+          loadout.operativeGear ?? 'none',
+          v => {
+            if (!isGearUnlocked(v as OperativeGearId)) return;
+            loadout.operativeGear = v as OperativeGearId;
+            renderLoadout();
+          },
+          true,
+          id => isGearUnlocked(id as OperativeGearId)
+        )
+      );
+      loadoutBody.appendChild(gearRow);
 
       loadoutBody.appendChild(this.buildStatsPanel(loadout));
       broadcastLoadout();
@@ -594,7 +634,14 @@ export class ArmoryMenu {
     return btn;
   }
 
-  private buildSelect(label: string, options: [string, string][], current: string, onChange: (value: string) => void, fullWidth = false): HTMLDivElement {
+  private buildSelect(
+    label: string,
+    options: [string, string][],
+    current: string,
+    onChange: (value: string) => void,
+    fullWidth = false,
+    isUnlocked: (value: string) => boolean = value => isWeaponUnlocked(value)
+  ): HTMLDivElement {
     const wrap = document.createElement('div');
     wrap.style.cssText = fullWidth ? 'margin-bottom: 16px;' : 'flex: 1; min-width: 0;';
 
@@ -617,7 +664,7 @@ export class ArmoryMenu {
       opt.value = value;
       opt.textContent = text;
       if (value === current) opt.selected = true;
-      if (!isWeaponUnlocked(value) && WEAPON_REGISTRY[value]) opt.disabled = true;
+      if (!isUnlocked(value)) opt.disabled = true;
       select.appendChild(opt);
     }
     select.onchange = () => onChange(select.value);
@@ -663,11 +710,15 @@ export class ArmoryMenu {
       );
     };
 
+    const gear = OPERATIVE_GEAR_REGISTRY[loadout.operativeGear ?? 'none'];
     box.innerHTML =
       heading('PRIMARY') +
       stats(loadout.primaryWeapon, loadout.primaryMuzzle, loadout.primaryAmmoType) +
       heading('SECONDARY') +
-      stats(loadout.secondaryWeapon, loadout.secondaryMuzzle, loadout.secondaryAmmoType);
+      stats(loadout.secondaryWeapon, loadout.secondaryMuzzle, loadout.secondaryAmmoType) +
+      heading('GEAR') +
+      row('EQUIPPED', gear.name, CYAN) +
+      row('ROLE', gear.description, MUTED);
 
     return box;
   }

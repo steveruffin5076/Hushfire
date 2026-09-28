@@ -1,6 +1,7 @@
 import { WEAPON_REGISTRY, MUZZLE_MODIFIERS, RAIL_MODIFIERS, AMMO_MODIFIERS } from '../config/weapons';
 import { WeaponLoadout } from '../entities/Player';
 import { Difficulty, DIFFICULTIES } from '../config/difficulty';
+import { OperativeGearId, OPERATIVE_GEAR_REGISTRY } from '../config/operativeGear';
 import { clampLoadoutToUnlocks } from './WeaponUnlocks';
 
 export type GameMode = 'solo' | 'online';
@@ -20,7 +21,8 @@ export const DEFAULT_LOADOUTS: [WeaponLoadout, WeaponLoadout] = [
     primaryRail: 'spotlight',
     secondaryRail: 'spotlight',
     primaryAmmoType: 'standard',
-    secondaryAmmoType: 'standard'
+    secondaryAmmoType: 'standard',
+    operativeGear: 'none'
   },
   {
     primaryWeapon: 'mpx',
@@ -30,7 +32,8 @@ export const DEFAULT_LOADOUTS: [WeaponLoadout, WeaponLoadout] = [
     primaryRail: 'flood_light',
     secondaryRail: 'spotlight',
     primaryAmmoType: 'standard',
-    secondaryAmmoType: 'standard'
+    secondaryAmmoType: 'standard',
+    operativeGear: 'none'
   }
 ];
 
@@ -69,7 +72,8 @@ const sanitizeLoadout = (raw: unknown, fallback: WeaponLoadout): WeaponLoadout =
     primaryRail: pick(r.primaryRail, RAIL_MODIFIERS, fallback.primaryRail),
     secondaryRail: pick(r.secondaryRail, RAIL_MODIFIERS, fallback.secondaryRail),
     primaryAmmoType: pick(r.primaryAmmoType, AMMO_MODIFIERS, fallback.primaryAmmoType),
-    secondaryAmmoType: pick(r.secondaryAmmoType, AMMO_MODIFIERS, fallback.secondaryAmmoType)
+    secondaryAmmoType: pick(r.secondaryAmmoType, AMMO_MODIFIERS, fallback.secondaryAmmoType),
+    operativeGear: pick(r.operativeGear, OPERATIVE_GEAR_REGISTRY, fallback.operativeGear ?? 'none') as OperativeGearId
   };
 };
 
