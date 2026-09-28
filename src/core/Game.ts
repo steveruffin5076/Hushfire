@@ -272,7 +272,6 @@ export class Game {
     this.layoutRand = layoutRand;
     this.difficultyDef = DIFFICULTIES[difficulty];
     this.ai = new AISystem(this.difficultyDef.noticeMult);
-    this.applyDifficultyToSector();
     this.canvas = canvas;
     this.canvas.width = CANVAS_WIDTH;
     this.canvas.height = CANVAS_HEIGHT;
@@ -310,6 +309,9 @@ export class Game {
     } else {
       this.map.loadSector(0, this.layoutRand, this.runModifier);
     }
+    // After the load, never before: survival starts on Sector 3, the only
+    // sector whose pad actually reads the holdout length.
+    this.applyDifficultyToSector();
     this.syncCameraBounds();
     const sectorSpawns = this.map.sector.playerSpawns;
     this.p1.x = sectorSpawns[0].x;
@@ -613,10 +615,7 @@ export class Game {
 
   /** The evac holdout length is per difficulty, not per sector — overrides what MapManager loaded. */
   private applyDifficultyToSector() {
-    const zone = this.map.extractionZone;
-    if (zone.radius <= 0) return;
-    zone.holdoutDurationSec = this.difficultyDef.holdoutSec;
-    zone.holdoutTimer = this.difficultyDef.holdoutSec;
+    this.map.setExtractionHoldout(this.difficultyDef.holdoutSec);
   }
 
   private spawnZombies() {

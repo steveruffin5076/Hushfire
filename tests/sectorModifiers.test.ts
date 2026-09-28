@@ -25,6 +25,30 @@ describe('sectorModifiers', () => {
     expect(map.pickups.length).toBeLessThanOrEqual(Math.ceil(full.pickups.length / 2));
   });
 
+  it('scavenger never strips the keycard, which Sector 1 cannot be finished without', () => {
+    // Regression: the keycard is authored at a fixed index in Sector 1's pickup
+    // list, so an every-other-entry strip deleted it on 100% of rolls and made
+    // the blast door — and the run — impossible. The modifier is picked at
+    // random for every campaign run, so this was a 1-in-4 soft-lock.
+    for (let i = 0; i < 50; i++) {
+      const map = new MapManager();
+      map.loadSector(0, Math.random, 'scavenger');
+      expect(map.pickups.some(p => p.type === 'keycard')).toBe(true);
+    }
+  });
+
+  it.each(SECTOR_MODIFIER_ORDER)('every modifier leaves each sector completable (%s)', modifier => {
+    for (let index = 0; index < SECTORS.length; index++) {
+      const map = new MapManager();
+      map.loadSector(index, Math.random, modifier);
+      const authored = SECTORS[index].pickups.map(p => p.type);
+      for (const type of authored) {
+        if (type !== 'keycard') continue;
+        expect(map.pickups.some(p => p.type === 'keycard'), `${SECTORS[index].name} lost its keycard`).toBe(true);
+      }
+    }
+  });
+
   it('filterPickupsForModifier matches map loading rules', () => {
     const sector = SECTORS[0];
     const all = sector.pickups.map(p => ({ type: p.type }));
