@@ -42,26 +42,44 @@ export class InputManager {
   public readonly touch = new TouchControls();
   private detachTouch: () => void;
 
+  private readonly onKeyDown = (e: KeyboardEvent) => {
+    if (!this.keys.has(e.code)) this.justPressed.add(e.code);
+    this.keys.add(e.code);
+  };
+
+  private readonly onKeyUp = (e: KeyboardEvent) => {
+    this.keys.delete(e.code);
+  };
+
+  private readonly onMouseMove = (e: MouseEvent) => {
+    const rect = this.canvas.getBoundingClientRect();
+    const scaleX = this.canvas.width / rect.width;
+    const scaleY = this.canvas.height / rect.height;
+    this.mousePos.x = (e.clientX - rect.left) * scaleX;
+    this.mousePos.y = (e.clientY - rect.top) * scaleY;
+    this.p1AimSource = 'mouse';
+  };
+
+  private readonly onMouseDown = (e: MouseEvent) => {
+    this.mouseButtons.add(e.button);
+  };
+
+  private readonly onMouseUp = (e: MouseEvent) => {
+    this.mouseButtons.delete(e.button);
+  };
+
+  private readonly onContextMenu = (e: Event) => {
+    e.preventDefault();
+  };
+
   constructor(private canvas: HTMLCanvasElement, private solo = false) {
     this.detachTouch = this.touch.attach(canvas);
-    window.addEventListener('keydown', (e) => {
-      if (!this.keys.has(e.code)) this.justPressed.add(e.code);
-      this.keys.add(e.code);
-    });
-    window.addEventListener('keyup', (e) => this.keys.delete(e.code));
-
-    window.addEventListener('mousemove', (e) => {
-      const rect = this.canvas.getBoundingClientRect();
-      const scaleX = this.canvas.width / rect.width;
-      const scaleY = this.canvas.height / rect.height;
-      this.mousePos.x = (e.clientX - rect.left) * scaleX;
-      this.mousePos.y = (e.clientY - rect.top) * scaleY;
-      this.p1AimSource = 'mouse';
-    });
-
-    window.addEventListener('mousedown', (e) => this.mouseButtons.add(e.button));
-    window.addEventListener('mouseup', (e) => this.mouseButtons.delete(e.button));
-    window.addEventListener('contextmenu', (e) => e.preventDefault());
+    window.addEventListener('keydown', this.onKeyDown);
+    window.addEventListener('keyup', this.onKeyUp);
+    window.addEventListener('mousemove', this.onMouseMove);
+    window.addEventListener('mousedown', this.onMouseDown);
+    window.addEventListener('mouseup', this.onMouseUp);
+    window.addEventListener('contextmenu', this.onContextMenu);
   }
 
   /**
@@ -252,9 +270,18 @@ export class InputManager {
     }
   }
 
-  /** Removes the canvas touch listeners so a finished Game doesn't keep reacting to touches. */
+  /** Drops every listener this instance registered — call from Game.stop() on restart. */
   dispose() {
+    window.removeEventListener('keydown', this.onKeyDown);
+    window.removeEventListener('keyup', this.onKeyUp);
+    window.removeEventListener('mousemove', this.onMouseMove);
+    window.removeEventListener('mousedown', this.onMouseDown);
+    window.removeEventListener('mouseup', this.onMouseUp);
+    window.removeEventListener('contextmenu', this.onContextMenu);
     this.detachTouch();
+    this.keys.clear();
+    this.justPressed.clear();
+    this.mouseButtons.clear();
   }
 
   endFrame() {

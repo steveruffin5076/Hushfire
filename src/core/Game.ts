@@ -11,7 +11,7 @@ import {
 } from '../config/constants';
 import { InputManager, PlayerInputState } from './Input';
 import { Camera } from './Camera';
-import { SoundManager } from './SoundManager';
+import { getSharedSoundManager, SoundManager } from './SoundManager';
 import { Flashlight, FlashlightBeam } from '../lighting/Flashlight';
 import { ShadowRenderer, MuzzleFlashPulse, RadialLight } from '../lighting/ShadowRenderer';
 import { Player, WeaponLoadout } from '../entities/Player';
@@ -129,7 +129,7 @@ export class Game {
   private ctx: CanvasRenderingContext2D;
   private input: InputManager;
   private camera: Camera;
-  private sound = new SoundManager();
+  private sound: SoundManager = getSharedSoundManager();
   private assets: AssetLoader;
   private hud: HUD;
 
@@ -577,7 +577,8 @@ export class Game {
   }
 
   private onZombieKilled(zombie: Zombie, _killer: Player) {
-    this.sound.playZombieDeath(this.p1.position, zombie.position, this.map.countWallsCrossed(zombie.position, this.p1.position));
+    const listener = this.audioListener();
+    this.sound.playZombieDeath(listener, zombie.position, this.map.countWallsCrossed(zombie.position, listener));
     this.decals.push(bloodDecal(zombie.x, zombie.y, 16, '#3A0808'));
     if (zombie.archetype === 'bio_carrier') {
       this.decals.push({ x: zombie.x, y: zombie.y, r: 40, color: 'rgba(120, 200, 40, 0.35)', kind: 'toxic', angle: 0 });
@@ -797,7 +798,11 @@ export class Game {
     this.projectiles = collectStuckBolts(this.projectiles, [this.p1, this.p2]);
     this.tickDecals(dt);
 
-    this.ai.update(dt, this.zombies, [this.p1, this.p2], this.map);
+    const screams = this.ai.update(dt, this.zombies, [this.p1, this.p2], this.map);
+    for (const pos of screams) {
+      const listener = this.audioListener();
+      this.sound.playZombieScream(listener, pos, this.map.countWallsCrossed(pos, listener));
+    }
     this.noise.propagate(this.zombies, this.map);
     this.countNewAlerts();
     for (const blast of this.blasts) blast.age += dt;
@@ -941,17 +946,26 @@ export class Game {
       if (player.isEliminated || player.isDowned || player.noiseRadius <= 0) return;
       const radius = this.footstepNoiseRadius(player);
       this.noise.emit({ x: player.x, y: player.y, radius, type: 'footstep' });
-      const wallsToP1 = this.map.countWallsCrossed(player.position, this.p1.position);
-      this.sound.playFootstep(this.p1.position, player.position, wallsToP1);
+      const listener = this.audioListener();
+      const wallsToListener = this.map.countWallsCrossed(player.position, listener);
+      this.sound.playFootstep(listener, player.position, wallsToListener);
     };
+  }
+
+  /** Midpoint between living operatives — P2 hears the world from between both ears in co-op. */
+  private audioListener() {
+    const team = [this.p1, this.p2].filter(p => !p.isEliminated);
+    if (team.length === 0) return { x: this.p1.x, y: this.p1.y };
+    if (team.length === 1) return { x: team[0].x, y: team[0].y };
+    return { x: (this.p1.x + this.p2.x) / 2, y: (this.p1.y + this.p2.y) / 2 };
   }
 
   private handleFootsteps(player: Player) {
     if (this.animations?.ready && this.animForPlayer(player)) return;
     if (!player.justStepped) return;
     this.noise.emit({ x: player.x, y: player.y, radius: player.noiseRadius, type: 'footstep' });
-    const wallsToP1 = this.map.countWallsCrossed(player.position, this.p1.position);
-    this.sound.playFootstep(this.p1.position, player.position, wallsToP1);
+    const listener = this.audioListener();
+    this.sound.playFootstep(listener, player.position, this.map.countWallsCrossed(player.position, listener));
   }
 
   private tickDecals(dt: number) {
@@ -974,7 +988,7 @@ export class Game {
     if (!target.isDowned) return;
     const dist = Math.hypot(reviver.x - target.x, reviver.y - target.y);
     if (!reviver.isDowned && !reviver.isEliminated && input.isInteracting && dist <= REVIVE_RANGE_PX) {
-      if (target.startRevive(FIXED_DT)) this.sound.playRevive(this.p1.position, target.position);
+      if (target.startRevive(FIXED_DT)) this.sound.playRevive(this.audioListener(), target.position);
     } else {
       target.resetReviveProgress();
     }
@@ -987,9 +1001,9 @@ export class Game {
     this.combat.fire(player, this.zombies, this.decals, this.projectiles);
 
     if (player.shotsFired > beforeShots) {
-      const wallsToP1 = this.map.countWallsCrossed(player.position, this.p1.position);
+      const listener = this.audioListener();
       const suppressed = player.activeMuzzle === 'suppressor';
-      this.sound.playGunshot(this.p1.position, player.position, wallsToP1, suppressed);
+      this.sound.playGunshot(listener, player.position, this.map.countWallsCrossed(player.position, listener), suppressed);
       this.camera.addTrauma(suppressed ? 0.06 : 0.12);
       this.animForPlayer(player)?.triggerRecoil();
       return;
@@ -997,7 +1011,7 @@ export class Game {
 
     // Nothing fired and the mag is dry: click so the player knows why.
     if (player.currentMag <= 0 && !player.isReloading && this.tryConsumeCooldown(this.dryFireCooldown, player.id, 0.35)) {
-      this.sound.playDryFire(this.p1.position, player.position);
+      this.sound.playDryFire(this.audioListener(), player.position);
     }
   }
 
@@ -1033,7 +1047,7 @@ export class Game {
       }
 
       this.map.removePickup(pickup);
-      this.sound.playPickup(this.p1.position, pickup);
+      this.sound.playPickup(this.audioListener(), pickup);
       break;
     }
   }
@@ -1059,7 +1073,7 @@ export class Game {
         // damage ticks every physics frame, and pulsing per-tick would pin the
         // screen shake at max for the whole grapple instead of reading as hits.
         if (this.tryConsumeCooldown(this.hitSoundCooldown, player.id, 0.4)) {
-          this.sound.playPlayerHit(this.p1.position, player.position);
+          this.sound.playPlayerHit(this.audioListener(), player.position);
           this.triggerZombieContactFlash(false);
         }
         if (player.health <= 0) {
@@ -1092,8 +1106,8 @@ export class Game {
       const enraged = zombie.state === 'ENRAGED';
       zombie.groanTimer = enraged ? 1.5 + Math.random() * 1.5 : zombie.state === 'SUSPICIOUS' ? 3 + Math.random() * 3 : 7 + Math.random() * 6;
 
-      const walls = this.map.countWallsCrossed(zombie.position, this.p1.position);
-      this.sound.playZombieGroan(this.p1.position, zombie.position, walls, enraged);
+      const listener = this.audioListener();
+      this.sound.playZombieGroan(listener, zombie.position, this.map.countWallsCrossed(zombie.position, listener), enraged);
     }
   }
 
@@ -1126,7 +1140,7 @@ export class Game {
   private completeObjective() {
     this.map.completeObjective();
     const obj = this.map.sector.objective;
-    this.sound.playObjectiveComplete(this.p1.position, { x: obj.x, y: obj.y });
+    this.sound.playObjectiveComplete(this.audioListener(), { x: obj.x, y: obj.y });
   }
 
   private updateExtraction(dt: number) {
@@ -1141,7 +1155,7 @@ export class Game {
 
     if (!zone.isActive && anyoneInZone) {
       zone.isActive = true;
-      this.sound.playSiren(this.p1.position, { x: zone.x, y: zone.y });
+      this.sound.playSiren(this.audioListener(), { x: zone.x, y: zone.y });
     }
 
     zone.isOccupied = anyoneInZone;

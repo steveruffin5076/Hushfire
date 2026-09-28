@@ -61,12 +61,14 @@ export class NoiseSystem {
   }
 
   /** Screaming zombies (ENRAGED) instantly alert nearby dormant zombies within earshot, ignoring walls. */
-  static propagateScreams(zombies: Zombie[]) {
+  static propagateScreams(zombies: Zombie[]): Point[] {
+    const heard: Point[] = [];
     // A dying zombie now lingers briefly for its death animation (still ENRAGED,
     // no longer alive) — exclude it so a fresh kill can't scream and alert the sector.
     const screamers = zombies.filter(z => z.alive && z.state === 'ENRAGED' && z.screamCooldown <= 0);
     for (const screamer of screamers) {
       screamer.screamCooldown = 4.0;
+      heard.push({ x: screamer.x, y: screamer.y });
       for (const other of zombies) {
         if (other === screamer || !other.alive || other.state === 'ENRAGED') continue;
         const dist = Math.hypot(other.x - screamer.x, other.y - screamer.y);
@@ -75,5 +77,6 @@ export class NoiseSystem {
         }
       }
     }
+    return heard;
   }
 }

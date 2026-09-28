@@ -43,6 +43,8 @@ export const SECTOR_HORDE_COOLDOWN_SEC = 8;
 export const DOWNED_CRAWL_SPEED = 45; // px/s (~0.8 m/s)
 export const REVIVE_RANGE_PX = 110;   // ~2m
 export const REVIVE_TIME_SEC = 3.0;
+/** Co-op: downed operatives bleed out if not revived — prevents infinite crawls when zombies idle. */
+export const BLEEDOUT_SEC = 25;
 
 // Zombie Acoustic Sensory Constants
 // Difficulty-tuned up from 0.3/0.7/260: zombies need a clearer signal before
