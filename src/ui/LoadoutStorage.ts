@@ -1,4 +1,4 @@
-import { WEAPON_REGISTRY, MUZZLE_MODIFIERS, RAIL_MODIFIERS, AMMO_MODIFIERS } from '../config/weapons';
+import { WEAPON_REGISTRY, RAIL_MODIFIERS, AMMO_MODIFIERS, normalizeMuzzleType } from '../config/weapons';
 import { WeaponLoadout } from '../entities/Player';
 import { Difficulty, DIFFICULTIES } from '../config/difficulty';
 import { SectorModifierId, SECTOR_MODIFIERS } from '../config/sectorModifiers';
@@ -19,8 +19,8 @@ export const DEFAULT_LOADOUTS: [WeaponLoadout, WeaponLoadout] = [
   {
     primaryWeapon: 'mpx',
     secondaryWeapon: 'glock17',
-    primaryMuzzle: 'suppressor',
-    secondaryMuzzle: 'suppressor',
+    primaryMuzzle: 'tactical_suppressor',
+    secondaryMuzzle: 'tactical_suppressor',
     primaryRail: 'spotlight',
     secondaryRail: 'spotlight',
     primaryAmmoType: 'standard',
@@ -70,8 +70,14 @@ const sanitizeLoadout = (raw: unknown, fallback: WeaponLoadout): WeaponLoadout =
   return {
     primaryWeapon: pickWeapon(r.primaryWeapon, 'primary', fallback.primaryWeapon),
     secondaryWeapon: pickWeapon(r.secondaryWeapon, 'secondary', fallback.secondaryWeapon),
-    primaryMuzzle: pick(r.primaryMuzzle, MUZZLE_MODIFIERS, fallback.primaryMuzzle),
-    secondaryMuzzle: pick(r.secondaryMuzzle, MUZZLE_MODIFIERS, fallback.secondaryMuzzle),
+    primaryMuzzle: normalizeMuzzleType(
+      typeof r.primaryMuzzle === 'string' ? r.primaryMuzzle : undefined,
+      fallback.primaryMuzzle
+    ),
+    secondaryMuzzle: normalizeMuzzleType(
+      typeof r.secondaryMuzzle === 'string' ? r.secondaryMuzzle : undefined,
+      fallback.secondaryMuzzle
+    ),
     primaryRail: pick(r.primaryRail, RAIL_MODIFIERS, fallback.primaryRail),
     secondaryRail: pick(r.secondaryRail, RAIL_MODIFIERS, fallback.secondaryRail),
     primaryAmmoType: pick(r.primaryAmmoType, AMMO_MODIFIERS, fallback.primaryAmmoType),

@@ -1,7 +1,7 @@
 import { GRADE_RANK } from './LetterGrade';
 import { loadPlayerProfile, PlayerProfile } from './PlayerProfile';
 import { WeaponLoadout } from '../entities/Player';
-import { WEAPON_REGISTRY } from '../config/weapons';
+import { MuzzleType, WEAPON_REGISTRY } from '../config/weapons';
 import { OperativeGearId, OPERATIVE_GEAR_REGISTRY } from '../config/operativeGear';
 
 const ALWAYS = new Set(['mpx', 'glock17', 'knife']);
@@ -37,15 +37,33 @@ const UNLOCK_HINT: Record<string, string> = {
   revolver: 'Earn grade A or S on a win'
 };
 
+const MUZZLE_ALWAYS = new Set<MuzzleType>(['none', 'tactical_suppressor', 'muzzle_brake', 'compensator', 'flash_hider']);
+
+const MUZZLE_UNLOCK_RULES: Partial<Record<MuzzleType, (p: PlayerProfile) => boolean>> = {
+  titanium_suppressor: p => p.totalWins >= 1,
+  monolithic_suppressor: p => p.totalWins >= 1 && gradeAtLeast(p, 'B')
+};
+
+const MUZZLE_UNLOCK_HINT: Partial<Record<MuzzleType, string>> = {
+  titanium_suppressor: 'Win any extraction',
+  monolithic_suppressor: 'Win with grade B or better'
+};
+
 const GEAR_UNLOCK_RULES: Record<Exclude<OperativeGearId, 'none'>, (p: PlayerProfile) => boolean> = {
+  extra_ammo: p => p.totalKillsBest >= 5,
+  extra_battery: p => p.totalWins >= 1,
   nvg: p => p.totalWins >= 1,
   flare_pack: p => p.totalWins >= 2
 };
 
 const GEAR_UNLOCK_HINT: Record<Exclude<OperativeGearId, 'none'>, string> = {
+  extra_ammo: '5+ kills in one run',
+  extra_battery: 'Win any extraction',
   nvg: 'Win any extraction',
   flare_pack: 'Win 2 extractions'
 };
+
+const DEFAULT_MUZZLE: MuzzleType = 'tactical_suppressor';
 
 export function isWeaponUnlocked(weaponId: string, profile?: PlayerProfile): boolean {
   if (ALWAYS.has(weaponId)) return true;
@@ -56,6 +74,17 @@ export function isWeaponUnlocked(weaponId: string, profile?: PlayerProfile): boo
 
 export function weaponUnlockHint(weaponId: string): string {
   return UNLOCK_HINT[weaponId] ?? '';
+}
+
+export function isMuzzleUnlocked(muzzle: MuzzleType, profile?: PlayerProfile): boolean {
+  if (MUZZLE_ALWAYS.has(muzzle)) return true;
+  const p = profile ?? loadPlayerProfile();
+  const rule = MUZZLE_UNLOCK_RULES[muzzle];
+  return rule ? rule(p) : true;
+}
+
+export function muzzleUnlockHint(muzzle: MuzzleType): string {
+  return MUZZLE_UNLOCK_HINT[muzzle] ?? '';
 }
 
 export function isGearUnlocked(gearId: OperativeGearId, profile?: PlayerProfile): boolean {
@@ -93,5 +122,14 @@ export function clampLoadoutToUnlocks(loadout: WeaponLoadout, profile?: PlayerPr
     isGearUnlocked(loadout.operativeGear ?? 'none', p) && OPERATIVE_GEAR_REGISTRY[loadout.operativeGear ?? 'none']
       ? (loadout.operativeGear ?? 'none')
       : 'none';
-  return { ...loadout, primaryWeapon: primary, secondaryWeapon: secondary, operativeGear: gear };
+  const primaryMuzzle = isMuzzleUnlocked(loadout.primaryMuzzle, p) ? loadout.primaryMuzzle : DEFAULT_MUZZLE;
+  const secondaryMuzzle = isMuzzleUnlocked(loadout.secondaryMuzzle, p) ? loadout.secondaryMuzzle : DEFAULT_MUZZLE;
+  return {
+    ...loadout,
+    primaryWeapon: primary,
+    secondaryWeapon: secondary,
+    primaryMuzzle,
+    secondaryMuzzle,
+    operativeGear: gear
+  };
 }

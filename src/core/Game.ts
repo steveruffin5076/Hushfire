@@ -40,7 +40,7 @@ import {
 } from '../graphics/animation/AnimationCatalog';
 import type { CharacterAnimId } from '../graphics/animation/sheetTypes';
 import { CharacterAnimController } from '../graphics/animation/CharacterAnimController';
-import { WEAPON_REGISTRY, MUZZLE_MODIFIERS } from '../config/weapons';
+import { WEAPON_REGISTRY, MUZZLE_MODIFIERS, isSuppressedMuzzle } from '../config/weapons';
 import { SessionManager } from '../net/SessionManager';
 import { inputToNet, netToInput } from '../net/Protocol';
 import type { NetPlayerSnap, NetSnapshotMessage } from '../net/GameSnapshot';
@@ -322,6 +322,9 @@ export class Game {
       for (const player of [this.p1, this.p2]) {
         if (!player.isEliminated) player.flashlightBattery = FLASHLIGHT_BATTERY_MAX / 2;
       }
+    }
+    for (const player of [this.p1, this.p2]) {
+      if (!player.isEliminated) this.applyOperativeGear(player);
     }
 
     this.combat = new CombatSystem(this.map, this.noise, {
@@ -902,10 +905,15 @@ export class Game {
     return player.playerNumber === 1 ? this.p1Anim : this.p2Anim;
   }
 
+  private applyOperativeGear(player: Player) {
+    player.applyDeployGearBonus();
+  }
+
   private playerMoveMult(player: Player): number {
-    if (player.movementState === 'sprint') return 1.4;
-    if (player.movementState === 'sneak') return 0.72;
-    return 1;
+    const muzzle = MUZZLE_MODIFIERS[player.activeMuzzle].moveSpeedMult;
+    if (player.movementState === 'sprint') return 1.4 * muzzle;
+    if (player.movementState === 'sneak') return 0.72 * muzzle;
+    return muzzle;
   }
 
   private updatePlayerAnim(player: Player, anim: CharacterAnimController | null, dt: number) {
@@ -1060,7 +1068,7 @@ export class Game {
 
     if (player.shotsFired > beforeShots) {
       const listener = this.audioListener();
-      const suppressed = player.activeMuzzle === 'suppressor';
+      const suppressed = isSuppressedMuzzle(player.activeMuzzle);
       this.sound.playGunshot(listener, player.position, this.map.countWallsCrossed(player.position, listener), suppressed);
       this.camera.addTrauma(suppressed ? 0.06 : 0.12);
       this.animForPlayer(player)?.triggerRecoil();

@@ -1,4 +1,14 @@
-export type MuzzleType = 'none' | 'suppressor' | 'muzzle_brake' | 'compensator' | 'flash_hider';
+export type MuzzleType =
+  | 'none'
+  | 'tactical_suppressor'
+  | 'titanium_suppressor'
+  | 'monolithic_suppressor'
+  | 'muzzle_brake'
+  | 'compensator'
+  | 'flash_hider';
+
+/** @deprecated Saved loadouts may still reference this id — migrated to `tactical_suppressor`. */
+export type LegacyMuzzleType = 'suppressor';
 export type RailType = 'none' | 'flood_light' | 'spotlight' | 'green_laser' | 'uv_blacklight';
 export type AmmoType = 'standard' | 'subsonic' | 'hollow_point' | 'armor_piercing';
 
@@ -209,17 +219,40 @@ export const PRIMARY_WEAPON_ARMORY_ORDER: string[] = [
 export const SECONDARY_WEAPON_ARMORY_ORDER: string[] = ['glock17', 'p226', 'deagle', 'revolver', 'knife'];
 
 // recoilMult scales hitscan spread in CombatSystem (lower = tighter grouping).
-export const MUZZLE_MODIFIERS: Record<MuzzleType, { soundMult: number; flashMult: number; recoilMult: number; dmgMult: number }> = {
-  none: { soundMult: 1.0, flashMult: 1.0, recoilMult: 1.0, dmgMult: 1.0 },
-  // Was 0.15: that made any gun near-silent for only -10% damage (a suppressed
-  // hollow-point M4 was ~102px and still one-shot lurkers), leaving the
-  // crossbow's silence pointless. At 0.35 the light guns stay stealthy
-  // (MPX 133px, Glock 140px) but the M4 (227px) and the big guns don't.
-  suppressor: { soundMult: 0.35, flashMult: 0.30, recoilMult: 1.05, dmgMult: 0.90 },
-  muzzle_brake: { soundMult: 1.0, flashMult: 1.25, recoilMult: 0.60, dmgMult: 1.08 },
-  compensator: { soundMult: 1.0, flashMult: 1.0, recoilMult: 0.75, dmgMult: 1.03 },
-  flash_hider: { soundMult: 1.0, flashMult: 0.05, recoilMult: 0.90, dmgMult: 1.0 }
+// moveSpeedMult applies while that weapon is drawn (walk/sprint/sneak).
+export const MUZZLE_MODIFIERS: Record<
+  MuzzleType,
+  { soundMult: number; flashMult: number; recoilMult: number; dmgMult: number; moveSpeedMult: number }
+> = {
+  none: { soundMult: 1.0, flashMult: 1.0, recoilMult: 1.0, dmgMult: 1.0, moveSpeedMult: 1.0 },
+  tactical_suppressor: { soundMult: 0.5, flashMult: 0.35, recoilMult: 1.03, dmgMult: 0.95, moveSpeedMult: 1.0 },
+  titanium_suppressor: { soundMult: 0.35, flashMult: 0.3, recoilMult: 1.05, dmgMult: 0.92, moveSpeedMult: 0.95 },
+  monolithic_suppressor: { soundMult: 0.15, flashMult: 0.2, recoilMult: 1.08, dmgMult: 0.88, moveSpeedMult: 0.92 },
+  muzzle_brake: { soundMult: 1.0, flashMult: 1.25, recoilMult: 0.6, dmgMult: 1.08, moveSpeedMult: 1.0 },
+  compensator: { soundMult: 1.0, flashMult: 1.0, recoilMult: 0.75, dmgMult: 1.03, moveSpeedMult: 1.0 },
+  flash_hider: { soundMult: 1.0, flashMult: 0.05, recoilMult: 0.9, dmgMult: 1.0, moveSpeedMult: 1.0 }
 };
+
+export const MUZZLE_ARMORY_ORDER: MuzzleType[] = [
+  'none',
+  'tactical_suppressor',
+  'titanium_suppressor',
+  'monolithic_suppressor',
+  'muzzle_brake',
+  'compensator',
+  'flash_hider'
+];
+
+export function isSuppressedMuzzle(muzzle: MuzzleType): boolean {
+  return muzzle === 'tactical_suppressor' || muzzle === 'titanium_suppressor' || muzzle === 'monolithic_suppressor';
+}
+
+/** Maps pre-v0.48 armory saves onto the new suppressor line-up. */
+export function normalizeMuzzleType(raw: string | undefined, fallback: MuzzleType): MuzzleType {
+  if (raw === 'suppressor') return 'tactical_suppressor';
+  if (raw && Object.prototype.hasOwnProperty.call(MUZZLE_MODIFIERS, raw)) return raw as MuzzleType;
+  return fallback;
+}
 
 export const AMMO_MODIFIERS: Record<AmmoType, { soundMult: number; armorPen: number; dmgMult: number }> = {
   standard: { soundMult: 1.0, armorPen: 0, dmgMult: 1.0 },

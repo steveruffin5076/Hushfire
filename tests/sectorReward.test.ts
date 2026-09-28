@@ -6,8 +6,8 @@ import { WEAPON_REGISTRY } from '../src/config/weapons';
 const loadout: WeaponLoadout = {
   primaryWeapon: 'mpx',
   secondaryWeapon: 'glock17',
-  primaryMuzzle: 'suppressor',
-  secondaryMuzzle: 'suppressor',
+  primaryMuzzle: 'tactical_suppressor',
+  secondaryMuzzle: 'tactical_suppressor',
   primaryRail: 'none',
   secondaryRail: 'none',
   primaryAmmoType: 'standard',

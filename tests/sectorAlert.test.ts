@@ -22,7 +22,7 @@ const loudLoadout: WeaponLoadout = {
 const stealthLoadout: WeaponLoadout = {
   primaryWeapon: 'mpx',
   secondaryWeapon: 'knife',
-  primaryMuzzle: 'suppressor',
+  primaryMuzzle: 'titanium_suppressor',
   secondaryMuzzle: 'none',
   primaryRail: 'none',
   secondaryRail: 'none',
@@ -42,8 +42,13 @@ describe('isSectorAlertingShot', () => {
   });
 
   it('does not flag stealth-ready suppressed light guns', () => {
-    expect(isSectorAlertingShot(soundRadius('mpx', 'suppressor', 'standard'))).toBe(false);
-    expect(isSectorAlertingShot(soundRadius('glock17', 'suppressor', 'standard'))).toBe(false);
+    expect(isSectorAlertingShot(soundRadius('mpx', 'titanium_suppressor', 'standard'))).toBe(false);
+    expect(isSectorAlertingShot(soundRadius('glock17', 'titanium_suppressor', 'standard'))).toBe(false);
+  });
+
+  it('tactical suppressor is quieter than bare but may still sector-alert light guns', () => {
+    expect(soundRadius('mpx', 'tactical_suppressor', 'standard')).toBeLessThan(soundRadius('mpx', 'none', 'standard'));
+    expect(isSectorAlertingShot(soundRadius('mpx', 'tactical_suppressor', 'standard'))).toBe(true);
   });
 
   it('does not flag silent weapons', () => {

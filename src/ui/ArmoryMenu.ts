@@ -1,6 +1,7 @@
 import {
   WEAPON_REGISTRY,
   MUZZLE_MODIFIERS,
+  MUZZLE_ARMORY_ORDER,
   RAIL_MODIFIERS,
   AMMO_MODIFIERS,
   MuzzleType,
@@ -19,13 +20,22 @@ import { SECTOR_ALERT_SOUND_RADIUS_PX } from '../config/constants';
 import { getSectorModifier, SectorModifierId, SECTOR_MODIFIER_ORDER, SECTOR_MODIFIERS } from '../config/sectorModifiers';
 import { SessionManager } from '../net/SessionManager';
 import { LobbyPanel } from './LobbyPanel';
-import { gearUnlockHint, isGearUnlocked, isWeaponUnlocked, weaponUnlockHint } from './WeaponUnlocks';
+import {
+  gearUnlockHint,
+  isGearUnlocked,
+  isMuzzleUnlocked,
+  isWeaponUnlocked,
+  muzzleUnlockHint,
+  weaponUnlockHint
+} from './WeaponUnlocks';
 
 export type { GameMode };
 
 const MUZZLE_LABELS: Record<MuzzleType, string> = {
   none: 'No Attachment',
-  suppressor: 'Titanium Suppressor',
+  tactical_suppressor: 'Tactical Suppressor',
+  titanium_suppressor: 'Titanium Suppressor',
+  monolithic_suppressor: 'Monolithic Suppressor',
   muzzle_brake: 'Muzzle Brake',
   compensator: 'Compensator',
   flash_hider: 'Flash Hider'
@@ -427,30 +437,49 @@ export class ArmoryMenu {
         )
       );
 
-      const muzzleOptions: [string, string][] = Object.keys(MUZZLE_MODIFIERS).map(k => {
-        const mult = MUZZLE_MODIFIERS[k as MuzzleType].soundMult;
-        const pct = Math.round((mult - 1) * 100);
-        const tag = pct === 0 ? '' : ` (${pct > 0 ? '+' : ''}${pct}% Sound)`;
-        return [k, `${MUZZLE_LABELS[k as MuzzleType]}${tag}`];
-      });
-      loadoutBody.appendChild(
-        pairedRow(
+      const muzzleOptions = (): [string, string][] =>
+        MUZZLE_ARMORY_ORDER.map(id => {
+          const mod = MUZZLE_MODIFIERS[id];
+          const soundCut = Math.round((1 - mod.soundMult) * 100);
+          const speedCut = mod.moveSpeedMult < 1 ? Math.round((1 - mod.moveSpeedMult) * 100) : 0;
+          let tag = soundCut > 0 ? ` (−${soundCut}% sound` : '';
+          if (speedCut > 0) tag += tag ? `, −${speedCut}% speed)` : ` (−${speedCut}% speed)`;
+          else if (tag) tag += ')';
+          const locked = !isMuzzleUnlocked(id);
+          const lock = locked ? ` 🔒 (${muzzleUnlockHint(id)})` : '';
+          return [id, `${MUZZLE_LABELS[id]}${tag}${lock}`] as [string, string];
+        });
+      const muzzleRow = document.createElement('div');
+      muzzleRow.style.cssText = 'display: flex; gap: 14px; margin-bottom: 12px;';
+      muzzleRow.appendChild(
+        this.buildSelect(
           'PRIMARY MUZZLE:',
-          'SECONDARY MUZZLE:',
-          muzzleOptions,
-          muzzleOptions,
+          muzzleOptions(),
           loadout.primaryMuzzle,
-          loadout.secondaryMuzzle,
           v => {
+            if (!isMuzzleUnlocked(v as MuzzleType)) return;
             loadout.primaryMuzzle = v as MuzzleType;
             renderLoadout();
           },
-          v => {
-            loadout.secondaryMuzzle = v as MuzzleType;
-            renderLoadout();
-          }
+          false,
+          v => isMuzzleUnlocked(v as MuzzleType)
         )
       );
+      muzzleRow.appendChild(
+        this.buildSelect(
+          'SECONDARY MUZZLE:',
+          muzzleOptions(),
+          loadout.secondaryMuzzle,
+          v => {
+            if (!isMuzzleUnlocked(v as MuzzleType)) return;
+            loadout.secondaryMuzzle = v as MuzzleType;
+            renderLoadout();
+          },
+          false,
+          v => isMuzzleUnlocked(v as MuzzleType)
+        )
+      );
+      loadoutBody.appendChild(muzzleRow);
 
       const railOptions: [string, string][] = Object.keys(RAIL_MODIFIERS).map(k => {
         const rail = RAIL_MODIFIERS[k as RailType];

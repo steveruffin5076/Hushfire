@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { clampLoadoutToUnlocks, isGearUnlocked, isWeaponUnlocked } from '../src/ui/WeaponUnlocks';
+import { clampLoadoutToUnlocks, isGearUnlocked, isMuzzleUnlocked, isWeaponUnlocked } from '../src/ui/WeaponUnlocks';
 import { WEAPON_REGISTRY } from '../src/config/weapons';
 import { defaultPlayerProfile } from '../src/ui/PlayerProfile';
 import { DEFAULT_LOADOUTS } from '../src/ui/LoadoutStorage';
@@ -23,6 +23,11 @@ describe('weapon unlocks', () => {
     expect(WEAPON_REGISTRY.p226?.type).toBe('secondary');
   });
 
+  it('tactical suppressor is always unlocked', () => {
+    expect(isMuzzleUnlocked('tactical_suppressor', defaultPlayerProfile())).toBe(true);
+    expect(isMuzzleUnlocked('monolithic_suppressor', defaultPlayerProfile())).toBe(false);
+  });
+
   it('gear unlocks follow profile milestones', () => {
     const p = defaultPlayerProfile();
     expect(isGearUnlocked('nvg', p)).toBe(false);
@@ -30,6 +35,8 @@ describe('weapon unlocks', () => {
     expect(isGearUnlocked('nvg', p)).toBe(true);
     expect(isGearUnlocked('flare_pack', p)).toBe(false);
     p.totalWins = 2;
+    p.totalKillsBest = 5;
+    expect(isGearUnlocked('extra_ammo', p)).toBe(true);
     expect(isGearUnlocked('flare_pack', p)).toBe(true);
   });
 

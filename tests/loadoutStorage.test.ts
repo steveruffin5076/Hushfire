@@ -33,6 +33,20 @@ describe('armory persistence', () => {
     expect(DEFAULT_LOADOUTS[0].primaryWeapon).toBe('mpx');
   });
 
+  it('migrates legacy suppressor muzzle id to tactical suppressor', () => {
+    const storage = memoryStorage();
+    storage.setItem(
+      'hushfire.armory.v1',
+      JSON.stringify({
+        mode: 'solo',
+        difficulty: 'normal',
+        loadouts: [{ ...DEFAULT_LOADOUTS[0], primaryMuzzle: 'suppressor', secondaryMuzzle: 'suppressor' }, DEFAULT_LOADOUTS[1]]
+      })
+    );
+    const loaded = loadArmoryState(storage);
+    expect(loaded.loadouts[0].primaryMuzzle).toBe('tactical_suppressor');
+  });
+
   it('round-trips run modifier', () => {
     const storage = memoryStorage();
     const state = loadArmoryState(storage);
@@ -47,7 +61,7 @@ describe('armory persistence', () => {
     state.mode = 'online';
     state.difficulty = 'hard';
     state.loadouts[0] = { ...state.loadouts[0], primaryRail: 'green_laser', secondaryAmmoType: 'subsonic' };
-    state.loadouts[1] = { ...state.loadouts[1], secondaryMuzzle: 'suppressor' };
+    state.loadouts[1] = { ...state.loadouts[1], secondaryMuzzle: 'tactical_suppressor' };
     saveArmoryState(state, storage);
     expect(loadArmoryState(storage)).toEqual(state);
   });

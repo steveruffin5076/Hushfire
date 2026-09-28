@@ -1,5 +1,5 @@
 import { Entity } from './Entity';
-import { MuzzleType, RailType, AmmoType, WeaponDef, WEAPON_REGISTRY } from '../config/weapons';
+import { MuzzleType, RailType, AmmoType, WeaponDef, WEAPON_REGISTRY, MUZZLE_MODIFIERS } from '../config/weapons';
 import { OperativeGearId } from '../config/operativeGear';
 import { PlayerInputState } from '../core/Input';
 import { MapManager } from '../systems/MapManager';
@@ -14,7 +14,8 @@ import {
   REVIVE_TIME_SEC,
   BLEEDOUT_SEC,
   FLASHLIGHT_BATTERY_MAX,
-  FLASHLIGHT_DRAIN_PER_SEC
+  FLASHLIGHT_DRAIN_PER_SEC,
+  BATTERY_PICKUP_CHARGE
 } from '../config/constants';
 
 export type MovementState = 'sneak' | 'walk' | 'sprint';
@@ -108,6 +109,24 @@ export class Player extends Entity {
    * crossbow (2 bolts). Melee weapons are skipped. Returns false if both
    * guns were already full, so the crate can be left for later.
    */
+  /** Armory operative gear applied once at deploy. */
+  applyDeployGearBonus() {
+    switch (this.operativeGear) {
+      case 'extra_ammo':
+        for (const slot of ['primary', 'secondary'] as const) {
+          const weapon = WEAPON_REGISTRY[slot === 'primary' ? this.loadout.primaryWeapon : this.loadout.secondaryWeapon];
+          if (weapon.infiniteAmmo) continue;
+          this.ammoBySlot[slot].reserve += weapon.magSize;
+        }
+        break;
+      case 'extra_battery':
+        this.flashlightBattery = Math.min(FLASHLIGHT_BATTERY_MAX, this.flashlightBattery + BATTERY_PICKUP_CHARGE);
+        break;
+      default:
+        break;
+    }
+  }
+
   addAmmoPickup(): boolean {
     let added = false;
     for (const slot of ['primary', 'secondary'] as const) {
@@ -181,7 +200,8 @@ export class Player extends Entity {
       if (this.bleedoutTimer >= BLEEDOUT_SEC) this.eliminate();
     } else {
       this.movementState = input.isSneaking ? 'sneak' : input.isSprinting ? 'sprint' : 'walk';
-      const speed = this.movementState === 'sneak' ? SNEAK_SPEED : this.movementState === 'sprint' ? SPRINT_SPEED : WALK_SPEED;
+      let speed = this.movementState === 'sneak' ? SNEAK_SPEED : this.movementState === 'sprint' ? SPRINT_SPEED : WALK_SPEED;
+      speed *= MUZZLE_MODIFIERS[this.activeMuzzle].moveSpeedMult;
       this.x += input.moveX * speed * dt;
       this.y += input.moveY * speed * dt;
 
