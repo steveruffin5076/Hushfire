@@ -16,7 +16,8 @@ const idle = {
   isSwitchingWeapon: false,
   selectPrimary: false,
   selectSecondary: false,
-  isTogglingFlashlight: false
+  isTogglingFlashlight: false,
+  isTogglingNvg: false
 };
 
 describe('co-op bleed-out', () => {

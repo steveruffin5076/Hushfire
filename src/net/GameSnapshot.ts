@@ -22,6 +22,7 @@ export interface NetInputMessage {
   selectPrimary: boolean;
   selectSecondary: boolean;
   isTogglingFlashlight: boolean;
+  isTogglingNvg: boolean;
 }
 
 export interface NetPlayerSnap {
@@ -40,6 +41,7 @@ export interface NetPlayerSnap {
   flashlightOn: boolean;
   battery: number;
   hasKeycard: boolean;
+  nvgOn: boolean;
 }
 
 export interface NetZombieSnap {
@@ -106,7 +108,8 @@ export function inputToNet(seq: number, input: PlayerInputState): NetInputMessag
     isSwitchingWeapon: input.isSwitchingWeapon,
     selectPrimary: input.selectPrimary,
     selectSecondary: input.selectSecondary,
-    isTogglingFlashlight: input.isTogglingFlashlight
+    isTogglingFlashlight: input.isTogglingFlashlight,
+    isTogglingNvg: input.isTogglingNvg
   };
 }
 
@@ -123,7 +126,8 @@ export function netToInput(msg: NetInputMessage): PlayerInputState {
     isSwitchingWeapon: msg.isSwitchingWeapon,
     selectPrimary: msg.selectPrimary,
     selectSecondary: msg.selectSecondary,
-    isTogglingFlashlight: msg.isTogglingFlashlight
+    isTogglingFlashlight: msg.isTogglingFlashlight,
+    isTogglingNvg: msg.isTogglingNvg
   };
 }
 
@@ -137,4 +141,4 @@ export type NetMessage =
   | NetInputMessage
   | NetSnapshotMessage;
 
-export const PROTO_VERSION = 3;
+export const PROTO_VERSION = 4;

@@ -16,7 +16,7 @@ import { applyDeadzone } from './Gamepad';
  * Hidden until the first touch, so desktop players never see it.
  */
 
-export type TouchButtonId = 'light' | 'swap' | 'reload' | 'use' | 'sprint' | 'sneak' | 'pause';
+export type TouchButtonId = 'light' | 'nvg' | 'swap' | 'reload' | 'use' | 'sprint' | 'sneak' | 'pause';
 
 interface TouchButton {
   id: TouchButtonId;
@@ -29,6 +29,7 @@ interface TouchButton {
 }
 
 export const TOUCH_BUTTONS: readonly TouchButton[] = [
+  { id: 'nvg', label: 'NVG', x: 1210, y: 190, r: 36 },
   { id: 'light', label: 'LIGHT', x: 1210, y: 250, r: 40 },
   { id: 'swap', label: 'SWAP', x: 1210, y: 345, r: 40 },
   { id: 'reload', label: 'RELOAD', x: 1210, y: 440, r: 40 },
@@ -71,6 +72,8 @@ export interface TouchState {
 export class TouchControls {
   /** Flips on at the first touch and stays on — the controls only draw once they're wanted. */
   public active = false;
+  /** When false, the NVG touch button is hidden and cannot be pressed. */
+  public nvgEquipped = false;
 
   private moveStick: StickTouch | null = null;
   private aimStick: StickTouch | null = null;
@@ -82,7 +85,9 @@ export class TouchControls {
   onStart(id: number, x: number, y: number) {
     this.active = true;
 
-    const button = TOUCH_BUTTONS.find(b => Math.hypot(x - b.x, y - b.y) <= b.r);
+    const button = TOUCH_BUTTONS.find(
+      b => (b.id !== 'nvg' || this.nvgEquipped) && Math.hypot(x - b.x, y - b.y) <= b.r
+    );
     if (button) {
       if (button.id === 'sprint' || button.id === 'sneak') {
         const other = button.id === 'sprint' ? 'sneak' : 'sprint';
@@ -203,7 +208,7 @@ export class TouchControls {
   }
 
   /** Screen-space overlay; call last so the darkness mask never hides it. */
-  render(ctx: CanvasRenderingContext2D, flashlightOn: boolean) {
+  render(ctx: CanvasRenderingContext2D, flashlightOn: boolean, nvgOn: boolean) {
     if (!this.active) return;
     ctx.save();
 
@@ -238,19 +243,31 @@ export class TouchControls {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     for (const b of TOUCH_BUTTONS) {
+      if (b.id === 'nvg' && !this.nvgEquipped) continue;
       const lit =
         held.has(b.id) ||
         (b.id === 'sprint' && this.toggles.sprint) ||
         (b.id === 'sneak' && this.toggles.sneak) ||
-        (b.id === 'light' && flashlightOn);
-      ctx.fillStyle = lit ? 'rgba(0,229,255,0.28)' : 'rgba(20,22,28,0.45)';
-      ctx.strokeStyle = lit ? 'rgba(0,229,255,0.9)' : 'rgba(235,244,250,0.35)';
+        (b.id === 'light' && flashlightOn) ||
+        (b.id === 'nvg' && nvgOn);
+      const nvgStyle = b.id === 'nvg';
+      if (nvgStyle && lit) {
+        ctx.fillStyle = 'rgba(0, 230, 118, 0.28)';
+        ctx.strokeStyle = 'rgba(0, 230, 118, 0.95)';
+      } else if (nvgStyle) {
+        ctx.fillStyle = 'rgba(20,22,28,0.45)';
+        ctx.strokeStyle = 'rgba(0, 230, 118, 0.45)';
+      }
+      if (!nvgStyle) {
+        ctx.fillStyle = lit ? 'rgba(0,229,255,0.28)' : 'rgba(20,22,28,0.45)';
+        ctx.strokeStyle = lit ? 'rgba(0,229,255,0.9)' : 'rgba(235,244,250,0.35)';
+      }
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
-      ctx.fillStyle = lit ? '#00E5FF' : 'rgba(235,244,250,0.85)';
+      ctx.fillStyle = nvgStyle ? (lit ? '#00E676' : 'rgba(0, 230, 118, 0.85)') : lit ? '#00E5FF' : 'rgba(235,244,250,0.85)';
       ctx.fillText(b.label, b.x, b.y);
     }
 

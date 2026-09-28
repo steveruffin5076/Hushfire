@@ -18,6 +18,7 @@ import { Camera } from './Camera';
 import { getSharedSoundManager, SoundManager } from './SoundManager';
 import { Flashlight, FlashlightBeam } from '../lighting/Flashlight';
 import { ShadowRenderer, MuzzleFlashPulse, RadialLight } from '../lighting/ShadowRenderer';
+import { nvgLightsForPlayers } from '../systems/GearSystem';
 import { Player, WeaponLoadout } from '../entities/Player';
 import { Zombie, ZombieArchetype } from '../entities/Zombie';
 import { Projectile } from '../entities/Projectile';
@@ -177,11 +178,20 @@ export class Game {
     const cx = (e.clientX - rect.left) * scaleX;
     const cy = (e.clientY - rect.top) * scaleY;
 
-    const btn = HUD.getFlashlightButtonRect(1);
-    if (cx >= btn.x && cx <= btn.x + btn.w && cy >= btn.y && cy <= btn.y + btn.h) {
+    const lightBtn = HUD.getFlashlightButtonRect(1);
+    if (cx >= lightBtn.x && cx <= lightBtn.x + lightBtn.w && cy >= lightBtn.y && cy <= lightBtn.y + lightBtn.h) {
       this.p1.toggleFlashlight();
       e.stopPropagation();
       e.preventDefault();
+      return;
+    }
+    if (this.p1.operativeGear === 'nvg') {
+      const nvgBtn = HUD.getNvgButtonRect(1);
+      if (cx >= nvgBtn.x && cx <= nvgBtn.x + nvgBtn.w && cy >= nvgBtn.y && cy <= nvgBtn.y + nvgBtn.h) {
+        this.p1.toggleNvg();
+        e.stopPropagation();
+        e.preventDefault();
+      }
     }
   };
 
@@ -199,8 +209,14 @@ export class Game {
     const cx = (e.clientX - rect.left) * scaleX;
     const cy = (e.clientY - rect.top) * scaleY;
 
-    const btn = HUD.getFlashlightButtonRect(1);
-    const hovering = cx >= btn.x && cx <= btn.x + btn.w && cy >= btn.y && cy <= btn.y + btn.h;
+    const lightBtn = HUD.getFlashlightButtonRect(1);
+    let hovering =
+      cx >= lightBtn.x && cx <= lightBtn.x + lightBtn.w && cy >= lightBtn.y && cy <= lightBtn.y + lightBtn.h;
+    if (!hovering && this.p1.operativeGear === 'nvg') {
+      const nvgBtn = HUD.getNvgButtonRect(1);
+      hovering =
+        cx >= nvgBtn.x && cx <= nvgBtn.x + nvgBtn.w && cy >= nvgBtn.y && cy <= nvgBtn.y + nvgBtn.h;
+    }
     this.canvas.style.cursor = hovering ? 'pointer' : 'none';
   };
 
@@ -383,7 +399,8 @@ export class Game {
       isSwitchingWeapon: false,
       selectPrimary: false,
       selectSecondary: false,
-      isTogglingFlashlight: false
+      isTogglingFlashlight: false,
+      isTogglingNvg: false
     };
   }
 
@@ -403,7 +420,8 @@ export class Game {
       reloading: player.isReloading,
       flashlightOn: player.flashlightOn,
       battery: player.flashlightBattery,
-      hasKeycard: player.hasKeycard
+      hasKeycard: player.hasKeycard,
+      nvgOn: player.nvgOn
     };
   }
 
@@ -421,6 +439,7 @@ export class Game {
     player.flashlightOn = snap.flashlightOn;
     player.flashlightBattery = snap.battery;
     player.hasKeycard = snap.hasKeycard;
+    if (player.operativeGear === 'nvg') player.nvgOn = snap.nvgOn;
   }
 
   private buildSnapshot(missionOver?: { victory: boolean }): NetSnapshotMessage {
@@ -1450,7 +1469,9 @@ export class Game {
     ctx.restore();
 
     this.renderLighting(ctx);
-    this.hud.renderScreenSpace(ctx, this.p1, this.p2, this.map, this.runModifier, this.tutorialBanner);
+    this.renderNvgScreenTint(ctx);
+    const localKeyboardCoop = this.netRole === 'local' && !this.solo;
+    this.hud.renderScreenSpace(ctx, this.p1, this.p2, this.map, this.runModifier, this.tutorialBanner, localKeyboardCoop);
     this.renderBlasts(ctx);
     this.renderSurgeWarning(ctx);
     this.renderDamageFlash(ctx);
@@ -1460,7 +1481,20 @@ export class Game {
     // darkness whenever the pointer left the flashlight cone.
     this.hud.renderReticles(ctx, this.p1, this.p2, this.input.p1AimSource === 'mouse' ? this.input.mousePos : null, this.camera);
     // Touch controls sit on top of everything, reticle included — they're the player's hands.
-    this.input.touch.render(ctx, this.p1.flashlightOn);
+    this.input.touch.nvgEquipped = this.p1.operativeGear === 'nvg';
+    this.input.touch.render(ctx, this.p1.flashlightOn, this.p1.nvgOn);
+  }
+
+  /** Subtle green cast when any operative has NVG active — sells the goggles without hiding the scene. */
+  private renderNvgScreenTint(ctx: CanvasRenderingContext2D) {
+    const active = [this.p1, this.p2].some(
+      p => !p.isEliminated && p.operativeGear === 'nvg' && p.nvgOn
+    );
+    if (!active) return;
+    ctx.save();
+    ctx.fillStyle = 'rgba(0, 140, 60, 0.1)';
+    ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+    ctx.restore();
   }
 
   /**
@@ -1851,7 +1885,8 @@ export class Game {
       this.camera.getViewRect(),
       beams,
       muzzleFlashes,
-      carryLights
+      carryLights,
+      nvgLightsForPlayers([this.p1, this.p2])
     );
   }
 }

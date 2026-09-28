@@ -16,6 +16,7 @@ export interface PlayerInputState {
   selectPrimary: boolean;
   selectSecondary: boolean;
   isTogglingFlashlight: boolean;
+  isTogglingNvg: boolean;
 }
 
 export class InputManager {
@@ -158,7 +159,8 @@ export class InputManager {
       isSwitchingWeapon: keys.isSwitchingWeapon || edge.has(PAD_BUTTON.Y),
       selectPrimary: keys.selectPrimary || edge.has(PAD_BUTTON.DPAD_LEFT),
       selectSecondary: keys.selectSecondary || edge.has(PAD_BUTTON.DPAD_RIGHT),
-      isTogglingFlashlight: keys.isTogglingFlashlight || edge.has(PAD_BUTTON.B)
+      isTogglingFlashlight: keys.isTogglingFlashlight || edge.has(PAD_BUTTON.B),
+      isTogglingNvg: keys.isTogglingNvg
     };
   }
 
@@ -197,7 +199,8 @@ export class InputManager {
       isSwitchingWeapon: this.justPressed.has('KeyQ'),
       selectPrimary: this.justPressed.has('Digit1'),
       selectSecondary: this.justPressed.has('Digit2'),
-      isTogglingFlashlight: this.justPressed.has('KeyT')
+      isTogglingFlashlight: this.justPressed.has('KeyT'),
+      isTogglingNvg: this.justPressed.has('KeyN')
     }));
   }
 
@@ -216,7 +219,8 @@ export class InputManager {
       isReloading: input.isReloading || t.reload,
       isInteracting: input.isInteracting || t.interact,
       isSwitchingWeapon: input.isSwitchingWeapon || t.justPressed.has('swap'),
-      isTogglingFlashlight: input.isTogglingFlashlight || t.justPressed.has('light')
+      isTogglingFlashlight: input.isTogglingFlashlight || t.justPressed.has('light'),
+      isTogglingNvg: input.isTogglingNvg || t.justPressed.has('nvg')
     };
   }
 
@@ -254,7 +258,8 @@ export class InputManager {
       isSwitchingWeapon: this.justPressed.has('Comma'),
       selectPrimary: this.justPressed.has('Numpad1'),
       selectSecondary: this.justPressed.has('Numpad2'),
-      isTogglingFlashlight: this.justPressed.has('Quote')
+      isTogglingFlashlight: this.justPressed.has('Quote'),
+      isTogglingNvg: this.justPressed.has('Backslash')
     });
   }
 

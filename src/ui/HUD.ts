@@ -11,6 +11,8 @@ const PANEL_COLOR = '#EBF4FA';
 const FLASHLIGHT_BTN_W = 150;
 const FLASHLIGHT_BTN_H = 22;
 const FLASHLIGHT_BTN_Y_OFFSET = 76;
+const NVG_BTN_Y_OFFSET = 102;
+const NVG_GREEN = '#00E676';
 
 // Reticle — #FF1744 is the red ART_SPECIFICATION.md §4 already specifies for the
 // laser sight, so the aim reticle reads as the same system rather than a new
@@ -40,6 +42,11 @@ export class HUD {
   static getFlashlightButtonRect(playerNumber: 1 | 2): { x: number; y: number; w: number; h: number } {
     const x = playerNumber === 1 ? 30 : CANVAS_WIDTH - 330;
     return { x, y: 30 + FLASHLIGHT_BTN_Y_OFFSET, w: FLASHLIGHT_BTN_W, h: FLASHLIGHT_BTN_H };
+  }
+
+  static getNvgButtonRect(playerNumber: 1 | 2): { x: number; y: number; w: number; h: number } {
+    const x = playerNumber === 1 ? 30 : CANVAS_WIDTH - 330;
+    return { x, y: 30 + NVG_BTN_Y_OFFSET, w: FLASHLIGHT_BTN_W, h: FLASHLIGHT_BTN_H };
   }
 
   /**
@@ -101,10 +108,12 @@ export class HUD {
     p2: Player,
     map: MapManager,
     runModifier: SectorModifierId,
-    tutorialBanner: string | null = null
+    tutorialBanner: string | null = null,
+    /** True when P2 is driven from this keyboard (arrows/IJKL); false for online guest on another PC. */
+    localKeyboardCoop = false
   ) {
-    this.renderPlayerPanel(ctx, p1, 30, 30);
-    if (!p2.isEliminated) this.renderPlayerPanel(ctx, p2, CANVAS_WIDTH - 330, 30);
+    this.renderPlayerPanel(ctx, p1, 30, 30, localKeyboardCoop);
+    if (!p2.isEliminated) this.renderPlayerPanel(ctx, p2, CANVAS_WIDTH - 330, 30, localKeyboardCoop);
     this.renderMissionStatus(ctx, map, !p2.isEliminated, runModifier);
     if (tutorialBanner) {
       ctx.save();
@@ -116,7 +125,7 @@ export class HUD {
     }
   }
 
-  private renderPlayerPanel(ctx: CanvasRenderingContext2D, p: Player, x: number, y: number) {
+  private renderPlayerPanel(ctx: CanvasRenderingContext2D, p: Player, x: number, y: number, localKeyboardCoop: boolean) {
     ctx.save();
     ctx.font = '13px monospace';
     ctx.fillStyle = PANEL_COLOR;
@@ -153,7 +162,8 @@ export class HUD {
       ctx.fillRect(x, y + 63, 200 * charge, 5);
     }
 
-    this.renderFlashlightButton(ctx, p);
+    this.renderFlashlightButton(ctx, p, localKeyboardCoop);
+    if (p.operativeGear === 'nvg') this.renderNvgButton(ctx, p, localKeyboardCoop);
 
     ctx.restore();
   }
@@ -161,10 +171,10 @@ export class HUD {
   /** Only P1's button is actually clickable (see Game.ts's canvas click handler) — local
    * co-op shares one mouse, and P2 already has their own dedicated key. Still drawn for
    * both so P2 can read their state and keybind at a glance. */
-  private renderFlashlightButton(ctx: CanvasRenderingContext2D, p: Player) {
+  private renderFlashlightButton(ctx: CanvasRenderingContext2D, p: Player, localKeyboardCoop: boolean) {
     const rect = HUD.getFlashlightButtonRect(p.playerNumber);
     const disabled = p.isDowned;
-    const key = p.playerNumber === 1 ? 'T' : "'";
+    const key = p.playerNumber === 1 ? 'T' : localKeyboardCoop ? "'" : 'T';
 
     ctx.strokeStyle = disabled ? '#2A2F3A' : p.flashlightOn ? '#00E5FF' : '#3A4252';
     ctx.fillStyle = disabled ? 'rgba(20,22,28,0.6)' : p.flashlightOn ? 'rgba(0,229,255,0.15)' : 'rgba(20,22,28,0.6)';
@@ -178,6 +188,27 @@ export class HUD {
     ctx.fillStyle = disabled ? '#4A5468' : p.flashlightOn ? '#00E5FF' : '#8A94A6';
     ctx.textBaseline = 'middle';
     const label = `FLASHLIGHT ${p.flashlightOn ? 'ON' : 'OFF'} [${key}]`;
+    ctx.fillText(label, rect.x + 8, rect.y + rect.h / 2 + 1);
+    ctx.textBaseline = 'alphabetic';
+  }
+
+  private renderNvgButton(ctx: CanvasRenderingContext2D, p: Player, localKeyboardCoop: boolean) {
+    const rect = HUD.getNvgButtonRect(p.playerNumber);
+    const disabled = p.isDowned;
+    const key = p.playerNumber === 1 ? 'N' : localKeyboardCoop ? '\\' : 'N';
+
+    ctx.strokeStyle = disabled ? '#2A2F3A' : p.nvgOn ? NVG_GREEN : '#3A4252';
+    ctx.fillStyle = disabled ? 'rgba(20,22,28,0.6)' : p.nvgOn ? 'rgba(0,230,118,0.18)' : 'rgba(20,22,28,0.6)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.roundRect(rect.x, rect.y, rect.w, rect.h, 4);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.font = '11px monospace';
+    ctx.fillStyle = disabled ? '#4A5468' : p.nvgOn ? NVG_GREEN : '#8A94A6';
+    ctx.textBaseline = 'middle';
+    const label = `NIGHT VISION ${p.nvgOn ? 'ON' : 'OFF'} [${key}]`;
     ctx.fillText(label, rect.x + 8, rect.y + rect.h / 2 + 1);
     ctx.textBaseline = 'alphabetic';
   }

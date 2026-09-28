@@ -60,6 +60,8 @@ export class Player extends Entity {
   public muzzleFlashTimer = 0;
   public flashlightOn = true;
   public flashlightBattery = FLASHLIGHT_BATTERY_MAX;
+  /** Night vision goggles — only toggleable when `operativeGear === 'nvg'`. */
+  public nvgOn = false;
 
   public isDowned = false;
   public reviveProgress = 0;
@@ -184,6 +186,7 @@ export class Player extends Entity {
       else if (input.isSwitchingWeapon) this.activeSlot = this.activeSlot === 'primary' ? 'secondary' : 'primary';
     }
     if (input.isTogglingFlashlight && !this.isDowned) this.toggleFlashlight();
+    if (input.isTogglingNvg && !this.isDowned) this.toggleNvg();
 
     if (this.flashlightOn && !this.isDowned) {
       this.flashlightBattery = Math.max(0, this.flashlightBattery - FLASHLIGHT_DRAIN_PER_SEC * dt);
@@ -240,6 +243,11 @@ export class Player extends Entity {
   }
 
   /** Toggling off is always allowed; toggling on needs charge left, so an empty battery can't just be switched back on with no cost. Also callable directly from a UI button click, not just the keyboard shortcut. */
+  toggleNvg() {
+    if (this.operativeGear !== 'nvg') return;
+    this.nvgOn = !this.nvgOn;
+  }
+
   toggleFlashlight() {
     if (this.isDowned) return;
     if (this.flashlightOn) this.flashlightOn = false;
