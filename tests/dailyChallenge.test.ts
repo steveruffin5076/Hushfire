@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { dailyChallengeSeed, dailyChallengeLabel, dailyChallengeModifier } from '../src/ui/dailyChallenge';
-import { SECTOR_MODIFIER_ORDER } from '../src/config/sectorModifiers';
+import { RANDOM_SECTOR_MODIFIER_ORDER } from '../src/config/sectorModifiers';
 
 describe('daily challenge', () => {
   it('seed is stable for a UTC date', () => {
@@ -22,7 +22,8 @@ describe('daily challenge', () => {
     for (let day = 1; day <= 28; day++) {
       const d = new Date(Date.UTC(2026, 5, day));
       const modifier = dailyChallengeModifier(d);
-      expect(SECTOR_MODIFIER_ORDER).toContain(modifier);
+      expect(RANDOM_SECTOR_MODIFIER_ORDER).toContain(modifier);
+      expect(modifier).not.toBe('none');
       seen.add(modifier);
     }
     expect(seen.size).toBeGreaterThan(1);

@@ -1,5 +1,5 @@
-/** Per-run twist picked in the armory — reuses existing systems (see progress.md §7). */
-export type SectorModifierId = 'blackout' | 'scavenger' | 'hush' | 'heavy';
+/** Per-run twist picked in the armory — `none` is the default vanilla run. */
+export type SectorModifierId = 'none' | 'blackout' | 'scavenger' | 'hush' | 'heavy';
 
 export interface SectorModifierDef {
   id: SectorModifierId;
@@ -9,6 +9,11 @@ export interface SectorModifierDef {
 }
 
 export const SECTOR_MODIFIERS: Record<SectorModifierId, SectorModifierDef> = {
+  none: {
+    id: 'none',
+    name: 'NONE',
+    blurb: 'Standard operation — no extra twist this run'
+  },
   blackout: {
     id: 'blackout',
     name: 'BLACKOUT',
@@ -31,11 +36,16 @@ export const SECTOR_MODIFIERS: Record<SectorModifierId, SectorModifierDef> = {
   }
 };
 
-export const SECTOR_MODIFIER_ORDER: readonly SectorModifierId[] = ['blackout', 'scavenger', 'hush', 'heavy'];
+/** Armory dropdown order (`none` first = default). */
+export const SECTOR_MODIFIER_ORDER: readonly SectorModifierId[] = ['none', 'blackout', 'scavenger', 'hush', 'heavy'];
+
+/** Random/daily twists — never rolls `none`. */
+export const RANDOM_SECTOR_MODIFIER_ORDER: readonly SectorModifierId[] = SECTOR_MODIFIER_ORDER.filter(id => id !== 'none');
 
 export function pickSectorModifier(rand: () => number = Math.random): SectorModifierId {
-  const i = Math.floor(rand() * SECTOR_MODIFIER_ORDER.length);
-  return SECTOR_MODIFIER_ORDER[Math.min(i, SECTOR_MODIFIER_ORDER.length - 1)];
+  const order = RANDOM_SECTOR_MODIFIER_ORDER;
+  const i = Math.floor(rand() * order.length);
+  return order[Math.min(i, order.length - 1)];
 }
 
 export function getSectorModifier(id: SectorModifierId): SectorModifierDef {
@@ -51,6 +61,7 @@ const OBJECTIVE_CRITICAL_PICKUPS: ReadonlySet<string> = new Set(['keycard']);
 
 /** Sector pickup list after a run modifier is applied. */
 export function filterPickupsForModifier<T extends { type: string }>(pickups: T[], modifier: SectorModifierId): T[] {
+  if (modifier === 'none') return pickups;
   let list = pickups;
   if (modifier === 'blackout') list = list.filter(p => p.type !== 'battery');
   if (modifier === 'scavenger') {

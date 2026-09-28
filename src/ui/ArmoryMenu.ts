@@ -16,13 +16,7 @@ import { showQuitScreen } from './QuitScreen';
 import { GameMode, loadArmoryState, saveArmoryState } from './LoadoutStorage';
 import { Difficulty, DIFFICULTIES, DIFFICULTY_ORDER } from '../config/difficulty';
 import { SECTOR_ALERT_SOUND_RADIUS_PX } from '../config/constants';
-import {
-  pickSectorModifier,
-  getSectorModifier,
-  SectorModifierId,
-  SECTOR_MODIFIER_ORDER,
-  SECTOR_MODIFIERS
-} from '../config/sectorModifiers';
+import { getSectorModifier, SectorModifierId, SECTOR_MODIFIER_ORDER, SECTOR_MODIFIERS } from '../config/sectorModifiers';
 import { SessionManager } from '../net/SessionManager';
 import { LobbyPanel } from './LobbyPanel';
 import { gearUnlockHint, isGearUnlocked, isWeaponUnlocked, weaponUnlockHint } from './WeaponUnlocks';
@@ -97,8 +91,7 @@ export class ArmoryMenu {
     // Daily runs lock the day's twist (derived from the UTC seed) so every
     // player faces the same run; campaign/survival roll one, rerollable below.
     const fixedModifier = options.fixedModifier;
-    let runModifier: SectorModifierId =
-      fixedModifier ?? saved.runModifier ?? pickSectorModifier();
+    let runModifier: SectorModifierId = fixedModifier ?? saved.runModifier ?? 'none';
 
     const persistArmory = () => {
       saveArmoryState({

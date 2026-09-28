@@ -99,7 +99,7 @@ export function loadArmoryState(storage: KeyValueStorage | null = defaultStorage
       clampLoadoutToUnlocks(sanitizeLoadout(loadouts[0], DEFAULT_LOADOUTS[0])),
       clampLoadoutToUnlocks(sanitizeLoadout(loadouts[1], DEFAULT_LOADOUTS[1]))
     ],
-    runModifier: pick(parsed.runModifier, SECTOR_MODIFIERS, 'blackout') as SectorModifierId
+    runModifier: pick(parsed.runModifier, SECTOR_MODIFIERS, 'none') as SectorModifierId
   };
 }
 

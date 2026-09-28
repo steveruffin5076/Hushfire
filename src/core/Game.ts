@@ -258,7 +258,7 @@ export class Game {
     /** True operative-of-one: Player 2 never spawns into play — no companion, human or AI. */
     private solo = false,
     difficulty: Difficulty = 'normal',
-    runModifier: SectorModifierId = 'scavenger',
+    runModifier: SectorModifierId = 'none',
     layoutRand: () => number = Math.random,
     online?: OnlineGameConfig,
     animations: AnimationCatalog | null = null,

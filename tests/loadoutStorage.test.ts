@@ -17,13 +17,13 @@ describe('armory persistence', () => {
       mode: 'solo',
       difficulty: 'normal',
       loadouts: DEFAULT_LOADOUTS,
-      runModifier: 'blackout'
+      runModifier: 'none'
     });
     expect(loadArmoryState(null)).toEqual({
       mode: 'solo',
       difficulty: 'normal',
       loadouts: DEFAULT_LOADOUTS,
-      runModifier: 'blackout'
+      runModifier: 'none'
     });
   });
 
@@ -101,7 +101,7 @@ describe('armory persistence', () => {
       mode: 'solo',
       difficulty: 'normal',
       loadouts: DEFAULT_LOADOUTS,
-      runModifier: 'blackout'
+      runModifier: 'none'
     });
     const throwing: KeyValueStorage = {
       getItem: () => {
