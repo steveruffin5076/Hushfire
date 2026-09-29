@@ -1,8 +1,8 @@
 # HUSHFIRE — Progress & Handoff
 
-Last updated: 2026-09-28 (`main`: through PR #43 mouse-aim fix; PR #44 NVG toggle open). Written as a handoff for another developer or AI assistant, e.g. Cursor. Read this first, then `CLAUDE.md`.
+Last updated: 2026-09-29 (`main`: through PR #45 progress handoff; includes PR #44 NVG toggle). Written as a handoff for another developer or AI assistant, e.g. Cursor. Read this first, then `CLAUDE.md`.
 
-**Status in one line:** the full game is playable and deployed. Title → **campaign**, **daily challenge**, or **survival** (or online co-op) → armory (left tabs: briefing / loadout / profile) → up to 3 sectors → evac. **Solo** (one operative) or **online co-op** (PeerJS, `PROTO_VERSION` 3 on `main`; **4** when PR #44 NVG merges). Keyboard/mouse, gamepad, or touch. Retention: mission letter grades, career XP/level, armory weapon unlocks, personal bests. **Phase 7 M1–M2** (lobby + host-authoritative sync) are wired. Same-machine couch co-op was removed (legacy `coop` saves → solo).
+**Status in one line:** the full game is playable and deployed. Title → **campaign**, **daily challenge**, or **survival** (or online co-op) → armory (left tabs: briefing / loadout / profile) → up to 3 sectors → evac. **Solo** (one operative) or **online co-op** (PeerJS, `PROTO_VERSION` **4** — NVG on wire). Keyboard/mouse, gamepad, or touch. Retention: mission letter grades, career XP/level, armory weapon unlocks, personal bests. **Phase 7 M1–M2** (lobby + host-authoritative sync) are wired. Same-machine couch co-op was removed (legacy `coop` saves → solo).
 
 - Live site: https://steveruffin5076.github.io/Hushfire/
 - Repo: https://github.com/steveruffin5076/Hushfire (default branch `main`)
@@ -16,7 +16,7 @@ npm install        # after any pull that touched package.json
 npm run dev        # http://localhost:3000
 npm run typecheck  # tsc --noEmit (covers src/ and tests/)
 npm run lint       # ESLint + typescript-eslint; `any` is an error
-npm test           # Vitest, 336 tests in 38 files under tests/ (main; +NVG tests on PR #44)
+npm test           # Vitest, 336 tests in 38 files under tests/
 npm run build      # tsc && vite build → dist/
 ```
 
@@ -69,7 +69,7 @@ src/
     NavGrid.ts            A* grid pathfinding
     Geometry.ts           Segment math, angleBetween
     HordeSurge.ts         Evac wave pacing, isSectorAlertingShot, mix, raw edge spawn points
-    GearSystem.ts         NVG visibility bubbles (PR #44); flare TBD
+    GearSystem.ts         NVG visibility bubbles; flare TBD
   net/
     Protocol.ts           Re-exports NetMessage + PROTO_VERSION from GameSnapshot
     GameSnapshot.ts       input/snapshot wire types, inputToNet/netToInput
@@ -159,7 +159,7 @@ images/                   Raw art uploads from the owner (source material, not l
 - **PeerJS transport** (`peerjs@1.5.5`): room code maps to peer id `hushfire-HUSH-XXXXX`. STUN via Google + Metered STUN fallback. Optional TURN via `VITE_TURN_CREDENTIALS_URL` (see `.env.example`, `src/net/iceConfig.ts`). Outbound queue while the DataChannel opens.
 - **Armory online mode:** centered layout with **left vertical tabs** (briefing / loadout / profile), viewport scale-to-fit (no page scroll), ← BACK TO MAIN MENU, room code + copy-link, connection status, ready pills, **RETRY CONNECTION** on error, debounced loadout broadcast (120 ms), host-gated deploy with shared seed. Fixed operative slots: host = Op 1, guest = Op 2 (locked).
 - **Connection fixes:** host no longer times out while waiting for a guest (guest-only 20 s timeout); `retryConnection()` reopens the same room for hosts.
-- **Gameplay sync (M2):** host runs the authoritative `Game`; guest sends input at 60 Hz and renders ~30 Hz snapshots with pose blending. Slot remap: guest's local P1 = host's P2. Shared layout seed via `mulberry32(seed)` on deploy. Wire format: `src/net/GameSnapshot.ts` (`PROTO_VERSION` 3 includes sector-reward messages).
+- **Gameplay sync (M2):** host runs the authoritative `Game`; guest sends input at 60 Hz and renders ~30 Hz snapshots with pose blending. Slot remap: guest's local P1 = host's P2. Shared layout seed via `mulberry32(seed)` on deploy. Wire format: `src/net/GameSnapshot.ts` (`PROTO_VERSION` **4**: sector-reward messages + `nvgOn` / `isTogglingNvg`).
 - **Dependency:** `peerjs` in `package.json`.
 
 ### Controls
@@ -170,9 +170,9 @@ images/                   Raw art uploads from the owner (source material, not l
 - **Touch:**
   - On-screen twin-stick controls for P1 appear after the first touch.
   - Pushing the aim stick past its ring fires.
-  - Buttons: SPRINT/SNEAK toggles, RELOAD, USE, SWAP, LIGHT, **NVG** (when goggles equipped; PR #44), pause.
+  - Buttons: SPRINT/SNEAK toggles, RELOAD, USE, SWAP, LIGHT, **NVG** (when goggles equipped), pause.
   - Upright phones get a "rotate to landscape" prompt.
-- **NVG (night vision goggles):** selectable as **operative gear** in the armory. **PR #44:** toggle **N** (each player's own PC in online co-op), HUD button, touch **NVG**; green visibility bubble + screen tint. **`\`** is only for rare same-keyboard local P2 on one PC — online guest uses **N** on their machine. **Flare pack** still armory-only (no throw yet).
+- **NVG (night vision goggles):** selectable as **operative gear** in the armory. Toggle **N** (each player's own PC in online co-op), HUD button, touch **NVG**; green visibility bubble + screen tint (`GearSystem`). **`\`** is only for rare same-keyboard local P2 on one PC — online guest uses **N** on their machine. **Flare pack** still armory-only (no throw yet).
 - **Mouse aim:** P1 aim uses `Camera.screenToWorld(mousePos)` so shots match the reticle when the camera pans/zooms (PR #43).
 - The armory remembers mode, difficulty and both loadouts in `localStorage`. Saves from older builds are checked field by field.
 
@@ -196,7 +196,8 @@ images/                   Raw art uploads from the owner (source material, not l
   - **TURN not configured on GitHub Pages** — strict NAT / school Wi‑Fi / VPN often blocks STUN-only P2P. Sign up at [Metered Open Relay](https://www.metered.ca/tools/openrelay/), set `VITE_TURN_CREDENTIALS_URL` in CI secrets, rebuild.
   - Free `0.peerjs.com` PeerServer has no SLA — consider self-hosted `peerjs-server` for production.
   - Guest movement is lightly blended between snapshots; there is no full input prediction (may feel laggy on high-latency links).
-  - **Sector reward:** host picks the drop; guest sees a wait screen then a reveal (`sector_reward_open` / `sector_reward_pick`, `PROTO_VERSION` 3). Still needs a full two-browser playtest off-LAN once TURN is configured.
+  - **Sector reward:** host picks the drop; guest sees a wait screen then a reveal (`sector_reward_open` / `sector_reward_pick`). Still needs a full two-browser playtest off-LAN once TURN is configured.
+  - **Protocol:** host and guest must run the same `PROTO_VERSION` (currently **4**). Older cached GitHub Pages tabs may still be on v3 until hard-refresh.
 - **2026-09-25 playtest pass:** automated balance review (`tests/playtestBalance.test.ts`) confirms EASY/HARD contact DPS, evac pacing and sector HP scale as intended.
 
 ### Recently fixed
@@ -221,7 +222,9 @@ images/                   Raw art uploads from the owner (source material, not l
 
 **2026-09-28 (PR #43):** Mouse aim fixed — screen mouse position converted to world space before `aimAngle` (reticle vs hitscan alignment).
 
-**2026-09-28 (PR #44, open):** In-mission **NVG toggle** (HUD, touch, `N`); `GearSystem` lighting bubble; net `PROTO_VERSION` 4 + `nvgOn` / `isTogglingNvg` on wire.
+**2026-09-28 (PR #44, merged):** In-mission **NVG toggle** (HUD, touch, `N`); `GearSystem` lighting bubble; net `PROTO_VERSION` 4 + `nvgOn` / `isTogglingNvg` on wire.
+
+**2026-09-28 (PR #45, merged):** `progress.md` handoff refresh (tabs, XP, weapons, NVG status).
 
 ---
 
@@ -253,7 +256,7 @@ images/                   Raw art uploads from the owner (source material, not l
 - **Loadout clamp** (`tests/loadoutStorage.test.ts`): locked weapons stripped when loading armory saves.
 - **Mouse aim** (`tests/mouseAim.test.ts`): aim angle with offset camera.
 - **Career XP** (`tests/playerProgress.test.ts`): level from lifetime XP, persist on run record.
-- **NVG gear** (`tests/nvgGear.test.ts`, PR #44): toggle only with NVG equipped; light emission while on.
+- **NVG gear** (`tests/nvgGear.test.ts`): toggle only with NVG equipped; light emission while on.
 - **Zombie separation** (`tests/aiSeparation.test.ts`): overlapping enraged zombies pushed apart.
 - **Animation pack** (`tests/animationAssets.test.ts`): walk/downed sheets present for all characters.
 - **Deterministic Playwright loop:** `Game.renderGameToText()` + `Game.advanceTime()` wired in `main.ts`. Example: `node scripts/dev-playtest.mjs http://localhost:3000/`.
@@ -263,12 +266,11 @@ images/                   Raw art uploads from the owner (source material, not l
 ## 7. What's next (recommended order)
 
 1. **Add `VITE_TURN_CREDENTIALS_URL` GitHub secret** — CI passes the env var through; owner pastes Metered Open Relay URL and redeploys.
-2. **Two-browser online playtest** — full run: lobby → both sectors → host reward pick → guest reveal → evac (off-LAN once TURN works).
+2. **Two-browser online playtest** — full run on `PROTO_VERSION` **4** (NVG, sector rewards): lobby → sectors → host reward pick → guest reveal → evac (off-LAN once TURN works).
 3. **Human balance playtest** — Sector 1 eastern tunnel (`worldMaxX` 1940) and survival wave pacing; confirm sector backgrounds read correctly under flashlights after the `renderFloor` fix.
 4. **Expand scrollable maps** — Sector 2/3 still viewport-sized; reuse `worldMaxX` + `Camera.setWorldBounds`.
-5. **Merge PR #44** (NVG controls + `PROTO_VERSION` 4) and two-browser test with updated guest build.
-6. **Flare pack gameplay** — throwable area light + noise (`GearSystem`); still armory-only.
-7. **Optional:** armory background art; self-host PeerServer if `0.peerjs.com` is unreliable.
+5. **Flare pack gameplay** — throwable area light + noise (`GearSystem`); still armory-only.
+6. **Optional:** armory background art; self-host PeerServer if `0.peerjs.com` is unreliable.
 
 ---
 
@@ -281,7 +283,7 @@ images/                   Raw art uploads from the owner (source material, not l
 | Gear | Status |
 |------|--------|
 | **extra_ammo / extra_battery** | ✅ applied at deploy (`Player.applyDeployGearBonus`) |
-| **NVG** | ✅ PR #44 — toggle N / HUD / touch; `GearSystem` + `ShadowRenderer` green bubble (no separate NVG battery yet) |
+| **NVG** | ✅ toggle N / HUD / touch; `GearSystem` + `ShadowRenderer` green bubble (no separate NVG battery yet) |
 | **flare_pack** | ⏸ armory + loadout only; no throw / light / noise |
 
 **Career XP** (`PlayerProgress.ts`) is separate from unlock rules (still wins/grades/kills in `WeaponUnlocks.ts`); shown on armory **Player Profile** tab.
@@ -330,14 +332,14 @@ Throwable projectile, bright pool ~8–12 s, large `NoiseSystem` event, limited 
 | 28 | Operative gear armory + deploy bonuses | ✅ dropdown + extra ammo/battery |
 | 29 | Armory tabs + career XP | ✅ briefing / loadout / profile (`PlayerProgress`) |
 | 30 | Mouse aim vs reticle | ✅ `screenToWorld` in `Input.getPlayer1Input` (PR #43) |
-| 31 | NVG in-mission toggle | ⏸ PR #44 open — HUD, touch, lighting; merge + PROTO 4 |
+| 31 | NVG in-mission toggle | ✅ PR #44 — HUD, touch, lighting, `PROTO_VERSION` 4 |
 | 32 | Flare pack gameplay | ⏸ armory only |
 
 ---
 
 ## 9. History
 
-All work landed through PRs #1–#43 on `main` (+ follow-up commits): deploy pipeline, art pipeline, asset-path fix, title screen, sprites/backgrounds, wall alignment, lighting, battery, test suite, lint, loadout saving, gamepad/touch, online lobby + M2 sync, sector modifiers, horde fixes, progress handoff (#32–#33), stability (#36), enhancement roadmap (#37), code-review fixes (#38), gameplay soft-lock fixes (#39), sector `renderFloor` background fix, expanded armory weapons/gear (#40), armory tabs + profile XP (#41–#42), mouse-aim fix (#43). PR #44 (NVG) pending merge. Stale branches #34/#35 closed without merge. See `git log --merges` for details.
+All work landed through PRs #1–#45 on `main` (+ follow-up commits): deploy pipeline, art pipeline, asset-path fix, title screen, sprites/backgrounds, wall alignment, lighting, battery, test suite, lint, loadout saving, gamepad/touch, online lobby + M2 sync, sector modifiers, horde fixes, progress handoff (#32–#33), stability (#36), enhancement roadmap (#37), code-review fixes (#38), gameplay soft-lock fixes (#39), sector `renderFloor` background fix, expanded armory weapons/gear (#40), armory tabs + profile XP (#41–#42), mouse-aim fix (#43), NVG toggle (#44), progress doc (#45). Stale branches #34/#35 closed without merge. See `git log --merges` for details.
 
 **2026-09-25 sessions:**
 - Sector-alert horde frenzy — loud gunfire (>150 px) wakes every zombie and calls edge reinforcements. Owner playtested and confirmed.
