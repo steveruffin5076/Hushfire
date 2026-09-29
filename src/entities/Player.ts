@@ -1,6 +1,7 @@
 import { Entity } from './Entity';
 import { MuzzleType, RailType, AmmoType, WeaponDef, WEAPON_REGISTRY, MUZZLE_MODIFIERS } from '../config/weapons';
 import { OperativeGearId } from '../config/operativeGear';
+import { ThrowableKind, THROWABLE_ORDER, THROW_COOLDOWN_SEC, startingThrowableCounts } from '../config/throwables';
 import { PlayerInputState } from '../core/Input';
 import { MapManager } from '../systems/MapManager';
 import {
@@ -73,6 +74,9 @@ export class Player extends Entity {
   /** Fire-rate gate for melee swings (drawn melee slot or quick-melee key). */
   public lastMeleeSwingTime = -Infinity;
   public meleeStamina = MELEE_STAMINA_MAX;
+  public throwableCounts: Record<ThrowableKind, number> = { he: 0, incendiary: 0, flashbang: 0, flare: 0 };
+  public selectedThrowable: ThrowableKind = 'he';
+  public lastThrowTime = -Infinity;
 
   public isDowned = false;
   public reviveProgress = 0;
@@ -92,6 +96,7 @@ export class Player extends Entity {
     this.loadout = loadout;
     this.operativeGear = loadout.operativeGear ?? 'none';
     if (this.operativeGear === 'nvg') this.nvgBattery = NVG_BATTERY_MAX;
+    if (this.hasThrowableGear()) this.initGrenadePouchInventory();
     const primary = WEAPON_REGISTRY[loadout.primaryWeapon];
     const secondary = WEAPON_REGISTRY[loadout.secondaryWeapon];
     this.ammoBySlot = {
@@ -136,9 +141,75 @@ export class Player extends Entity {
       case 'extra_battery':
         this.flashlightBattery = Math.min(FLASHLIGHT_BATTERY_MAX, this.flashlightBattery + BATTERY_PICKUP_CHARGE);
         break;
+      case 'grenade_pouch':
+      case 'extra_grenade_pouches':
+        this.initGrenadePouchInventory();
+        break;
       default:
         break;
     }
+  }
+
+  hasThrowableGear(): boolean {
+    return this.operativeGear === 'grenade_pouch' || this.operativeGear === 'extra_grenade_pouches';
+  }
+
+  /** @deprecated Use hasThrowableGear — kept for call-site clarity in HUD. */
+  hasGrenadePouch(): boolean {
+    return this.hasThrowableGear();
+  }
+
+  initGrenadePouchInventory() {
+    if (!this.hasThrowableGear()) return;
+    const gear = this.operativeGear as 'grenade_pouch' | 'extra_grenade_pouches';
+    const starting = startingThrowableCounts(gear);
+    for (const kind of THROWABLE_ORDER) {
+      this.throwableCounts[kind] = starting[kind];
+    }
+    this.selectedThrowable = this.firstThrowableWithAmmo() ?? 'he';
+  }
+
+  firstThrowableWithAmmo(): ThrowableKind | null {
+    for (const kind of THROWABLE_ORDER) {
+      if (this.throwableCounts[kind] > 0) return kind;
+    }
+    return null;
+  }
+
+  selectThrowable(kind: ThrowableKind) {
+    if (!this.hasGrenadePouch()) return;
+    if (this.throwableCounts[kind] > 0) this.selectedThrowable = kind;
+  }
+
+  cycleThrowable() {
+    if (!this.hasGrenadePouch()) return;
+    const start = THROWABLE_ORDER.indexOf(this.selectedThrowable);
+    for (let i = 1; i <= THROWABLE_ORDER.length; i++) {
+      const kind = THROWABLE_ORDER[(start + i) % THROWABLE_ORDER.length];
+      if (this.throwableCounts[kind] > 0) {
+        this.selectedThrowable = kind;
+        return;
+      }
+    }
+  }
+
+  canThrow(kind = this.selectedThrowable): boolean {
+    if (!this.hasGrenadePouch() || this.isDowned || this.isEliminated) return false;
+    if (this.throwableCounts[kind] <= 0) return false;
+    return performance.now() - this.lastThrowTime >= THROW_COOLDOWN_SEC * 1000;
+  }
+
+  consumeThrowable(kind: ThrowableKind) {
+    this.throwableCounts[kind] = Math.max(0, this.throwableCounts[kind] - 1);
+    this.lastThrowTime = performance.now();
+    if (this.throwableCounts[this.selectedThrowable] <= 0) {
+      const next = this.firstThrowableWithAmmo();
+      if (next) this.selectedThrowable = next;
+    }
+  }
+
+  totalThrowablesRemaining(): number {
+    return THROWABLE_ORDER.reduce((sum, k) => sum + this.throwableCounts[k], 0);
   }
 
   addAmmoPickup(): boolean {

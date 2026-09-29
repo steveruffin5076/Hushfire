@@ -19,7 +19,13 @@ const idle = {
   selectMelee: false,
   isMeleeAttack: false,
   isTogglingFlashlight: false,
-  isTogglingNvg: false
+  isTogglingNvg: false,
+  isThrowing: false,
+  cycleThrowable: false,
+  selectThrowableHe: false,
+  selectThrowableIncendiary: false,
+  selectThrowableFlashbang: false,
+  selectThrowableFlare: false
 };
 
 describe('co-op bleed-out', () => {

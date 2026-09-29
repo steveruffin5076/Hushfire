@@ -28,6 +28,14 @@ import { AISystem } from '../systems/AISystem';
 import { Difficulty, DifficultyDef, DIFFICULTIES } from '../config/difficulty';
 import { SURGE_START_INTERVAL_SEC, surgeInterval, surgeSize, pickSurgeArchetype } from '../systems/HordeSurge';
 import { CombatSystem, Decal, bloodDecal, HIT_FLASH_SEC, BIO_CARRIER_BLAST_RADIUS, collectStuckBolts } from '../systems/CombatSystem';
+import {
+  ThrowableSystem,
+  GroundFire,
+  PlacedFlare,
+  clampThrowTarget
+} from '../systems/ThrowableSystem';
+import { ThrownGrenade } from '../entities/ThrownGrenade';
+import { THROW_MAX_RANGE_PX } from '../config/throwables';
 import { HUD } from '../ui/HUD';
 import { RunStats } from '../ui/ExtractionModal';
 import type { SectorReward } from '../ui/SectorRewardMenu';
@@ -147,6 +155,10 @@ export class Game {
   private ai: AISystem;
   private readonly difficultyDef: DifficultyDef;
   private combat: CombatSystem;
+  private throwableSystem!: ThrowableSystem;
+  private thrownGrenades: ThrownGrenade[] = [];
+  private groundFires: GroundFire[] = [];
+  private placedFlares: PlacedFlare[] = [];
 
   private lastTime = 0;
   private accumulator = 0;
@@ -178,7 +190,7 @@ export class Game {
     const cx = (e.clientX - rect.left) * scaleX;
     const cy = (e.clientY - rect.top) * scaleY;
 
-    const lightBtn = HUD.getFlashlightButtonRect(1);
+    const lightBtn = HUD.getFlashlightButtonRect(this.p1);
     if (cx >= lightBtn.x && cx <= lightBtn.x + lightBtn.w && cy >= lightBtn.y && cy <= lightBtn.y + lightBtn.h) {
       this.p1.toggleFlashlight();
       e.stopPropagation();
@@ -186,8 +198,14 @@ export class Game {
       return;
     }
     if (this.p1.operativeGear === 'nvg') {
-      const nvgBtn = HUD.getNvgButtonRect(1);
-      if (cx >= nvgBtn.x && cx <= nvgBtn.x + nvgBtn.w && cy >= nvgBtn.y && cy <= nvgBtn.y + nvgBtn.h) {
+      const nvgBtn = HUD.layoutPlayerPanel(this.p1).nvgBtn;
+      if (
+        nvgBtn &&
+        cx >= nvgBtn.x &&
+        cx <= nvgBtn.x + nvgBtn.w &&
+        cy >= nvgBtn.y &&
+        cy <= nvgBtn.y + nvgBtn.h
+      ) {
         this.p1.toggleNvg();
         e.stopPropagation();
         e.preventDefault();
@@ -209,13 +227,15 @@ export class Game {
     const cx = (e.clientX - rect.left) * scaleX;
     const cy = (e.clientY - rect.top) * scaleY;
 
-    const lightBtn = HUD.getFlashlightButtonRect(1);
+    const lightBtn = HUD.getFlashlightButtonRect(this.p1);
     let hovering =
       cx >= lightBtn.x && cx <= lightBtn.x + lightBtn.w && cy >= lightBtn.y && cy <= lightBtn.y + lightBtn.h;
     if (!hovering && this.p1.operativeGear === 'nvg') {
-      const nvgBtn = HUD.getNvgButtonRect(1);
-      hovering =
-        cx >= nvgBtn.x && cx <= nvgBtn.x + nvgBtn.w && cy >= nvgBtn.y && cy <= nvgBtn.y + nvgBtn.h;
+      const nvgBtn = HUD.layoutPlayerPanel(this.p1).nvgBtn;
+      if (nvgBtn) {
+        hovering =
+          cx >= nvgBtn.x && cx <= nvgBtn.x + nvgBtn.w && cy >= nvgBtn.y && cy <= nvgBtn.y + nvgBtn.h;
+      }
     }
     this.canvas.style.cursor = hovering ? 'pointer' : 'none';
   };
@@ -346,6 +366,9 @@ export class Game {
       onZombieKilled: (zombie, killer) => this.onZombieKilled(zombie, killer),
       onSectorAlertingShot: player => this.onSectorAlertingShot(player)
     });
+    this.throwableSystem = new ThrowableSystem(this.map, this.noise, this.combat, {
+      onSectorAlertingShot: player => this.onSectorAlertingShot(player)
+    });
 
     this.spawnZombies();
 
@@ -404,7 +427,13 @@ export class Game {
       selectMelee: false,
       isMeleeAttack: false,
       isTogglingFlashlight: false,
-      isTogglingNvg: false
+      isTogglingNvg: false,
+      isThrowing: false,
+      cycleThrowable: false,
+      selectThrowableHe: false,
+      selectThrowableIncendiary: false,
+      selectThrowableFlashbang: false,
+      selectThrowableFlare: false
     };
   }
 
@@ -427,7 +456,12 @@ export class Game {
       hasKeycard: player.hasKeycard,
       nvgOn: player.nvgOn,
       nvgBattery: player.nvgBattery,
-      meleeStamina: player.meleeStamina
+      meleeStamina: player.meleeStamina,
+      throwableHe: player.throwableCounts.he,
+      throwableIncendiary: player.throwableCounts.incendiary,
+      throwableFlashbang: player.throwableCounts.flashbang,
+      throwableFlare: player.throwableCounts.flare,
+      throwableSelected: player.selectedThrowable
     };
   }
 
@@ -450,6 +484,13 @@ export class Game {
       player.nvgBattery = snap.nvgBattery;
     }
     player.meleeStamina = snap.meleeStamina;
+    if (player.hasGrenadePouch()) {
+      player.throwableCounts.he = snap.throwableHe ?? 0;
+      player.throwableCounts.incendiary = snap.throwableIncendiary ?? 0;
+      player.throwableCounts.flashbang = snap.throwableFlashbang ?? 0;
+      player.throwableCounts.flare = snap.throwableFlare ?? 0;
+      if (snap.throwableSelected) player.selectedThrowable = snap.throwableSelected;
+    }
   }
 
   private buildSnapshot(missionOver?: { victory: boolean }): NetSnapshotMessage {
@@ -876,6 +917,19 @@ export class Game {
     this.handlePickups(this.p1, in1);
     this.handlePickups(this.p2, in2);
 
+    this.handleThrowables(this.p1, in1, true);
+    this.handleThrowables(this.p2, in2, false);
+
+    this.throwableSystem.update(
+      dt,
+      this.thrownGrenades,
+      this.zombies,
+      [this.p1, this.p2],
+      this.decals,
+      this.groundFires,
+      this.placedFlares
+    );
+
     this.combat.updateProjectiles(dt, this.projectiles, this.zombies, [this.p1, this.p2], this.decals);
     this.projectiles = collectStuckBolts(this.projectiles, [this.p1, this.p2]);
     this.tickDecals(dt);
@@ -1124,6 +1178,37 @@ export class Game {
     if (now < readyAt) return false;
     store.set(key, now + seconds);
     return true;
+  }
+
+  private handleThrowables(player: Player, input: PlayerInputState, useMouseAim: boolean) {
+    if (!player.hasGrenadePouch()) return;
+    if (input.selectThrowableHe) player.selectThrowable('he');
+    if (input.selectThrowableIncendiary) player.selectThrowable('incendiary');
+    if (input.selectThrowableFlashbang) player.selectThrowable('flashbang');
+    if (input.selectThrowableFlare) player.selectThrowable('flare');
+    if (input.cycleThrowable) player.cycleThrowable();
+    if (!input.isThrowing) return;
+
+    let targetX: number;
+    let targetY: number;
+    if (useMouseAim) {
+      const world = this.camera.screenToWorld(this.input.mousePos);
+      const clamped = clampThrowTarget(player.x, player.y, world.x, world.y);
+      targetX = clamped.x;
+      targetY = clamped.y;
+    } else {
+      targetX = player.x + Math.cos(input.aimAngle) * THROW_MAX_RANGE_PX;
+      targetY = player.y + Math.sin(input.aimAngle) * THROW_MAX_RANGE_PX;
+      const clamped = clampThrowTarget(player.x, player.y, targetX, targetY);
+      targetX = clamped.x;
+      targetY = clamped.y;
+    }
+
+    if (
+      this.throwableSystem.throw(player, player.selectedThrowable, targetX, targetY, this.thrownGrenades)
+    ) {
+      this.camera.addTrauma(0.05);
+    }
   }
 
   private handlePickups(player: Player, input: PlayerInputState) {
@@ -1410,6 +1495,9 @@ export class Game {
     this.projectiles = [];
     this.decals = [];
     this.blasts = [];
+    this.thrownGrenades = [];
+    this.groundFires = [];
+    this.placedFlares = [];
     this.hordeSpawnTimer = SURGE_START_INTERVAL_SEC;
     this.sectorHordeCooldown = 0;
     this.sectorHordeWarningTimer = 0;
@@ -1480,6 +1568,7 @@ export class Game {
     this.renderProjectiles(ctx);
     this.renderZombies(ctx);
     this.renderPlayers(ctx);
+    this.renderThrowables(ctx);
     this.renderMuzzleFlashes(ctx);
     this.hud.renderWorldSpace(ctx, this.p1, this.p2);
 
@@ -1893,6 +1982,8 @@ export class Game {
       });
     }
 
+    const flareLights = this.throwableSystem.flareLights(this.placedFlares);
+
     ShadowRenderer.render(
       ctx,
       CANVAS_WIDTH,
@@ -1901,8 +1992,33 @@ export class Game {
       this.camera.getViewRect(),
       beams,
       muzzleFlashes,
-      carryLights,
+      [...carryLights, ...flareLights],
       nvgLightsForPlayers([this.p1, this.p2])
     );
+  }
+
+  private renderThrowables(ctx: CanvasRenderingContext2D) {
+    for (const fire of this.groundFires) {
+      const alpha = Math.min(1, fire.life / 2) * 0.35;
+      ctx.fillStyle = `rgba(255, 120, 20, ${alpha.toFixed(3)})`;
+      ctx.beginPath();
+      ctx.arc(fire.x, fire.y, fire.radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    for (const g of this.thrownGrenades) {
+      const colors: Record<string, string> = {
+        he: '#8BC34A',
+        incendiary: '#FF5722',
+        flashbang: '#ECEFF1',
+        flare: '#FF6B35'
+      };
+      ctx.fillStyle = colors[g.kind] ?? '#CCC';
+      ctx.beginPath();
+      ctx.arc(g.x, g.y, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
   }
 }

@@ -36,6 +36,12 @@ const idle = (overrides: Partial<PlayerInputState> = {}): PlayerInputState => ({
   isMeleeAttack: false,
   isTogglingFlashlight: false,
   isTogglingNvg: false,
+  isThrowing: false,
+  cycleThrowable: false,
+  selectThrowableHe: false,
+  selectThrowableIncendiary: false,
+  selectThrowableFlashbang: false,
+  selectThrowableFlare: false,
   ...overrides
 });
 
