@@ -19,3 +19,7 @@
 Each client uses **P1 controls only** (`getPlayer1Input`). On the guest client, snapshots remap so local P1 = host P2.
 
 When adding features (NVG, melee, HUD key hints), assume **one local player per machine**. P2 HUD on the host is **partner status**, not local keybinds.
+
+## Git workflow
+
+After any code change (including small follow-ups), **commit and push** to the working branch before ending the turn. Do not leave uncommitted work on the agent VM unless the user explicitly asks not to push.
