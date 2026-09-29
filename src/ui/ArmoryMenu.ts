@@ -12,8 +12,13 @@ import {
   MELEE_WEAPON_ARMORY_ORDER
 } from '../config/weapons';
 import { OPERATIVE_GEAR_ORDER, OPERATIVE_GEAR_REGISTRY, OperativeGearId } from '../config/operativeGear';
-import { GRENADE_POUCH_STARTING, THROWABLE_LABELS, THROWABLE_ORDER } from '../config/throwables';
-import { DEFAULT_THROWABLE_CARRY } from '../config/throwableCarry';
+import { GRENADE_POUCH_STARTING, THROWABLE_LABELS, THROWABLE_ORDER, ThrowableKind } from '../config/throwables';
+import {
+  DEFAULT_THROWABLE_CARRY,
+  getGrenadePouchSelection,
+  throwableCarryFromSelection,
+  type GrenadePouchSelection
+} from '../config/throwableCarry';
 import { isThrowableUnlocked, throwableUnlockHint } from './WeaponUnlocks';
 import { WeaponLoadout } from '../entities/Player';
 import { CYAN, ORANGE, TEXT, MUTED, GREEN, RED, PANEL_BG, PANEL_BORDER, FIELD_BG } from './theme';
@@ -130,14 +135,14 @@ export class ArmoryMenu {
 
     const stageShell = document.createElement('div');
     stageShell.style.cssText = `
-      flex: 1; min-height: 0; width: 100%; overflow: auto; box-sizing: border-box;
-      display: flex; justify-content: flex-start; align-items: flex-start;
-      padding: 52px 28px 10px 24px;
+      flex: 1; min-height: 0; width: 100%; overflow: hidden; box-sizing: border-box;
+      display: flex; justify-content: center; align-items: flex-start;
+      padding: 52px 20px 12px;
     `;
     const stage = document.createElement('div');
     stage.style.cssText = `
-      width: 100%; display: flex; flex-direction: column; transform-origin: top left;
-      flex-shrink: 0;
+      width: 100%; max-width: 1180px; display: flex; flex-direction: column; transform-origin: top center;
+      flex-shrink: 0; box-sizing: border-box;
     `;
     stageShell.appendChild(stage);
     this.root.appendChild(stageShell);
@@ -201,9 +206,6 @@ export class ArmoryMenu {
       </div>
     `;
     stage.appendChild(header);
-    stage.style.maxWidth = '1120px';
-    stage.style.margin = '0';
-    stage.style.width = '100%';
 
     type ArmoryTab = 'briefing' | 'loadout' | 'profile';
     let activeTab: ArmoryTab = 'briefing';
@@ -236,7 +238,7 @@ export class ArmoryMenu {
     const briefingPane = document.createElement('div');
     const loadoutPane = document.createElement('div');
     const profilePane = document.createElement('div');
-    loadoutPane.style.cssText = 'max-height: min(68vh, 560px); overflow-y: auto; overflow-x: hidden;';
+    loadoutPane.style.cssText = 'overflow: visible;';
     loadoutPane.style.display = 'none';
     profilePane.style.display = 'none';
     contentPanel.appendChild(briefingPane);
@@ -466,7 +468,7 @@ export class ArmoryMenu {
     loadoutBody.style.cssText = 'flex: 1; min-width: 0;';
     const statsMount = document.createElement('div');
     statsMount.style.cssText =
-      'flex: 0 0 38%; max-width: 400px; min-width: 268px; position: sticky; top: 8px; align-self: flex-start;';
+      'flex: 0 1 36%; max-width: 380px; min-width: 240px; align-self: flex-start;';
     loadoutLayout.appendChild(loadoutBody);
     loadoutLayout.appendChild(statsMount);
     loadoutPane.style.textAlign = 'left';
@@ -546,8 +548,7 @@ export class ArmoryMenu {
       );
 
       if (!loadout.throwableCarry) loadout.throwableCarry = { ...DEFAULT_THROWABLE_CARRY };
-      const carry = loadout.throwableCarry;
-      const anyGrenadeCarried = THROWABLE_ORDER.some(k => carry[k]);
+      const grenadeSelection = getGrenadePouchSelection(loadout.throwableCarry);
 
       const meleeGrenadeRow = document.createElement('div');
       meleeGrenadeRow.style.cssText = 'display: flex; gap: 14px; margin-bottom: 12px; align-items: flex-start;';
@@ -569,65 +570,30 @@ export class ArmoryMenu {
 
       const grenadeCol = document.createElement('div');
       grenadeCol.style.cssText = 'flex: 1; min-width: 0;';
+      const grenadeOptions: [string, string][] = [
+        ['none', 'No grenades this run'],
+        ...THROWABLE_ORDER.map(kind => {
+          const unlocked = isThrowableUnlocked(kind);
+          const count = GRENADE_POUCH_STARTING[kind];
+          const lock = unlocked ? '' : ` 🔒 (${throwableUnlockHint(kind)})`;
+          return [kind, `${THROWABLE_LABELS[kind]} ×${count}${lock}`] as [string, string];
+        })
+      ];
       grenadeCol.appendChild(
         this.buildSelect(
           'GRENADE POUCH:',
-          [
-            ['equipped', 'Equipped — throw in-mission with [G]'],
-            ['empty', 'No grenades this run']
-          ],
-          anyGrenadeCarried ? 'equipped' : 'empty',
+          grenadeOptions,
+          grenadeSelection,
           v => {
-            if (v === 'empty') {
-              for (const kind of THROWABLE_ORDER) carry[kind] = false;
-            } else {
-              carry.flashbang = isThrowableUnlocked('flashbang');
-              for (const kind of THROWABLE_ORDER) {
-                if (kind !== 'flashbang' && carry[kind] && !isThrowableUnlocked(kind)) {
-                  carry[kind] = false;
-                }
-              }
-              if (!THROWABLE_ORDER.some(k => carry[k])) {
-                carry.flashbang = isThrowableUnlocked('flashbang');
-              }
-            }
+            const sel = v as GrenadePouchSelection;
+            if (sel !== 'none' && !isThrowableUnlocked(sel)) return;
+            loadout.throwableCarry = throwableCarryFromSelection(sel);
             renderLoadout();
           },
           false,
-          () => true
+          v => v === 'none' || isThrowableUnlocked(v as ThrowableKind)
         )
       );
-
-      const grenadeList = document.createElement('div');
-      grenadeList.style.cssText = `margin-top: 8px; padding: 10px 10px; background: ${FIELD_BG}; border: 1px solid ${PANEL_BORDER}; border-radius: 4px;`;
-      const grenadeHint = document.createElement('div');
-      grenadeHint.style.cssText = `font-size: 10.5px; color: ${MUTED}; margin-bottom: 8px; line-height: 1.4;`;
-      grenadeHint.textContent = 'Types to carry (unlock via career):';
-      grenadeList.appendChild(grenadeHint);
-      for (const kind of THROWABLE_ORDER) {
-        const row = document.createElement('label');
-        row.style.cssText =
-          `display: flex; align-items: flex-start; gap: 8px; font-size: 12px; color: ${TEXT}; margin: 5px 0; cursor: pointer;`;
-        const cb = document.createElement('input');
-        cb.type = 'checkbox';
-        const unlocked = isThrowableUnlocked(kind);
-        cb.checked = !!carry[kind];
-        cb.disabled = !unlocked || !anyGrenadeCarried;
-        cb.onchange = () => {
-          if (!unlocked) return;
-          carry[kind] = cb.checked;
-          renderLoadout();
-        };
-        const count = GRENADE_POUCH_STARTING[kind];
-        const lock = unlocked ? '' : ` 🔒 ${throwableUnlockHint(kind)}`;
-        row.appendChild(cb);
-        const text = document.createElement('span');
-        text.textContent = `${THROWABLE_LABELS[kind]} ×${count}${lock}`;
-        text.style.color = unlocked ? TEXT : MUTED;
-        row.appendChild(text);
-        grenadeList.appendChild(row);
-      }
-      grenadeCol.appendChild(grenadeList);
       meleeGrenadeRow.appendChild(meleeCol);
       meleeGrenadeRow.appendChild(grenadeCol);
       loadoutBody.appendChild(meleeGrenadeRow);
@@ -1005,11 +971,13 @@ export class ArmoryMenu {
     };
 
     const gear = OPERATIVE_GEAR_REGISTRY[loadout.operativeGear ?? 'none'];
-    const carry = loadout.throwableCarry ?? DEFAULT_THROWABLE_CARRY;
-    const grenadeLines = THROWABLE_ORDER
-      .filter(k => carry[k] && isThrowableUnlocked(k))
-      .map(k => `${THROWABLE_LABELS[k]} ×${GRENADE_POUCH_STARTING[k]}`)
-      .join(', ');
+    const grenadeSel = getGrenadePouchSelection(loadout.throwableCarry);
+    const grenadeCarryLabel =
+      grenadeSel === 'none'
+        ? 'None'
+        : isThrowableUnlocked(grenadeSel)
+          ? `${THROWABLE_LABELS[grenadeSel]} ×${GRENADE_POUCH_STARTING[grenadeSel]}`
+          : 'None';
     box.innerHTML =
       heading('LOADOUT STATS') +
       heading('PRIMARY') +
@@ -1017,7 +985,7 @@ export class ArmoryMenu {
       heading('SECONDARY') +
       stats(loadout.secondaryWeapon, loadout.secondaryMuzzle, loadout.secondaryAmmoType) +
       heading('GRENADE POUCH') +
-      row('CARRYING', grenadeLines.length ? grenadeLines : 'None selected', grenadeLines.length ? '#FFAB40' : MUTED) +
+      row('CARRYING', grenadeCarryLabel, grenadeSel === 'none' ? MUTED : '#FFAB40') +
       row('THROW', '[G] toward aim — max 300px range', MUTED) +
       heading('MELEE') +
       stats(loadout.meleeWeapon, 'none', 'standard') +
