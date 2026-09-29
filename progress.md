@@ -6,6 +6,7 @@ Last updated: 2026-09-29 (`main`: through PR #45 progress handoff; includes PR #
 
 - Live site: https://steveruffin5076.github.io/Hushfire/
 - Repo: https://github.com/steveruffin5076/Hushfire (default branch `main`)
+- **Enhancement roadmap:** `enhancement.md` (evidence-based E1–E12 plan; companion `HUSHFIRE_MARKET_RESEARCH.md` when added)
 
 ---
 
