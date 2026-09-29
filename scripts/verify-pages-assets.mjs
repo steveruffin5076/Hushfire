@@ -43,6 +43,15 @@ for (const char of CHARS) {
       failed = true;
     }
   }
+  if (char === 'player_infiltrator') {
+    for (const file of INFILTRATOR_ATTACK) {
+      const p = path.join(dir, file);
+      if (!fs.existsSync(p)) {
+        console.error('Missing', path.relative(root, p));
+        failed = true;
+      }
+    }
+  }
 }
 
 if (failed) process.exit(1);
