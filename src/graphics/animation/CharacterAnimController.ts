@@ -211,8 +211,9 @@ export class CharacterAnimController {
       const pv =
         'pivot_cell_px' in meta && meta.pivot_cell_px
           ? meta.pivot_cell_px
-          : pivotWalk(walk.meta);
-      drawSheetFrame(ctx, attack.image, adv.frame, cellW, cellH, clip.row ?? 0, pv, drawSize, refW, angle, cx, cy);
+          : pivotSimple(meta as SimpleClipSheetMeta, walk.meta);
+      // Attack sheets may use a different cell size than walk — scale from this clip's width.
+      drawSheetFrame(ctx, attack.image, adv.frame, cellW, cellH, clip.row ?? 0, pv, drawSize, cellW, angle, cx, cy);
       return;
     }
 

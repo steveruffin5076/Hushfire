@@ -68,10 +68,8 @@ export class AnimationCatalog {
       if (PLAYER_CHARS.includes(id)) {
         const recoil = await loadSheetPair<SimpleClipSheetMeta>(base, 'recoil_sheet');
         const hit = await loadSheetPair<SimpleClipSheetMeta>(base, 'hit_sheet');
-        const attack = await loadSheetPair<SimpleClipSheetMeta>(base, 'attack_sheet');
         if (recoil) set.recoil = recoil;
         if (hit) set.hit = hit;
-        if (attack) set.attack = attack;
       }
       if (ZOMBIE_ATTACK_CHARS.includes(id)) {
         const attack = await loadSheetPair<MultiClipSheetMeta>(base, 'attack_sheet');

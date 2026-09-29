@@ -13,12 +13,6 @@ const CHARS = [
 ];
 
 describe('animation pack assets in public/', () => {
-  it('ships knife attack sheet for player infiltrator', () => {
-    const dir = path.join(process.cwd(), 'public', 'assets', 'animations', 'player_infiltrator');
-    expect(fs.existsSync(path.join(dir, 'attack_sheet.webp'))).toBe(true);
-    expect(fs.existsSync(path.join(dir, 'attack_sheet.json'))).toBe(true);
-  });
-
   it('ships walk and downed sheets for every character', () => {
     const root = path.join(process.cwd(), 'public', 'assets', 'animations');
     for (const id of CHARS) {
