@@ -209,6 +209,11 @@ export class CombatSystem {
     return angleBetween(zombieToAttacker, zombie.angle + Math.PI) < BACKSTAB_REAR_ARC_RAD / 2;
   }
 
+  /** Explosives and grenades — moderate armor penetration, full kill credit rules. */
+  applyThrowableDamage(zombie: Zombie, hitAngle: number, rawDamage: number, attacker: Player) {
+    this.applyDamage(zombie, hitAngle, rawDamage, attacker, 0.55);
+  }
+
   private applyDamage(zombie: Zombie, hitAngle: number, rawDamage: number, attacker: Player, armorPen: number) {
     let damage = rawDamage;
 

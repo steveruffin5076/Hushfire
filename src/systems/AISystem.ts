@@ -26,6 +26,7 @@ export class AISystem {
 
     for (const zombie of zombies) {
       if (!zombie.alive) continue;
+      if (zombie.stunTimer > 0) continue;
 
       if (zombie.screamCooldown > 0) zombie.screamCooldown -= dt;
 

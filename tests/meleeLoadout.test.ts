@@ -59,7 +59,13 @@ describe('melee loadout slot', () => {
       selectMelee: false,
       isMeleeAttack: false,
       isTogglingFlashlight: false,
-      isTogglingNvg: false
+      isTogglingNvg: false,
+      isThrowing: false,
+      cycleThrowable: false,
+      selectThrowableHe: false,
+      selectThrowableIncendiary: false,
+      selectThrowableFlashbang: false,
+      selectThrowableFlare: false
     };
     p.update(1, idle, map);
     expect(p.meleeStamina).toBeGreaterThan(MELEE_STAMINA_MAX - MELEE_STAMINA_COST_PER_SWING);

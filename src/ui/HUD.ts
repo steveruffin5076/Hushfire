@@ -1,5 +1,6 @@
 import { Player } from '../entities/Player';
 import { WEAPON_REGISTRY } from '../config/weapons';
+import { THROWABLE_LABELS, THROWABLE_ORDER, THROWABLE_SHORT, THROW_MAX_RANGE_PX } from '../config/throwables';
 import { MapManager } from '../systems/MapManager';
 import {
   CANVAS_WIDTH,
@@ -226,6 +227,25 @@ export class HUD {
       ctx.fillStyle = '#8A94A6';
       ctx.fillText('MELEE STAMINA [E]', x, barCursor + 11);
       ctx.font = '13px monospace';
+    }
+
+    if (p.hasGrenadePouch() && p.totalThrowablesRemaining() > 0) {
+      ctx.font = '11px monospace';
+      ctx.fillStyle = '#FFAB40';
+      const parts = THROWABLE_ORDER.map(
+        k =>
+          `${THROWABLE_SHORT[k]}×${p.throwableCounts[k]}${p.selectedThrowable === k ? '*' : ''}`
+      );
+      ctx.fillText(`GRENADES [G] ${parts.join(' ')} — ${THROW_MAX_RANGE_PX}px`, x, barCursor + 14);
+      ctx.fillStyle = '#8A94A6';
+      ctx.font = '10px monospace';
+      ctx.fillText(
+        `Selected: ${THROWABLE_LABELS[p.selectedThrowable]} — [4-7] pick, [B] cycle`,
+        x,
+        barCursor + 28
+      );
+      ctx.font = '13px monospace';
+      barCursor += 36;
     }
 
     this.renderFlashlightButton(ctx, p);

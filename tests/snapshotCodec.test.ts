@@ -19,7 +19,13 @@ describe('network snapshot codec', () => {
       selectMelee: false,
       isMeleeAttack: true,
       isTogglingFlashlight: false,
-      isTogglingNvg: false
+      isTogglingNvg: false,
+      isThrowing: true,
+      cycleThrowable: false,
+      selectThrowableHe: false,
+      selectThrowableIncendiary: false,
+      selectThrowableFlashbang: true,
+      selectThrowableFlare: false
     };
     const wire = inputToNet(42, input);
     expect(wire.t).toBe('input');

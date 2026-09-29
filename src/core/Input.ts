@@ -20,6 +20,12 @@ export interface PlayerInputState {
   isMeleeAttack: boolean;
   isTogglingFlashlight: boolean;
   isTogglingNvg: boolean;
+  isThrowing: boolean;
+  cycleThrowable: boolean;
+  selectThrowableHe: boolean;
+  selectThrowableIncendiary: boolean;
+  selectThrowableFlashbang: boolean;
+  selectThrowableFlare: boolean;
 }
 
 export class InputManager {
@@ -165,7 +171,13 @@ export class InputManager {
       selectMelee: keys.selectMelee,
       isMeleeAttack: keys.isMeleeAttack,
       isTogglingFlashlight: keys.isTogglingFlashlight || edge.has(PAD_BUTTON.B),
-      isTogglingNvg: keys.isTogglingNvg
+      isTogglingNvg: keys.isTogglingNvg,
+      isThrowing: keys.isThrowing,
+      cycleThrowable: keys.cycleThrowable,
+      selectThrowableHe: keys.selectThrowableHe,
+      selectThrowableIncendiary: keys.selectThrowableIncendiary,
+      selectThrowableFlashbang: keys.selectThrowableFlashbang,
+      selectThrowableFlare: keys.selectThrowableFlare
     };
   }
 
@@ -207,7 +219,13 @@ export class InputManager {
       selectMelee: this.justPressed.has('Digit3'),
       isMeleeAttack: this.justPressed.has('KeyE'),
       isTogglingFlashlight: this.justPressed.has('KeyT'),
-      isTogglingNvg: this.justPressed.has('KeyN')
+      isTogglingNvg: this.justPressed.has('KeyN'),
+      isThrowing: this.justPressed.has('KeyG'),
+      cycleThrowable: this.justPressed.has('KeyB'),
+      selectThrowableHe: this.justPressed.has('Digit4'),
+      selectThrowableIncendiary: this.justPressed.has('Digit5'),
+      selectThrowableFlashbang: this.justPressed.has('Digit6'),
+      selectThrowableFlare: this.justPressed.has('Digit7')
     }));
   }
 
@@ -229,7 +247,13 @@ export class InputManager {
       selectMelee: input.selectMelee,
       isMeleeAttack: input.isMeleeAttack || t.melee,
       isTogglingFlashlight: input.isTogglingFlashlight || t.justPressed.has('light'),
-      isTogglingNvg: input.isTogglingNvg || t.justPressed.has('nvg')
+      isTogglingNvg: input.isTogglingNvg || t.justPressed.has('nvg'),
+      isThrowing: input.isThrowing,
+      cycleThrowable: input.cycleThrowable,
+      selectThrowableHe: input.selectThrowableHe,
+      selectThrowableIncendiary: input.selectThrowableIncendiary,
+      selectThrowableFlashbang: input.selectThrowableFlashbang,
+      selectThrowableFlare: input.selectThrowableFlare
     };
   }
 

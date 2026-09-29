@@ -25,6 +25,12 @@ export interface NetInputMessage {
   isMeleeAttack: boolean;
   isTogglingFlashlight: boolean;
   isTogglingNvg: boolean;
+  isThrowing: boolean;
+  cycleThrowable: boolean;
+  selectThrowableHe: boolean;
+  selectThrowableIncendiary: boolean;
+  selectThrowableFlashbang: boolean;
+  selectThrowableFlare: boolean;
 }
 
 export interface NetPlayerSnap {
@@ -46,6 +52,11 @@ export interface NetPlayerSnap {
   nvgOn: boolean;
   nvgBattery: number;
   meleeStamina: number;
+  throwableHe: number;
+  throwableIncendiary: number;
+  throwableFlashbang: number;
+  throwableFlare: number;
+  throwableSelected: 'he' | 'incendiary' | 'flashbang' | 'flare';
 }
 
 export interface NetZombieSnap {
@@ -115,7 +126,13 @@ export function inputToNet(seq: number, input: PlayerInputState): NetInputMessag
     selectMelee: input.selectMelee,
     isMeleeAttack: input.isMeleeAttack,
     isTogglingFlashlight: input.isTogglingFlashlight,
-    isTogglingNvg: input.isTogglingNvg
+    isTogglingNvg: input.isTogglingNvg,
+    isThrowing: input.isThrowing,
+    cycleThrowable: input.cycleThrowable,
+    selectThrowableHe: input.selectThrowableHe,
+    selectThrowableIncendiary: input.selectThrowableIncendiary,
+    selectThrowableFlashbang: input.selectThrowableFlashbang,
+    selectThrowableFlare: input.selectThrowableFlare
   };
 }
 
@@ -135,7 +152,13 @@ export function netToInput(msg: NetInputMessage): PlayerInputState {
     selectMelee: msg.selectMelee,
     isMeleeAttack: msg.isMeleeAttack,
     isTogglingFlashlight: msg.isTogglingFlashlight,
-    isTogglingNvg: msg.isTogglingNvg
+    isTogglingNvg: msg.isTogglingNvg,
+    isThrowing: msg.isThrowing ?? false,
+    cycleThrowable: msg.cycleThrowable ?? false,
+    selectThrowableHe: msg.selectThrowableHe ?? false,
+    selectThrowableIncendiary: msg.selectThrowableIncendiary ?? false,
+    selectThrowableFlashbang: msg.selectThrowableFlashbang ?? false,
+    selectThrowableFlare: msg.selectThrowableFlare ?? false
   };
 }
 
@@ -149,4 +172,4 @@ export type NetMessage =
   | NetInputMessage
   | NetSnapshotMessage;
 
-export const PROTO_VERSION = 6;
+export const PROTO_VERSION = 7;

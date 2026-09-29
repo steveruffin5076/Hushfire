@@ -53,14 +53,16 @@ const GEAR_UNLOCK_RULES: Record<Exclude<OperativeGearId, 'none'>, (p: PlayerProf
   extra_ammo: p => p.totalKillsBest >= 5,
   extra_battery: p => p.totalWins >= 1,
   nvg: p => p.totalWins >= 1,
-  flare_pack: p => p.totalWins >= 2
+  flare_pack: p => p.totalWins >= 2,
+  grenade_pouch: p => p.totalWins >= 2 && gradeAtLeast(p, 'C')
 };
 
 const GEAR_UNLOCK_HINT: Record<Exclude<OperativeGearId, 'none'>, string> = {
   extra_ammo: '5+ kills in one run',
   extra_battery: 'Win any extraction',
   nvg: 'Win any extraction',
-  flare_pack: 'Win 2 extractions'
+  flare_pack: 'Win 2 extractions',
+  grenade_pouch: 'Win 2× with grade C or better'
 };
 
 const DEFAULT_MUZZLE: MuzzleType = 'tactical_suppressor';

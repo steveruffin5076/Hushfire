@@ -25,6 +25,8 @@ export class Zombie extends Entity {
   /** Staggered so a horde doesn't groan in unison. */
   public groanTimer = 2 + Math.random() * 8;
 
+  /** Flashbang stun — AI and movement frozen while > 0. */
+  public stunTimer = 0;
   /** Brief white flash on taking a hit that didn't kill it. */
   public hitFlashTimer = 0;
   /** Decaying cosmetic push-back from the last hit — never wall-collision-checked itself, so it's purely visual punch, not a real shove. */
@@ -102,6 +104,7 @@ export class Zombie extends Entity {
    * its normal sensory/movement update anymore.
    */
   updateJuice(dt: number) {
+    if (this.stunTimer > 0) this.stunTimer = Math.max(0, this.stunTimer - dt);
     if (this.hitFlashTimer > 0) this.hitFlashTimer = Math.max(0, this.hitFlashTimer - dt);
     if (this.deathTimer > 0) this.deathTimer = Math.max(0, this.deathTimer - dt);
 
