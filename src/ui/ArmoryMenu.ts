@@ -197,8 +197,8 @@ export class ArmoryMenu {
       </div>
     `;
     stage.appendChild(header);
-    stage.style.maxWidth = '960px';
-    stage.style.margin = '0 auto';
+    stage.style.maxWidth = '1120px';
+    stage.style.margin = '0';
     stage.style.width = '100%';
 
     type ArmoryTab = 'briefing' | 'loadout' | 'profile';
@@ -207,15 +207,17 @@ export class ArmoryMenu {
     const shell = document.createElement('div');
     shell.id = 'armory-layout';
     shell.style.cssText = `
-      display: flex; width: 100%; max-width: 900px; margin: 0 auto; align-items: stretch;
-      min-height: 320px;
+      display: flex; width: 100%; max-width: 100%; margin: 0; align-items: flex-start;
+      justify-content: flex-start; min-height: 320px;
     `;
     stage.appendChild(shell);
 
     const tabNav = document.createElement('div');
     tabNav.style.cssText = `
-      display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; width: 212px;
-      padding-right: 18px; margin-right: 18px; border-right: 1px solid ${PANEL_BORDER};
+      display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; width: 200px;
+      align-items: stretch; align-self: flex-start; position: sticky; top: 0;
+      padding: 0 16px 0 0; margin: 0; border-right: 1px solid ${PANEL_BORDER};
+      box-sizing: border-box;
     `;
     shell.appendChild(tabNav);
 
@@ -223,7 +225,7 @@ export class ArmoryMenu {
     contentPanel.style.cssText = `
       flex: 1; min-width: 0; background: ${PANEL_BG}; border: 1px solid ${PANEL_BORDER};
       border-radius: 6px; padding: 18px 20px; box-sizing: border-box;
-      box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+      box-shadow: 0 8px 30px rgba(0,0,0,0.4); text-align: left;
     `;
     shell.appendChild(contentPanel);
 
@@ -237,8 +239,9 @@ export class ArmoryMenu {
     contentPanel.appendChild(profilePane);
 
     const tabButtonBase = `
-      width: 100%; text-align: left; padding: 14px 12px; font-size: 11.5px; letter-spacing: 1px;
-      font-family: inherit; border-radius: 4px; cursor: pointer; border: 1px solid; line-height: 1.35;
+      display: block; width: 100%; box-sizing: border-box; text-align: left; padding: 14px 10px;
+      font-size: 11.5px; letter-spacing: 1px; font-family: inherit; border-radius: 4px;
+      cursor: pointer; border: 1px solid; line-height: 1.35; margin: 0;
     `;
     const briefingTabBtn = document.createElement('button');
     briefingTabBtn.type = 'button';
@@ -451,8 +454,18 @@ export class ArmoryMenu {
     };
 
     // ---- Weapon loadout tab ----
+    const loadoutLayout = document.createElement('div');
+    loadoutLayout.style.cssText =
+      'display: flex; gap: 18px; align-items: flex-start; width: 100%; box-sizing: border-box;';
+    loadoutBody.style.cssText = 'flex: 1; min-width: 0;';
+    const statsMount = document.createElement('div');
+    statsMount.style.cssText =
+      'flex: 0 0 38%; max-width: 400px; min-width: 268px; position: sticky; top: 8px; align-self: flex-start;';
+    loadoutLayout.appendChild(loadoutBody);
+    loadoutLayout.appendChild(statsMount);
+    loadoutPane.style.textAlign = 'left';
     loadoutPane.appendChild(operativeSlotLabel);
-    loadoutPane.appendChild(loadoutBody);
+    loadoutPane.appendChild(loadoutLayout);
 
     // Every attachment is mounted per-weapon now — each row below is a
     // primary/secondary pair rather than one shared choice, so swapping
@@ -719,7 +732,8 @@ export class ArmoryMenu {
       );
       loadoutBody.appendChild(gearRow);
 
-      loadoutBody.appendChild(this.buildStatsPanel(loadout));
+      statsMount.innerHTML = '';
+      statsMount.appendChild(this.buildStatsPanel(loadout));
       broadcastLoadout();
       // Every loadout or mode change ends up here, so this is the one place to persist.
       persistArmory();
@@ -950,16 +964,19 @@ export class ArmoryMenu {
 
   private buildStatsPanel(loadout: WeaponLoadout): HTMLDivElement {
     const box = document.createElement('div');
-    box.style.cssText = `background: ${PANEL_BG}; border: 1px solid ${PANEL_BORDER}; border-radius: 4px; padding: 10px 14px; margin-top: 2px;`;
+    box.style.cssText = `background: ${FIELD_BG}; border: 1px solid ${PANEL_BORDER}; border-radius: 4px; padding: 12px 14px;`;
 
     const row = (label: string, value: string, color: string) => `
-      <div style="display:flex; justify-content:space-between; align-items:center; font-size:12.5px; padding:3px 0; color:${MUTED};">
-        <span>${label}:</span><span style="color:${color}; font-weight:bold;">${value}</span>
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; font-size:12px; padding:3px 0; color:${MUTED}; line-height:1.35;">
+        <span style="flex-shrink:0;">${label}:</span>
+        <span style="color:${color}; font-weight:bold; text-align:right; flex:1;">${value}</span>
       </div>
     `;
 
     const heading = (label: string) => `
-      <div style="font-size:11.5px; letter-spacing:1px; color:${ORANGE}; font-weight:bold; margin:${label === 'PRIMARY' ? '0' : '10px'} 0 4px;">${label}</div>
+      <div style="font-size:11.5px; letter-spacing:1px; color:${ORANGE}; font-weight:bold; margin:${
+        label === 'LOADOUT STATS' ? '0 0 8px' : label === 'PRIMARY' ? '0 0 4px' : '10px 0 4px'
+      };">${label}</div>
     `;
 
     // Each weapon's stats reflect that slot's own muzzle/ammo choice now, since both
@@ -986,6 +1003,7 @@ export class ArmoryMenu {
       .map(k => `${THROWABLE_LABELS[k]} ×${GRENADE_POUCH_STARTING[k]}`)
       .join(', ');
     box.innerHTML =
+      heading('LOADOUT STATS') +
       heading('PRIMARY') +
       stats(loadout.primaryWeapon, loadout.primaryMuzzle, loadout.primaryAmmoType) +
       heading('SECONDARY') +
