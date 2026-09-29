@@ -5,6 +5,7 @@ import { ThrowableKind, THROWABLE_ORDER, THROW_COOLDOWN_SEC } from '../config/th
 import {
   buildThrowableCountsFromLoadout,
   DEFAULT_THROWABLE_CARRY,
+  getGrenadePouchSelection,
   ThrowableCarry
 } from '../config/throwableCarry';
 import { PlayerInputState } from '../core/Input';
@@ -156,14 +157,19 @@ export class Player extends Entity {
     }
   }
 
-  hasThrowableLoadout(): boolean {
-    const carry = this.loadout.throwableCarry ?? DEFAULT_THROWABLE_CARRY;
-    return THROWABLE_ORDER.some(k => carry[k]);
+  /** Grenade type chosen in the armory (at most one per mission). */
+  equippedThrowableKind(): ThrowableKind | null {
+    const sel = getGrenadePouchSelection(this.loadout.throwableCarry ?? DEFAULT_THROWABLE_CARRY);
+    return sel === 'none' ? null : sel;
   }
 
-  /** True when this operative can use [G] throwables this mission. */
+  hasThrowableLoadout(): boolean {
+    return this.equippedThrowableKind() !== null;
+  }
+
+  /** True when this operative brought a grenade pouch this mission. */
   hasGrenadePouch(): boolean {
-    return this.totalThrowablesRemaining() > 0 || this.hasThrowableLoadout();
+    return this.hasThrowableLoadout();
   }
 
   initThrowableInventory() {
@@ -173,34 +179,13 @@ export class Player extends Entity {
     for (const kind of THROWABLE_ORDER) {
       this.throwableCounts[kind] = counts[kind];
     }
-    this.selectedThrowable = this.firstThrowableWithAmmo() ?? 'flashbang';
-  }
-
-  firstThrowableWithAmmo(): ThrowableKind | null {
-    for (const kind of THROWABLE_ORDER) {
-      if (this.throwableCounts[kind] > 0) return kind;
-    }
-    return null;
-  }
-
-  selectThrowable(kind: ThrowableKind) {
-    if (!this.hasGrenadePouch()) return;
-    if (this.throwableCounts[kind] > 0) this.selectedThrowable = kind;
-  }
-
-  cycleThrowable() {
-    if (!this.hasGrenadePouch()) return;
-    const start = THROWABLE_ORDER.indexOf(this.selectedThrowable);
-    for (let i = 1; i <= THROWABLE_ORDER.length; i++) {
-      const kind = THROWABLE_ORDER[(start + i) % THROWABLE_ORDER.length];
-      if (this.throwableCounts[kind] > 0) {
-        this.selectedThrowable = kind;
-        return;
-      }
-    }
+    const equipped = this.equippedThrowableKind();
+    if (equipped) this.selectedThrowable = equipped;
   }
 
   canThrow(kind = this.selectedThrowable): boolean {
+    const equipped = this.equippedThrowableKind();
+    if (!equipped || kind !== equipped) return false;
     if (this.totalThrowablesRemaining() <= 0 || this.isDowned || this.isEliminated) return false;
     if (this.throwableCounts[kind] <= 0) return false;
     return performance.now() - this.lastThrowTime >= THROW_COOLDOWN_SEC * 1000;
@@ -209,10 +194,6 @@ export class Player extends Entity {
   consumeThrowable(kind: ThrowableKind) {
     this.throwableCounts[kind] = Math.max(0, this.throwableCounts[kind] - 1);
     this.lastThrowTime = performance.now();
-    if (this.throwableCounts[this.selectedThrowable] <= 0) {
-      const next = this.firstThrowableWithAmmo();
-      if (next) this.selectedThrowable = next;
-    }
   }
 
   totalThrowablesRemaining(): number {
