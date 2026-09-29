@@ -200,12 +200,12 @@ export class InputManager {
       isSprinting: this.keys.has('Space'),
       isSneaking: this.keys.has('ShiftLeft') || this.keys.has('ControlLeft'),
       isReloading: this.keys.has('KeyR'),
-      isInteracting: this.keys.has('KeyF') || this.keys.has('KeyE'),
+      isInteracting: this.keys.has('KeyF'),
       isSwitchingWeapon: this.justPressed.has('KeyQ'),
       selectPrimary: this.justPressed.has('Digit1'),
       selectSecondary: this.justPressed.has('Digit2'),
       selectMelee: this.justPressed.has('Digit3'),
-      isMeleeAttack: this.keys.has('KeyV'),
+      isMeleeAttack: this.keys.has('KeyE'),
       isTogglingFlashlight: this.justPressed.has('KeyT'),
       isTogglingNvg: this.justPressed.has('KeyN')
     }));

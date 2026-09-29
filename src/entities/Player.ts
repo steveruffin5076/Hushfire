@@ -205,8 +205,7 @@ export class Player extends Entity {
       else if (input.selectSecondary) this.activeSlot = 'secondary';
       else if (input.selectMelee) this.activeSlot = 'melee';
       else if (input.isSwitchingWeapon) {
-        this.activeSlot =
-          this.activeSlot === 'primary' ? 'secondary' : this.activeSlot === 'secondary' ? 'melee' : 'primary';
+        this.activeSlot = this.activeSlot === 'primary' ? 'secondary' : 'primary';
       }
     }
     if (input.isTogglingFlashlight && !this.isDowned) this.toggleFlashlight();
