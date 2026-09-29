@@ -3,6 +3,7 @@ import { WeaponLoadout } from '../entities/Player';
 import { Difficulty, DIFFICULTIES } from '../config/difficulty';
 import { SectorModifierId, SECTOR_MODIFIERS } from '../config/sectorModifiers';
 import { OperativeGearId, OPERATIVE_GEAR_REGISTRY } from '../config/operativeGear';
+import { DEFAULT_THROWABLE_CARRY, normalizeThrowableCarry } from '../config/throwableCarry';
 import { clampLoadoutToUnlocks } from './WeaponUnlocks';
 
 export type GameMode = 'solo' | 'online';
@@ -26,7 +27,8 @@ export const DEFAULT_LOADOUTS: [WeaponLoadout, WeaponLoadout] = [
     primaryAmmoType: 'standard',
     secondaryAmmoType: 'standard',
     meleeWeapon: 'knife',
-    operativeGear: 'none'
+    operativeGear: 'none',
+    throwableCarry: { ...DEFAULT_THROWABLE_CARRY }
   },
   {
     primaryWeapon: 'mpx',
@@ -38,7 +40,8 @@ export const DEFAULT_LOADOUTS: [WeaponLoadout, WeaponLoadout] = [
     primaryAmmoType: 'standard',
     secondaryAmmoType: 'standard',
     meleeWeapon: 'knife',
-    operativeGear: 'none'
+    operativeGear: 'none',
+    throwableCarry: { ...DEFAULT_THROWABLE_CARRY }
   }
 ];
 
@@ -94,7 +97,8 @@ const sanitizeLoadout = (raw: unknown, fallback: WeaponLoadout): WeaponLoadout =
     secondaryRail: pick(r.secondaryRail, RAIL_MODIFIERS, fallback.secondaryRail),
     primaryAmmoType: pick(r.primaryAmmoType, AMMO_MODIFIERS, fallback.primaryAmmoType),
     secondaryAmmoType: pick(r.secondaryAmmoType, AMMO_MODIFIERS, fallback.secondaryAmmoType),
-    operativeGear: pick(r.operativeGear, OPERATIVE_GEAR_REGISTRY, fallback.operativeGear ?? 'none') as OperativeGearId
+    operativeGear: pick(r.operativeGear, OPERATIVE_GEAR_REGISTRY, fallback.operativeGear ?? 'none') as OperativeGearId,
+    throwableCarry: normalizeThrowableCarry(r.throwableCarry ?? fallback.throwableCarry)
   };
 };
 

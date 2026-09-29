@@ -1,4 +1,4 @@
-/** Throwable types issued with the Grenade Pouch operative gear. */
+/** Throwable types in the armory Grenade Pouch section (below secondary weapon). */
 export type ThrowableKind = 'he' | 'incendiary' | 'flashbang' | 'flare';
 
 export const THROWABLE_ORDER: ThrowableKind[] = ['he', 'incendiary', 'flashbang', 'flare'];
@@ -30,18 +30,8 @@ export const GRENADE_POUCH_STARTING: Record<ThrowableKind, number> = {
   flare: 2
 };
 
-/** Extra Grenade Pouches — one additional HE vs the standard pouch. */
+/** Operative gear: Extra Grenade Pouches — +1 HE when HE is carried. */
 export const EXTRA_GRENADE_POUCH_EXTRA_HE = 1;
-
-export function startingThrowableCounts(
-  gear: 'grenade_pouch' | 'extra_grenade_pouches'
-): Record<ThrowableKind, number> {
-  const counts = { ...GRENADE_POUCH_STARTING };
-  if (gear === 'extra_grenade_pouches') {
-    counts.he += EXTRA_GRENADE_POUCH_EXTRA_HE;
-  }
-  return counts;
-}
 
 export const THROWABLE_EFFECT = {
   he: { radius: 95, damage: 130, noise: 720, flashSec: 0 },

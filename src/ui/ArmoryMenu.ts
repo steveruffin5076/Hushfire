@@ -12,6 +12,9 @@ import {
   MELEE_WEAPON_ARMORY_ORDER
 } from '../config/weapons';
 import { OPERATIVE_GEAR_ORDER, OPERATIVE_GEAR_REGISTRY, OperativeGearId } from '../config/operativeGear';
+import { GRENADE_POUCH_STARTING, THROWABLE_LABELS, THROWABLE_ORDER } from '../config/throwables';
+import { DEFAULT_THROWABLE_CARRY } from '../config/throwableCarry';
+import { isThrowableUnlocked, throwableUnlockHint } from './WeaponUnlocks';
 import { WeaponLoadout } from '../entities/Player';
 import { CYAN, ORANGE, TEXT, MUTED, GREEN, RED, PANEL_BG, PANEL_BORDER, FIELD_BG } from './theme';
 import { loadPlayerProfile } from './PlayerProfile';
@@ -522,6 +525,39 @@ export class ArmoryMenu {
         )
       );
 
+      if (!loadout.throwableCarry) loadout.throwableCarry = { ...DEFAULT_THROWABLE_CARRY };
+      const grenadeBlock = document.createElement('div');
+      grenadeBlock.style.cssText =
+        'margin-bottom: 14px; padding: 10px 12px; border: 1px solid #3A4252; border-radius: 6px; max-width: 100%;';
+      const grenadeTitle = document.createElement('div');
+      grenadeTitle.style.cssText = 'font-size: 11px; letter-spacing: 1px; color: #FF9E1B; margin-bottom: 8px;';
+      grenadeTitle.textContent = 'GRENADE POUCH (below secondary — throw in-mission with [G]):';
+      grenadeBlock.appendChild(grenadeTitle);
+      for (const kind of THROWABLE_ORDER) {
+        const row = document.createElement('label');
+        row.style.cssText =
+          'display: flex; align-items: center; gap: 8px; font-size: 12px; color: #8A94A6; margin: 4px 0; cursor: pointer;';
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        const unlocked = isThrowableUnlocked(kind);
+        const carry = loadout.throwableCarry!;
+        cb.checked = !!carry[kind];
+        cb.disabled = !unlocked;
+        cb.onchange = () => {
+          if (!unlocked) return;
+          carry[kind] = cb.checked;
+          renderLoadout();
+        };
+        const count = GRENADE_POUCH_STARTING[kind];
+        const lock = unlocked ? '' : ` 🔒 (${throwableUnlockHint(kind)})`;
+        row.appendChild(cb);
+        row.appendChild(
+          document.createTextNode(`${THROWABLE_LABELS[kind]} ×${count}${lock}`)
+        );
+        grenadeBlock.appendChild(row);
+      }
+      loadoutBody.appendChild(grenadeBlock);
+
       const meleeRow = document.createElement('div');
       meleeRow.style.cssText = 'margin-bottom: 12px; max-width: 50%;';
       meleeRow.appendChild(
@@ -906,11 +942,19 @@ export class ArmoryMenu {
     };
 
     const gear = OPERATIVE_GEAR_REGISTRY[loadout.operativeGear ?? 'none'];
+    const carry = loadout.throwableCarry ?? DEFAULT_THROWABLE_CARRY;
+    const grenadeLines = THROWABLE_ORDER
+      .filter(k => carry[k] && isThrowableUnlocked(k))
+      .map(k => `${THROWABLE_LABELS[k]} ×${GRENADE_POUCH_STARTING[k]}`)
+      .join(', ');
     box.innerHTML =
       heading('PRIMARY') +
       stats(loadout.primaryWeapon, loadout.primaryMuzzle, loadout.primaryAmmoType) +
       heading('SECONDARY') +
       stats(loadout.secondaryWeapon, loadout.secondaryMuzzle, loadout.secondaryAmmoType) +
+      heading('GRENADE POUCH') +
+      row('CARRYING', grenadeLines.length ? grenadeLines : 'None selected', grenadeLines.length ? '#FFAB40' : MUTED) +
+      row('THROW', '[G] toward aim — max 300px range', MUTED) +
       heading('MELEE') +
       stats(loadout.meleeWeapon, 'none', 'standard') +
       heading('GEAR') +
