@@ -205,7 +205,7 @@ export class InputManager {
       selectPrimary: this.justPressed.has('Digit1'),
       selectSecondary: this.justPressed.has('Digit2'),
       selectMelee: this.justPressed.has('Digit3'),
-      isMeleeAttack: this.keys.has('KeyE'),
+      isMeleeAttack: this.justPressed.has('KeyE'),
       isTogglingFlashlight: this.justPressed.has('KeyT'),
       isTogglingNvg: this.justPressed.has('KeyN')
     }));
