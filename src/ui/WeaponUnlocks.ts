@@ -54,7 +54,8 @@ const GEAR_UNLOCK_RULES: Record<Exclude<OperativeGearId, 'none'>, (p: PlayerProf
   extra_battery: p => p.totalWins >= 1,
   nvg: p => p.totalWins >= 1,
   flare_pack: p => p.totalWins >= 2,
-  grenade_pouch: p => p.totalWins >= 2 && gradeAtLeast(p, 'C')
+  grenade_pouch: p => p.totalWins >= 2 && gradeAtLeast(p, 'C'),
+  extra_grenade_pouches: p => p.totalWins >= 3 && gradeAtLeast(p, 'B')
 };
 
 const GEAR_UNLOCK_HINT: Record<Exclude<OperativeGearId, 'none'>, string> = {
@@ -62,7 +63,8 @@ const GEAR_UNLOCK_HINT: Record<Exclude<OperativeGearId, 'none'>, string> = {
   extra_battery: 'Win any extraction',
   nvg: 'Win any extraction',
   flare_pack: 'Win 2 extractions',
-  grenade_pouch: 'Win 2× with grade C or better'
+  grenade_pouch: 'Win 2× with grade C or better',
+  extra_grenade_pouches: 'Win 3× with grade B or better'
 };
 
 const DEFAULT_MUZZLE: MuzzleType = 'tactical_suppressor';

@@ -1,12 +1,7 @@
 import { Entity } from './Entity';
 import { MuzzleType, RailType, AmmoType, WeaponDef, WEAPON_REGISTRY, MUZZLE_MODIFIERS } from '../config/weapons';
 import { OperativeGearId } from '../config/operativeGear';
-import {
-  GRENADE_POUCH_STARTING,
-  ThrowableKind,
-  THROWABLE_ORDER,
-  THROW_COOLDOWN_SEC
-} from '../config/throwables';
+import { ThrowableKind, THROWABLE_ORDER, THROW_COOLDOWN_SEC, startingThrowableCounts } from '../config/throwables';
 import { PlayerInputState } from '../core/Input';
 import { MapManager } from '../systems/MapManager';
 import {
@@ -101,7 +96,7 @@ export class Player extends Entity {
     this.loadout = loadout;
     this.operativeGear = loadout.operativeGear ?? 'none';
     if (this.operativeGear === 'nvg') this.nvgBattery = NVG_BATTERY_MAX;
-    if (this.operativeGear === 'grenade_pouch') this.initGrenadePouchInventory();
+    if (this.hasThrowableGear()) this.initGrenadePouchInventory();
     const primary = WEAPON_REGISTRY[loadout.primaryWeapon];
     const secondary = WEAPON_REGISTRY[loadout.secondaryWeapon];
     this.ammoBySlot = {
@@ -147,6 +142,7 @@ export class Player extends Entity {
         this.flashlightBattery = Math.min(FLASHLIGHT_BATTERY_MAX, this.flashlightBattery + BATTERY_PICKUP_CHARGE);
         break;
       case 'grenade_pouch':
+      case 'extra_grenade_pouches':
         this.initGrenadePouchInventory();
         break;
       default:
@@ -154,13 +150,21 @@ export class Player extends Entity {
     }
   }
 
+  hasThrowableGear(): boolean {
+    return this.operativeGear === 'grenade_pouch' || this.operativeGear === 'extra_grenade_pouches';
+  }
+
+  /** @deprecated Use hasThrowableGear — kept for call-site clarity in HUD. */
   hasGrenadePouch(): boolean {
-    return this.operativeGear === 'grenade_pouch';
+    return this.hasThrowableGear();
   }
 
   initGrenadePouchInventory() {
+    if (!this.hasThrowableGear()) return;
+    const gear = this.operativeGear as 'grenade_pouch' | 'extra_grenade_pouches';
+    const starting = startingThrowableCounts(gear);
     for (const kind of THROWABLE_ORDER) {
-      this.throwableCounts[kind] = GRENADE_POUCH_STARTING[kind];
+      this.throwableCounts[kind] = starting[kind];
     }
     this.selectedThrowable = this.firstThrowableWithAmmo() ?? 'he';
   }

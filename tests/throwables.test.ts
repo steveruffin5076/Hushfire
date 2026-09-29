@@ -1,7 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { Player, WeaponLoadout } from '../src/entities/Player';
 import { clampThrowTarget } from '../src/systems/ThrowableSystem';
-import { THROW_MAX_RANGE_PX, GRENADE_POUCH_STARTING } from '../src/config/throwables';
+import {
+  THROW_MAX_RANGE_PX,
+  GRENADE_POUCH_STARTING,
+  startingThrowableCounts
+} from '../src/config/throwables';
 import { SECTORS } from '../src/config/sectors';
 
 const grenadeLoadout = (): WeaponLoadout => ({
@@ -33,6 +37,12 @@ describe('throwables', () => {
     p.consumeThrowable('he');
     expect(p.throwableCounts.he).toBe(0);
     expect(p.canThrow('he')).toBe(false);
+  });
+
+  it('extra grenade pouches adds one HE grenade', () => {
+    const extra = startingThrowableCounts('extra_grenade_pouches');
+    expect(extra.he).toBe(GRENADE_POUCH_STARTING.he + 1);
+    expect(extra.incendiary).toBe(GRENADE_POUCH_STARTING.incendiary);
   });
 
   it('cycles to next type with ammo', () => {

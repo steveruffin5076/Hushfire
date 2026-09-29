@@ -30,6 +30,19 @@ export const GRENADE_POUCH_STARTING: Record<ThrowableKind, number> = {
   flare: 2
 };
 
+/** Extra Grenade Pouches — one additional HE vs the standard pouch. */
+export const EXTRA_GRENADE_POUCH_EXTRA_HE = 1;
+
+export function startingThrowableCounts(
+  gear: 'grenade_pouch' | 'extra_grenade_pouches'
+): Record<ThrowableKind, number> {
+  const counts = { ...GRENADE_POUCH_STARTING };
+  if (gear === 'extra_grenade_pouches') {
+    counts.he += EXTRA_GRENADE_POUCH_EXTRA_HE;
+  }
+  return counts;
+}
+
 export const THROWABLE_EFFECT = {
   he: { radius: 95, damage: 130, noise: 720, flashSec: 0 },
   incendiary: { radius: 80, damage: 55, noise: 420, burnSec: 6 },
