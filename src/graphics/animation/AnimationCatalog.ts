@@ -90,6 +90,10 @@ export class AnimationCatalog {
     const set = this.sets.get(id);
     return set ? new CharacterAnimController(set) : null;
   }
+
+  characterHasAttack(id: CharacterAnimId): boolean {
+    return !!this.sets.get(id)?.attack;
+  }
 }
 
 export function playerAnimId(playerNumber: 1 | 2): CharacterAnimId {

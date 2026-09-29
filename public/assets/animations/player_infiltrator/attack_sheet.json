@@ -13,7 +13,10 @@
       }
     }
   ],
-  "pivot_cell_px": [128, 128],
+  "pivot_cell_px": [63.2, 117.1],
+  "pivots_cell_px": {
+    "torso": [63.2, 117.1]
+  },
   "note": "Operative 1 knife slash; hit_frames 3-5 per source pack",
   "image": "attack_sheet.webp"
 }

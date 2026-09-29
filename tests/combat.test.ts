@@ -36,6 +36,23 @@ const swing = (combat: CombatSystem, p: Player, z: Zombie) => {
   combat.fire(p, [z], [], []);
 };
 
+describe('melee swing callback', () => {
+  it('fires onMeleeSwing when knife slot fires', () => {
+    const map = new MapManager();
+    const noise = new NoiseSystem();
+    let swings = 0;
+    const combat = new CombatSystem(map, noise, {
+      onMeleeSwing: () => {
+        swings++;
+      }
+    });
+    const p = knifer();
+    const z = new Zombie(X + 30, Y, 0, 'lurker');
+    swing(combat, p, z);
+    expect(swings).toBe(1);
+  });
+});
+
 describe('angleBetween', () => {
   it('is the smallest angle, in [0, π], for any inputs', () => {
     expect(angleBetween(0, Math.PI / 2)).toBeCloseTo(Math.PI / 2);

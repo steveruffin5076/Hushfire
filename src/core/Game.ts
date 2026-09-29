@@ -364,7 +364,8 @@ export class Game {
 
     this.combat = new CombatSystem(this.map, this.noise, {
       onZombieKilled: (zombie, killer) => this.onZombieKilled(zombie, killer),
-      onSectorAlertingShot: player => this.onSectorAlertingShot(player)
+      onSectorAlertingShot: player => this.onSectorAlertingShot(player),
+      onMeleeSwing: player => this.triggerPlayerMeleeAnim(player)
     });
     this.throwableSystem = new ThrowableSystem(this.map, this.noise, this.combat, {
       onSectorAlertingShot: player => this.onSectorAlertingShot(player)
@@ -1153,10 +1154,7 @@ export class Game {
     if (input.isMeleeAttack && player.activeSlot !== 'melee') {
       const beforeMelee = player.shotsFired;
       this.combat.swingMelee(player, this.zombies, this.decals);
-      if (player.shotsFired > beforeMelee) {
-        this.triggerPlayerMeleeAnim(player);
-        return;
-      }
+      if (player.shotsFired > beforeMelee) return;
     }
 
     if (!input.isFiring) return;
@@ -1166,10 +1164,7 @@ export class Game {
 
     if (player.shotsFired > beforeShots) {
       const weapon = WEAPON_REGISTRY[player.activeWeaponId];
-      if (weapon.type === 'melee') {
-        this.triggerPlayerMeleeAnim(player);
-        return;
-      }
+      if (weapon.type === 'melee') return;
       const listener = this.audioListener();
       const suppressed = isSuppressedMuzzle(player.activeMuzzle);
       this.sound.playGunshot(listener, player.position, this.map.countWallsCrossed(player.position, listener), suppressed);

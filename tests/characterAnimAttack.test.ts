@@ -1,0 +1,41 @@
+import { describe, expect, it } from 'vitest';
+import { CharacterAnimController } from '../src/graphics/animation/CharacterAnimController';
+import type { CharacterSheetSet } from '../src/graphics/animation/CharacterAnimController';
+import type { SimpleClipSheetMeta, WalkSheetMeta } from '../src/graphics/animation/sheetTypes';
+
+const walkMeta: WalkSheetMeta = {
+  image: 'walk.webp',
+  frame_width: 556,
+  frame_height: 304,
+  frames: 8,
+  layout: 'row',
+  pivots_cell_px: { torso: [137.3, 139.2] }
+};
+
+const attackMeta: SimpleClipSheetMeta = {
+  image: 'attack.webp',
+  frame_width: 256,
+  frame_height: 256,
+  layout: 'row',
+  clips: [{ name: 'knife_attack', frames: 8, frame_ms: 68, loop: false }],
+  pivot_cell_px: [63.2, 117.1]
+};
+
+const fakeImg = { width: 2048, height: 256 } as HTMLImageElement;
+
+describe('CharacterAnimController knife attack', () => {
+  it('plays attack clip for ~total duration then stops', () => {
+    const set: CharacterSheetSet = {
+      walk: { image: fakeImg, meta: walkMeta },
+      attack: { image: fakeImg, meta: attackMeta }
+    };
+    const ctrl = new CharacterAnimController(set);
+    expect(ctrl.hasAttackSheet()).toBe(true);
+    ctrl.triggerAttack();
+    const opts = { isDowned: false, isMoving: false, moveSpeedMult: 1, isPlayer: true };
+    ctrl.update(0.2, opts);
+    expect(ctrl.attackActive).toBe(true);
+    ctrl.update(0.5, opts);
+    expect(ctrl.attackActive).toBe(false);
+  });
+});

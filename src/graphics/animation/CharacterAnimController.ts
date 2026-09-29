@@ -72,6 +72,10 @@ export class CharacterAnimController {
     this.recoilTime = 0;
   }
 
+  hasAttackSheet(): boolean {
+    return !!this.sheets.attack;
+  }
+
   triggerAttack() {
     if (!this.sheets.attack) return;
     this.attackActive = true;
@@ -202,22 +206,19 @@ export class CharacterAnimController {
       return;
     }
 
+    this.drawWalkFrame(ctx, drawSize, angle, cx, cy);
+
     if (this.attackActive && attack) {
       const clip = attack.meta.clips[0];
       const adv = advanceClip(clip, this.attackTime, 0);
       const meta = attack.meta;
       const cellW = 'cell_width' in meta ? meta.cell_width : meta.frame_width;
       const cellH = 'cell_height' in meta ? meta.cell_height : meta.frame_height;
-      const pv =
-        'pivot_cell_px' in meta && meta.pivot_cell_px
-          ? meta.pivot_cell_px
-          : pivotSimple(meta as SimpleClipSheetMeta, walk.meta);
-      // Attack sheets may use a different cell size than walk — scale from this clip's width.
-      drawSheetFrame(ctx, attack.image, adv.frame, cellW, cellH, clip.row ?? 0, pv, drawSize, cellW, angle, cx, cy);
+      const pv = pivotSimple(meta as SimpleClipSheetMeta, walk.meta);
+      // Match walk/recoil world scale (same ref width as downed_sheet).
+      drawSheetFrame(ctx, attack.image, adv.frame, cellW, cellH, clip.row ?? 0, pv, drawSize, refW, angle, cx, cy);
       return;
     }
-
-    this.drawWalkFrame(ctx, drawSize, angle, cx, cy);
 
     if (this.recoilActive && recoil) {
       const clip = recoil.meta.clips[0];

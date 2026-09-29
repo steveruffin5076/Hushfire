@@ -50,6 +50,8 @@ export interface CombatEvents {
   onZombieKilled?: (zombie: Zombie, killer: Player) => void;
   /** Loud, unsuppressed gunfire that should wake the sector and can call reinforcements. */
   onSectorAlertingShot?: (player: Player) => void;
+  /** Fires once per successful melee swing (quick-melee or drawn knife). */
+  onMeleeSwing?: (player: Player) => void;
 }
 
 const MELEE_RANGE = 46;
@@ -91,6 +93,7 @@ export class CombatSystem {
     const weapon = WEAPON_REGISTRY[player.loadout.meleeWeapon];
     if (weapon.type !== 'melee' || !player.canMeleeSwing()) return;
     player.consumeMeleeSwing();
+    this.events.onMeleeSwing?.(player);
     const ammoMod = AMMO_MODIFIERS.standard;
     const damage = weapon.baseDamage;
     const soundRadius = weapon.baseSoundRadiusPx;
@@ -118,6 +121,7 @@ export class CombatSystem {
     const damage = weapon.baseDamage * muzzleMod.dmgMult * ammoMod.dmgMult;
 
     if (weapon.type === 'melee') {
+      this.events.onMeleeSwing?.(player);
       this.meleeAttack(player, zombies, damage, ammoMod.armorPen, decals);
       return;
     }

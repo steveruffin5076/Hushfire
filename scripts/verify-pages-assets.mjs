@@ -21,6 +21,7 @@ const CHARS = [
 ];
 
 const REQUIRED = ['walk_sheet.webp', 'walk_sheet.json', 'downed_sheet.webp', 'downed_sheet.json'];
+const INFILTRATOR_ATTACK = ['attack_sheet.webp', 'attack_sheet.json'];
 
 let failed = false;
 if (!fs.existsSync(base)) {
