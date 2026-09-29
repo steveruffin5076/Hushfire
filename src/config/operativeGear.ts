@@ -5,7 +5,6 @@ export type OperativeGearId =
   | 'extra_battery'
   | 'nvg'
   | 'flare_pack'
-  | 'grenade_pouch'
   | 'extra_grenade_pouches';
 
 export interface OperativeGearDef {
@@ -38,17 +37,12 @@ export const OPERATIVE_GEAR_REGISTRY: Record<OperativeGearId, OperativeGearDef> 
   flare_pack: {
     id: 'flare_pack',
     name: 'Flare Pack',
-    description: 'Legacy loadout tag — use Grenade Pouch for throwable flares in-mission.'
-  },
-  grenade_pouch: {
-    id: 'grenade_pouch',
-    name: 'Grenade Pouch',
-    description: 'HE ×1, Incendiary ×1, Flashbang ×2, Flare ×2 — throw with [G] toward your aim (max range).'
+    description: 'Legacy loadout tag — configure flares under Grenade Pouch in the loadout tab.'
   },
   extra_grenade_pouches: {
     id: 'extra_grenade_pouches',
     name: 'Extra Grenade Pouches',
-    description: 'Standard grenade kit plus +1 HE (HE ×2, Inc ×1, Flash ×2, Flare ×2) — same [G] throws.'
+    description: '+1 HE grenade at deploy when HE is enabled in your Grenade Pouch loadout.'
   }
 };
 
@@ -58,6 +52,5 @@ export const OPERATIVE_GEAR_ORDER: OperativeGearId[] = [
   'extra_battery',
   'nvg',
   'flare_pack',
-  'grenade_pouch',
   'extra_grenade_pouches'
 ];

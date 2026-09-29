@@ -484,7 +484,7 @@ export class Game {
       player.nvgBattery = snap.nvgBattery;
     }
     player.meleeStamina = snap.meleeStamina;
-    if (player.hasGrenadePouch()) {
+    {
       player.throwableCounts.he = snap.throwableHe ?? 0;
       player.throwableCounts.incendiary = snap.throwableIncendiary ?? 0;
       player.throwableCounts.flashbang = snap.throwableFlashbang ?? 0;
@@ -1181,7 +1181,7 @@ export class Game {
   }
 
   private handleThrowables(player: Player, input: PlayerInputState, useMouseAim: boolean) {
-    if (!player.hasGrenadePouch()) return;
+    if (!player.hasThrowableLoadout() && player.totalThrowablesRemaining() <= 0) return;
     if (input.selectThrowableHe) player.selectThrowable('he');
     if (input.selectThrowableIncendiary) player.selectThrowable('incendiary');
     if (input.selectThrowableFlashbang) player.selectThrowable('flashbang');

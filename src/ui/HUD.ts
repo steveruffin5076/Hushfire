@@ -24,6 +24,9 @@ const RESOURCE_BAR_GAP = 6;
 const PANEL_BTN_GAP = 8;
 const NVG_BTN_GAP = 6;
 const NVG_GREEN = '#00E676';
+/** Space for the melee stamina hint under its bar — keeps the flashlight button from overlapping. */
+const MELEE_HINT_H = 14;
+const GRENADE_HUD_BLOCK_H = 36;
 
 export interface PlayerPanelLayout {
   flashlightBtn: { x: number; y: number; w: number; h: number };
@@ -55,23 +58,30 @@ export class HUD {
    * Game.ts's click hit-test so the drawn button and the clickable region
    * never drift apart.
    */
-  /** Stacks resource bars then buttons so melee/NVG bars never paint over the flashlight control. */
-  static layoutPlayerPanel(p: Player): PlayerPanelLayout {
-    const x = p.playerNumber === 1 ? PANEL_X_P1 : CANVAS_WIDTH - 330;
-    let cursor = PANEL_Y + 58;
+  /** Bottom Y of resource bars + labels (before flashlight / NVG buttons). */
+  static resourceStackBottom(p: Player, panelY: number): number {
+    let barCursor = panelY + 58;
 
     const flashlightCharge = p.flashlightBattery / FLASHLIGHT_BATTERY_MAX;
-    if (p.flashlightOn || flashlightCharge < 0.3) cursor += RESOURCE_BAR_GAP + RESOURCE_BAR_H;
+    if (p.flashlightOn || flashlightCharge < 0.3) barCursor += RESOURCE_BAR_GAP + RESOURCE_BAR_H;
 
     if (p.operativeGear === 'nvg') {
       const nvgCharge = p.nvgBattery / NVG_BATTERY_MAX;
-      if (p.nvgOn || nvgCharge < 0.3) cursor += RESOURCE_BAR_GAP + RESOURCE_BAR_H;
+      if (p.nvgOn || nvgCharge < 0.3) barCursor += RESOURCE_BAR_GAP + RESOURCE_BAR_H;
     }
 
     const meleeCharge = p.meleeStamina / MELEE_STAMINA_MAX;
-    if (meleeCharge < 1) cursor += RESOURCE_BAR_GAP + RESOURCE_BAR_H;
+    if (meleeCharge < 1) barCursor += RESOURCE_BAR_GAP + RESOURCE_BAR_H + MELEE_HINT_H;
 
-    cursor += PANEL_BTN_GAP;
+    if (p.hasGrenadePouch()) barCursor += GRENADE_HUD_BLOCK_H;
+
+    return barCursor;
+  }
+
+  /** Stacks resource bars then buttons so melee/NVG bars never paint over the flashlight control. */
+  static layoutPlayerPanel(p: Player, panelY = PANEL_Y): PlayerPanelLayout {
+    const x = p.playerNumber === 1 ? PANEL_X_P1 : CANVAS_WIDTH - 330;
+    const cursor = HUD.resourceStackBottom(p, panelY) + PANEL_BTN_GAP;
     const flashlightBtn = { x, y: cursor, w: FLASHLIGHT_BTN_W, h: FLASHLIGHT_BTN_H };
     const nvgBtn =
       p.operativeGear === 'nvg'
@@ -229,34 +239,35 @@ export class HUD {
       ctx.font = '13px monospace';
     }
 
-    if (p.hasGrenadePouch() && p.totalThrowablesRemaining() > 0) {
+    if (p.hasGrenadePouch()) {
+      const grenadeTop = barCursor + RESOURCE_BAR_GAP;
       ctx.font = '11px monospace';
       ctx.fillStyle = '#FFAB40';
       const parts = THROWABLE_ORDER.map(
         k =>
           `${THROWABLE_SHORT[k]}×${p.throwableCounts[k]}${p.selectedThrowable === k ? '*' : ''}`
       );
-      ctx.fillText(`GRENADES [G] ${parts.join(' ')} — ${THROW_MAX_RANGE_PX}px`, x, barCursor + 14);
+      ctx.fillText(`GRENADES [G] ${parts.join(' ')} — ${THROW_MAX_RANGE_PX}px`, x, grenadeTop + 6);
       ctx.fillStyle = '#8A94A6';
       ctx.font = '10px monospace';
       ctx.fillText(
         `Selected: ${THROWABLE_LABELS[p.selectedThrowable]} — [4-7] pick, [B] cycle`,
         x,
-        barCursor + 28
+        grenadeTop + 20
       );
       ctx.font = '13px monospace';
-      barCursor += 36;
+      barCursor = grenadeTop + GRENADE_HUD_BLOCK_H;
     }
 
-    this.renderFlashlightButton(ctx, p);
+    this.renderFlashlightButton(ctx, p, y);
     if (p.operativeGear === 'nvg') this.renderNvgButton(ctx, p);
 
     ctx.restore();
   }
 
   /** Only P1's button is clickable (see Game.ts). P2 in online co-op is remote — no local key hints. */
-  private renderFlashlightButton(ctx: CanvasRenderingContext2D, p: Player) {
-    const rect = HUD.getFlashlightButtonRect(p);
+  private renderFlashlightButton(ctx: CanvasRenderingContext2D, p: Player, panelY = PANEL_Y) {
+    const rect = HUD.layoutPlayerPanel(p, panelY).flashlightBtn;
     const disabled = p.isDowned;
     const keyHint = p.playerNumber === 1 ? ' [T]' : '';
 

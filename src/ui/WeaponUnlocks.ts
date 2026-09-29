@@ -3,6 +3,8 @@ import { loadPlayerProfile, PlayerProfile } from './PlayerProfile';
 import { WeaponLoadout } from '../entities/Player';
 import { MuzzleType, WEAPON_REGISTRY } from '../config/weapons';
 import { OperativeGearId, OPERATIVE_GEAR_REGISTRY } from '../config/operativeGear';
+import { ThrowableKind } from '../config/throwables';
+import { clampThrowableCarry, normalizeThrowableCarry } from '../config/throwableCarry';
 
 const ALWAYS = new Set(['mpx', 'glock17', 'knife']);
 
@@ -54,7 +56,6 @@ const GEAR_UNLOCK_RULES: Record<Exclude<OperativeGearId, 'none'>, (p: PlayerProf
   extra_battery: p => p.totalWins >= 1,
   nvg: p => p.totalWins >= 1,
   flare_pack: p => p.totalWins >= 2,
-  grenade_pouch: p => p.totalWins >= 2 && gradeAtLeast(p, 'C'),
   extra_grenade_pouches: p => p.totalWins >= 3 && gradeAtLeast(p, 'B')
 };
 
@@ -63,9 +64,31 @@ const GEAR_UNLOCK_HINT: Record<Exclude<OperativeGearId, 'none'>, string> = {
   extra_battery: 'Win any extraction',
   nvg: 'Win any extraction',
   flare_pack: 'Win 2 extractions',
-  grenade_pouch: 'Win 2× with grade C or better',
   extra_grenade_pouches: 'Win 3× with grade B or better'
 };
+
+const THROWABLE_UNLOCK_RULES: Record<ThrowableKind, (p: PlayerProfile) => boolean> = {
+  flashbang: () => true,
+  flare: p => p.totalWins >= 1,
+  he: p => p.totalWins >= 2 && gradeAtLeast(p, 'C'),
+  incendiary: p => p.totalWins >= 2 && p.totalKillsBest >= 15
+};
+
+const THROWABLE_UNLOCK_HINT: Record<ThrowableKind, string> = {
+  flashbang: 'Starter',
+  flare: 'Win any extraction',
+  he: 'Win 2× with grade C or better',
+  incendiary: 'Win 2× and 15+ kills in one run'
+};
+
+export function isThrowableUnlocked(kind: ThrowableKind, profile?: PlayerProfile): boolean {
+  const p = profile ?? loadPlayerProfile();
+  return THROWABLE_UNLOCK_RULES[kind](p);
+}
+
+export function throwableUnlockHint(kind: ThrowableKind): string {
+  return THROWABLE_UNLOCK_HINT[kind];
+}
 
 const DEFAULT_MUZZLE: MuzzleType = 'tactical_suppressor';
 
@@ -127,10 +150,12 @@ export function clampLoadoutToUnlocks(loadout: WeaponLoadout, profile?: PlayerPr
     isWeaponUnlocked(loadout.meleeWeapon, p) && WEAPON_REGISTRY[loadout.meleeWeapon]?.type === 'melee'
       ? loadout.meleeWeapon
       : STARTER_MELEE;
+  let gearId = loadout.operativeGear ?? 'none';
+  if ((gearId as string) === 'grenade_pouch' || !OPERATIVE_GEAR_REGISTRY[gearId as OperativeGearId]) {
+    gearId = 'none';
+  }
   const gear: OperativeGearId =
-    isGearUnlocked(loadout.operativeGear ?? 'none', p) && OPERATIVE_GEAR_REGISTRY[loadout.operativeGear ?? 'none']
-      ? (loadout.operativeGear ?? 'none')
-      : 'none';
+    isGearUnlocked(gearId, p) && OPERATIVE_GEAR_REGISTRY[gearId] ? gearId : 'none';
   const primaryMuzzle = isMuzzleUnlocked(loadout.primaryMuzzle, p) ? loadout.primaryMuzzle : DEFAULT_MUZZLE;
   const secondaryMuzzle = isMuzzleUnlocked(loadout.secondaryMuzzle, p) ? loadout.secondaryMuzzle : DEFAULT_MUZZLE;
   return {
@@ -140,6 +165,7 @@ export function clampLoadoutToUnlocks(loadout: WeaponLoadout, profile?: PlayerPr
     meleeWeapon: melee,
     primaryMuzzle,
     secondaryMuzzle,
-    operativeGear: gear
+    operativeGear: gear,
+    throwableCarry: clampThrowableCarry(normalizeThrowableCarry(loadout.throwableCarry), p)
   };
 }
