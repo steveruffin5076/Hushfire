@@ -130,13 +130,14 @@ export class ArmoryMenu {
 
     const stageShell = document.createElement('div');
     stageShell.style.cssText = `
-      flex: 1; min-height: 0; width: 100%; overflow: hidden; box-sizing: border-box;
+      flex: 1; min-height: 0; width: 100%; overflow: auto; box-sizing: border-box;
       display: flex; justify-content: flex-start; align-items: flex-start;
       padding: 52px 28px 10px 24px;
     `;
     const stage = document.createElement('div');
     stage.style.cssText = `
       width: 100%; display: flex; flex-direction: column; transform-origin: top left;
+      flex-shrink: 0;
     `;
     stageShell.appendChild(stage);
     this.root.appendChild(stageShell);
@@ -151,6 +152,9 @@ export class ArmoryMenu {
         if (!naturalW || !naturalH) return;
         const scale = Math.min(1, availW / naturalW, availH / naturalH);
         stage.style.transform = `scale(${scale})`;
+        // Transformed layout still uses pre-scale box size — reserve vertical space so
+        // loadout columns (grenade pouch, stats) are not clipped by overflow:hidden.
+        stage.style.marginBottom = `${Math.max(0, naturalH * (scale - 1))}px`;
       });
     };
     if (this.resizeHandler) window.removeEventListener('resize', this.resizeHandler);
@@ -232,6 +236,7 @@ export class ArmoryMenu {
     const briefingPane = document.createElement('div');
     const loadoutPane = document.createElement('div');
     const profilePane = document.createElement('div');
+    loadoutPane.style.cssText = 'max-height: min(68vh, 560px); overflow-y: auto; overflow-x: hidden;';
     loadoutPane.style.display = 'none';
     profilePane.style.display = 'none';
     contentPanel.appendChild(briefingPane);
@@ -282,6 +287,7 @@ export class ArmoryMenu {
     };
     loadoutTabBtn.onclick = () => {
       activeTab = 'loadout';
+      if (typeof renderLoadoutRef === 'function') renderLoadoutRef();
       applyTabStyles();
     };
     profileTabBtn.onclick = () => {
@@ -512,6 +518,7 @@ export class ArmoryMenu {
         return [id, g.name + tag] as [string, string];
       });
 
+    let renderLoadoutRef: (() => void) | null = null;
     const renderLoadout = () => {
       if (mode === 'online') editingOperative = mySlot;
       loadoutBody.innerHTML = '';
@@ -739,6 +746,7 @@ export class ArmoryMenu {
       persistArmory();
       fitStage();
     };
+    renderLoadoutRef = renderLoadout;
 
     const updateDeployButton = () => {
       const online = mode === 'online' && session;
