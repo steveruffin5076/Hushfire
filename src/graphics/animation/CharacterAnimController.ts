@@ -50,6 +50,11 @@ function advanceClip(
   return { time: t, frame, done: false };
 }
 
+export interface CharacterDrawOpts {
+  /** Drawn weapon is melee (knife sheet idle + slash instead of gun walk). */
+  meleeStance?: boolean;
+}
+
 /** Runtime playback for one entity using baked sheets. */
 export class CharacterAnimController {
   walkPhase = 0;
@@ -177,7 +182,32 @@ export class CharacterAnimController {
     );
   }
 
-  draw(ctx: CanvasRenderingContext2D, drawSize: number, angle: number, cx: number, cy: number) {
+  private drawKnifeFrame(
+    ctx: CanvasRenderingContext2D,
+    frameIndex: number,
+    drawSize: number,
+    refW: number,
+    angle: number,
+    cx: number,
+    cy: number
+  ) {
+    const { walk, attack } = this.sheets;
+    if (!attack) return;
+    const meta = attack.meta;
+    const cellW = 'cell_width' in meta ? meta.cell_width : meta.frame_width;
+    const cellH = 'cell_height' in meta ? meta.cell_height : meta.frame_height;
+    const pv = pivotSimple(meta as SimpleClipSheetMeta, walk.meta);
+    drawSheetFrame(ctx, attack.image, frameIndex, cellW, cellH, 0, pv, drawSize, refW, angle, cx, cy);
+  }
+
+  draw(
+    ctx: CanvasRenderingContext2D,
+    drawSize: number,
+    angle: number,
+    cx: number,
+    cy: number,
+    opts?: CharacterDrawOpts
+  ) {
     const { walk, downed, recoil, attack } = this.sheets;
     const refW = walk.meta.frame_width;
 
@@ -206,19 +236,19 @@ export class CharacterAnimController {
       return;
     }
 
-    this.drawWalkFrame(ctx, drawSize, angle, cx, cy);
-
-    if (this.attackActive && attack) {
-      const clip = attack.meta.clips[0];
-      const adv = advanceClip(clip, this.attackTime, 0);
-      const meta = attack.meta;
-      const cellW = 'cell_width' in meta ? meta.cell_width : meta.frame_width;
-      const cellH = 'cell_height' in meta ? meta.cell_height : meta.frame_height;
-      const pv = pivotSimple(meta as SimpleClipSheetMeta, walk.meta);
-      // Match walk/recoil world scale (same ref width as downed_sheet).
-      drawSheetFrame(ctx, attack.image, adv.frame, cellW, cellH, clip.row ?? 0, pv, drawSize, refW, angle, cx, cy);
+    const knifeEquipped = !!opts?.meleeStance && !!attack;
+    if (knifeEquipped) {
+      if (this.attackActive) {
+        const clip = attack.meta.clips[0];
+        const adv = advanceClip(clip, this.attackTime, 0);
+        this.drawKnifeFrame(ctx, adv.frame, drawSize, refW, angle, cx, cy);
+      } else {
+        this.drawKnifeFrame(ctx, 0, drawSize, refW, angle, cx, cy);
+      }
       return;
     }
+
+    this.drawWalkFrame(ctx, drawSize, angle, cx, cy);
 
     if (this.recoilActive && recoil) {
       const clip = recoil.meta.clips[0];

@@ -1900,7 +1900,9 @@ export class Game {
       const anim = this.animForPlayer(p);
 
       if (anim) {
-        anim.draw(ctx, PLAYER_SPRITE_SIZE, pose.angle, pose.x, pose.y);
+        anim.draw(ctx, PLAYER_SPRITE_SIZE, pose.angle, pose.x, pose.y, {
+          meleeStance: p.activeSlot === 'melee'
+        });
       } else {
         ctx.save();
         ctx.translate(pose.x, pose.y);
