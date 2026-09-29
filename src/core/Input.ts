@@ -77,7 +77,7 @@ export class InputManager {
     e.preventDefault();
   };
 
-  constructor(private canvas: HTMLCanvasElement, private solo = false) {
+  constructor(private canvas: HTMLCanvasElement) {
     this.detachTouch = this.touch.attach(canvas);
     window.addEventListener('keydown', this.onKeyDown);
     window.addEventListener('keyup', this.onKeyUp);
@@ -99,7 +99,7 @@ export class InputManager {
   poll(): boolean {
     const raw: readonly (PadSnapshot | null)[] =
       typeof navigator !== 'undefined' && navigator.getGamepads ? navigator.getGamepads() : [];
-    const assigned = assignPads(raw, this.solo);
+    const assigned = assignPads(raw);
     let startPressed = false;
 
     ([assigned.p1, assigned.p2] as const).forEach((pad, slot) => {
@@ -231,47 +231,6 @@ export class InputManager {
       isTogglingFlashlight: input.isTogglingFlashlight || t.justPressed.has('light'),
       isTogglingNvg: input.isTogglingNvg || t.justPressed.has('nvg')
     };
-  }
-
-  getPlayer2Input(playerWorldPos: { x: number; y: number }, partnerWorldPos: { x: number; y: number }): PlayerInputState {
-    let moveX = 0;
-    let moveY = 0;
-    if (this.keys.has('ArrowUp')) moveY -= 1;
-    if (this.keys.has('ArrowDown')) moveY += 1;
-    if (this.keys.has('ArrowLeft')) moveX -= 1;
-    if (this.keys.has('ArrowRight')) moveX += 1;
-
-    // Normalize diagonal
-    if (moveX !== 0 && moveY !== 0) {
-      const len = Math.SQRT2;
-      moveX /= len;
-      moveY /= len;
-    }
-
-    // Aim via IJKL, else the right stick (held at its last direction once
-    // released), else face away from the partner to cover their back.
-    let aimAngle = this.padAim[1] ?? Math.atan2(partnerWorldPos.y - playerWorldPos.y, partnerWorldPos.x - playerWorldPos.x) + Math.PI;
-    if (this.keys.has('KeyI')) aimAngle = -Math.PI / 2;
-    if (this.keys.has('KeyK')) aimAngle = Math.PI / 2;
-    if (this.keys.has('KeyJ')) aimAngle = Math.PI;
-    if (this.keys.has('KeyL')) aimAngle = 0;
-
-    return this.mergeButtons(1, {
-      ...this.mergeMove(1, moveX, moveY),
-      aimAngle,
-      isFiring: this.keys.has('Numpad0') || this.keys.has('Enter'),
-      isSprinting: this.keys.has('ShiftRight'),
-      isSneaking: this.keys.has('ControlRight'),
-      isReloading: this.keys.has('Slash'),
-      isInteracting: this.keys.has('Period'),
-      isSwitchingWeapon: this.justPressed.has('Comma'),
-      selectPrimary: this.justPressed.has('Numpad1'),
-      selectSecondary: this.justPressed.has('Numpad2'),
-      selectMelee: this.justPressed.has('Numpad3'),
-      isMeleeAttack: this.keys.has('NumpadDecimal'),
-      isTogglingFlashlight: this.justPressed.has('Quote'),
-      isTogglingNvg: this.justPressed.has('Backslash')
-    });
   }
 
   /** Clears one-shot "just pressed" edge state. Call once per frame after both players' inputs are read. */

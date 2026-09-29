@@ -18,7 +18,7 @@ describe('mouse aim', () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it('aims at the world point under the cursor when the camera is offset', () => {
-    const input = new InputManager(canvas, true);
+    const input = new InputManager(canvas);
     const camera = new Camera(1280, 720, 0, 0, 5000, 5000);
     camera.x = 640;
     camera.y = 400;

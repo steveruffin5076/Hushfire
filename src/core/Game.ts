@@ -294,7 +294,7 @@ export class Game {
     this.ctx = canvas.getContext('2d')!;
     this.assets = assets;
     this.hud = new HUD(assets);
-    this.input = new InputManager(canvas, solo);
+    this.input = new InputManager(canvas);
     this.camera = new Camera(CANVAS_WIDTH, CANVAS_HEIGHT, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
     canvas.addEventListener('mousedown', () => this.sound.resume(), { once: true });
@@ -313,7 +313,6 @@ export class Game {
     // Solo mode never puts a second operative in play — eliminating it up front
     // makes every system that already filters on isEliminated/alive (AI targeting,
     // camera framing, HUD, revive, combat) treat it as if it were never there.
-    if (this.solo) this.p2.eliminate();
     this.wireSheetFootfalls(this.p1, this.p1Anim);
     this.wireSheetFootfalls(this.p2, this.p2Anim);
 
@@ -355,6 +354,9 @@ export class Game {
       this.session = online.session;
       this.wireNetSession();
     }
+    // Second operative only exists in online co-op (guest on another device). No
+    // same-keyboard / couch P2 — arrows, numpad, and IJKL are not read.
+    if (this.solo || this.netRole === 'local') this.p2.eliminate();
   }
 
   private wireNetSession() {
@@ -851,10 +853,7 @@ export class Game {
     this.sound.setAmbientTension(Math.min(1, this.zombiesAlerted / 6));
 
     const in1 = this.input.getPlayer1Input({ x: this.p1.x, y: this.p1.y }, this.camera);
-    const in2 =
-      this.netRole === 'host'
-        ? (this.guestRemoteInput ?? Game.emptyInput())
-        : this.input.getPlayer2Input({ x: this.p2.x, y: this.p2.y }, { x: this.p1.x, y: this.p1.y });
+    const in2 = this.netRole === 'host' ? (this.guestRemoteInput ?? Game.emptyInput()) : Game.emptyInput();
     this.input.endFrame();
 
     if (!this.p1.isEliminated) this.p1.update(dt, in1, this.map);
@@ -1488,8 +1487,7 @@ export class Game {
 
     this.renderLighting(ctx);
     this.renderNvgScreenTint(ctx);
-    const localKeyboardCoop = this.netRole === 'local' && !this.solo;
-    this.hud.renderScreenSpace(ctx, this.p1, this.p2, this.map, this.runModifier, this.tutorialBanner, localKeyboardCoop);
+    this.hud.renderScreenSpace(ctx, this.p1, this.p2, this.map, this.runModifier, this.tutorialBanner);
     this.renderBlasts(ctx);
     this.renderSurgeWarning(ctx);
     this.renderDamageFlash(ctx);
