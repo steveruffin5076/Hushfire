@@ -16,7 +16,8 @@ const loadout: WeaponLoadout = {
   primaryRail: 'none',
   secondaryRail: 'none',
   primaryAmmoType: 'standard',
-  secondaryAmmoType: 'standard'
+  secondaryAmmoType: 'standard',
+  meleeWeapon: 'knife',
 };
 
 const idle = (overrides: Partial<PlayerInputState> = {}): PlayerInputState => ({
@@ -31,6 +32,8 @@ const idle = (overrides: Partial<PlayerInputState> = {}): PlayerInputState => ({
   isSwitchingWeapon: false,
   selectPrimary: false,
   selectSecondary: false,
+  selectMelee: false,
+  isMeleeAttack: false,
   isTogglingFlashlight: false,
   isTogglingNvg: false,
   ...overrides

@@ -10,31 +10,31 @@ const gradeAtLeast = (p: PlayerProfile, min: keyof typeof GRADE_RANK) =>
   p.bestGrade !== null && GRADE_RANK[p.bestGrade] >= GRADE_RANK[min];
 
 const UNLOCK_RULES: Record<string, (p: PlayerProfile) => boolean> = {
-  mp5sd: p => p.totalWins >= 1,
-  vector: p => p.totalWins >= 1 && gradeAtLeast(p, 'C'),
-  p90: p => p.totalKillsBest >= 25,
-  crossbow: p => p.totalWins >= 1,
-  m4a1: p => p.totalWins >= 1 && (p.bestGrade === null || GRADE_RANK[p.bestGrade] >= GRADE_RANK.B),
-  ak12: p => p.totalWins >= 2,
-  dmr: p => gradeAtLeast(p, 'A'),
-  shotgun: p => p.totalKillsBest >= 10,
-  p226: p => p.totalKillsBest >= 5,
-  deagle: p => p.totalKillsBest >= 10,
-  revolver: p => gradeAtLeast(p, 'A')
+  mp5sd: p => p.totalWins >= 2,
+  vector: p => p.totalWins >= 2 && gradeAtLeast(p, 'B'),
+  p90: p => p.totalKillsBest >= 40,
+  crossbow: p => p.totalWins >= 2 && gradeAtLeast(p, 'C'),
+  m4a1: p => p.totalWins >= 3 && gradeAtLeast(p, 'B'),
+  ak12: p => p.totalWins >= 4,
+  dmr: p => p.totalWins >= 4 && gradeAtLeast(p, 'A'),
+  shotgun: p => p.totalWins >= 2 && p.totalKillsBest >= 15,
+  p226: p => p.totalWins >= 1 && p.totalKillsBest >= 10,
+  deagle: p => p.totalKillsBest >= 20,
+  revolver: p => p.totalWins >= 3 && gradeAtLeast(p, 'A')
 };
 
 const UNLOCK_HINT: Record<string, string> = {
-  mp5sd: 'Win any extraction',
-  vector: 'Win with grade C or better',
-  p90: '25+ kills in one run',
-  crossbow: 'Win any extraction',
-  m4a1: 'Win with grade B or better',
-  ak12: 'Win 2 extractions',
-  dmr: 'Earn grade A or S on a win',
-  shotgun: '10+ kills in one run',
-  p226: '5+ kills in one run',
-  deagle: '10+ kills in one run',
-  revolver: 'Earn grade A or S on a win'
+  mp5sd: 'Win 2 extractions',
+  vector: 'Win 2× with grade B or better',
+  p90: '40+ kills in one run',
+  crossbow: 'Win 2× with grade C or better',
+  m4a1: 'Win 3× with grade B or better',
+  ak12: 'Win 4 extractions',
+  dmr: 'Win 4× with grade A or S',
+  shotgun: 'Win 2× and 15+ kills in one run',
+  p226: 'Win once and 10+ kills in one run',
+  deagle: '20+ kills in one run',
+  revolver: 'Win 3× with grade A or S'
 };
 
 const MUZZLE_ALWAYS = new Set<MuzzleType>(['none', 'tactical_suppressor', 'muzzle_brake', 'compensator', 'flash_hider']);
@@ -106,6 +106,7 @@ export function listUnlockedWeaponIds(profile?: PlayerProfile): string[] {
 
 const STARTER_PRIMARY = 'mpx';
 const STARTER_SECONDARY = 'glock17';
+const STARTER_MELEE = 'knife';
 
 /** Ensures saved or default loadouts never reference locked weapons (e.g. fresh profile + legacy P2 defaults). */
 export function clampLoadoutToUnlocks(loadout: WeaponLoadout, profile?: PlayerProfile): WeaponLoadout {
@@ -118,6 +119,10 @@ export function clampLoadoutToUnlocks(loadout: WeaponLoadout, profile?: PlayerPr
     isWeaponUnlocked(loadout.secondaryWeapon, p) && WEAPON_REGISTRY[loadout.secondaryWeapon]?.type === 'secondary'
       ? loadout.secondaryWeapon
       : STARTER_SECONDARY;
+  const melee =
+    isWeaponUnlocked(loadout.meleeWeapon, p) && WEAPON_REGISTRY[loadout.meleeWeapon]?.type === 'melee'
+      ? loadout.meleeWeapon
+      : STARTER_MELEE;
   const gear: OperativeGearId =
     isGearUnlocked(loadout.operativeGear ?? 'none', p) && OPERATIVE_GEAR_REGISTRY[loadout.operativeGear ?? 'none']
       ? (loadout.operativeGear ?? 'none')
@@ -128,6 +133,7 @@ export function clampLoadoutToUnlocks(loadout: WeaponLoadout, profile?: PlayerPr
     ...loadout,
     primaryWeapon: primary,
     secondaryWeapon: secondary,
+    meleeWeapon: melee,
     primaryMuzzle,
     secondaryMuzzle,
     operativeGear: gear

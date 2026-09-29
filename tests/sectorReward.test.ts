@@ -11,7 +11,8 @@ const loadout: WeaponLoadout = {
   primaryRail: 'none',
   secondaryRail: 'none',
   primaryAmmoType: 'standard',
-  secondaryAmmoType: 'standard'
+  secondaryAmmoType: 'standard',
+  meleeWeapon: 'knife',
 };
 
 describe('sector reward application', () => {

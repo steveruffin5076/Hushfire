@@ -26,6 +26,11 @@ export const FLASHLIGHT_FULL_CHARGE_SEC = 300;
 export const FLASHLIGHT_DRAIN_PER_SEC = FLASHLIGHT_BATTERY_MAX / FLASHLIGHT_FULL_CHARGE_SEC;
 export const BATTERY_PICKUP_CHARGE = 50;
 
+/** NVG power — separate from the weapon flashlight; spare cells do not refill this. */
+export const NVG_BATTERY_MAX = 100;
+export const NVG_FULL_CHARGE_SEC = 240;
+export const NVG_DRAIN_PER_SEC = NVG_BATTERY_MAX / NVG_FULL_CHARGE_SEC;
+
 // Audio & Noise Constants
 // Difficulty-tuned up from 0.65: walls muffle sound more, so a stray footstep
 // or shot is less likely to blow a stealth run sector-wide.

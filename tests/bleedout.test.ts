@@ -16,6 +16,8 @@ const idle = {
   isSwitchingWeapon: false,
   selectPrimary: false,
   selectSecondary: false,
+  selectMelee: false,
+  isMeleeAttack: false,
   isTogglingFlashlight: false,
   isTogglingNvg: false
 };

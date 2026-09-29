@@ -1,7 +1,7 @@
 import { Player } from '../entities/Player';
 import { WEAPON_REGISTRY } from '../config/weapons';
 import { MapManager } from '../systems/MapManager';
-import { CANVAS_WIDTH, CANVAS_HEIGHT, FLASHLIGHT_BATTERY_MAX } from '../config/constants';
+import { CANVAS_WIDTH, CANVAS_HEIGHT, FLASHLIGHT_BATTERY_MAX, NVG_BATTERY_MAX } from '../config/constants';
 import { SectorModifierId, getSectorModifier } from '../config/sectorModifiers';
 import { AssetLoader } from '../core/AssetLoader';
 import { Camera } from '../core/Camera';
@@ -136,7 +136,12 @@ export class HUD {
     if (!p.isDowned) {
       const weapon = WEAPON_REGISTRY[p.activeWeaponId];
       ctx.fillStyle = '#00E5FF';
-      const ammoLabel = weapon.infiniteAmmo ? 'MELEE' : p.isReloading ? 'RELOADING...' : `${p.currentMag}/${p.reserveAmmo}`;
+      const ammoLabel =
+        weapon.type === 'melee' || weapon.infiniteAmmo
+          ? 'MELEE'
+          : p.isReloading
+            ? 'RELOADING...'
+            : `${p.currentMag}/${p.reserveAmmo}`;
       ctx.fillText(`${weapon.name} [${p.activeMuzzle.toUpperCase()}] — ${ammoLabel}`, x, y + 20);
 
       ctx.fillStyle = p.noiseRadius > 150 ? '#FF5252' : p.noiseRadius > 40 ? '#FFC107' : '#00E676';
@@ -163,7 +168,16 @@ export class HUD {
     }
 
     this.renderFlashlightButton(ctx, p, localKeyboardCoop);
-    if (p.operativeGear === 'nvg') this.renderNvgButton(ctx, p, localKeyboardCoop);
+    if (p.operativeGear === 'nvg') {
+      this.renderNvgButton(ctx, p, localKeyboardCoop);
+      const nvgCharge = p.nvgBattery / NVG_BATTERY_MAX;
+      if (p.nvgOn || nvgCharge < 0.3) {
+        ctx.strokeStyle = '#3A4252';
+        ctx.strokeRect(x, y + 78, 200, 5);
+        ctx.fillStyle = nvgCharge > 0.3 ? '#00E676' : nvgCharge > 0 ? '#FFC107' : '#FF5252';
+        ctx.fillRect(x, y + 78, 200 * nvgCharge, 5);
+      }
+    }
 
     ctx.restore();
   }

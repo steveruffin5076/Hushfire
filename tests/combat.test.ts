@@ -8,15 +8,16 @@ import { Zombie } from '../src/entities/Zombie';
 import { WEAPON_REGISTRY } from '../src/config/weapons';
 import { ZOMBIE_REGISTRY } from '../src/config/zombies';
 
-const loadout = (primaryWeapon: string, secondaryWeapon: string): WeaponLoadout => ({
+const loadout = (primaryWeapon: string, secondaryWeapon: string, meleeWeapon = 'knife'): WeaponLoadout => ({
   primaryWeapon,
   secondaryWeapon,
+  meleeWeapon,
   primaryMuzzle: 'none',
   secondaryMuzzle: 'none',
   primaryRail: 'none',
   secondaryRail: 'none',
   primaryAmmoType: 'standard',
-  secondaryAmmoType: 'standard'
+  secondaryAmmoType: 'standard',
 });
 
 // Open floor in Sector 1, clear of walls.
@@ -24,14 +25,14 @@ const X = 150;
 const Y = 360;
 
 const knifer = () => {
-  const p = new Player(1, X, Y, 100, loadout('mpx', 'knife'));
-  p.activeSlot = 'secondary';
+  const p = new Player(1, X, Y, 100, loadout('mpx', 'glock17'));
+  p.activeSlot = 'melee';
   return p;
 };
 
 /** One knife swing, bypassing the fire-rate timer. */
 const swing = (combat: CombatSystem, p: Player, z: Zombie) => {
-  p.lastShotTime = -1e9;
+  p.lastMeleeSwingTime = -1e9;
   combat.fire(p, [z], [], []);
 };
 
@@ -113,7 +114,7 @@ describe('knife ammo', () => {
   it('never runs out and never reloads', () => {
     const p = knifer();
     for (let i = 0; i < 20; i++) {
-      p.lastShotTime = -1e9;
+      p.lastMeleeSwingTime = -1e9;
       expect(p.canFire()).toBe(true);
       p.consumeShot();
     }
@@ -148,7 +149,7 @@ describe('ammo crate', () => {
   });
 
   it('is left on the floor when both guns are full, and skips the knife', () => {
-    const p = new Player(1, X, Y, 100, loadout('mpx', 'knife'));
+    const p = new Player(1, X, Y, 100, loadout('mpx', 'glock17'));
     expect(p.addAmmoPickup()).toBe(false);
   });
 });

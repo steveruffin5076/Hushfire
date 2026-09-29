@@ -15,6 +15,9 @@ export interface PlayerInputState {
   /** Direct-select alternatives to the isSwitchingWeapon toggle. */
   selectPrimary: boolean;
   selectSecondary: boolean;
+  selectMelee: boolean;
+  /** Quick melee swing without swapping to the melee slot (also fires when melee slot is drawn). */
+  isMeleeAttack: boolean;
   isTogglingFlashlight: boolean;
   isTogglingNvg: boolean;
 }
@@ -159,6 +162,8 @@ export class InputManager {
       isSwitchingWeapon: keys.isSwitchingWeapon || edge.has(PAD_BUTTON.Y),
       selectPrimary: keys.selectPrimary || edge.has(PAD_BUTTON.DPAD_LEFT),
       selectSecondary: keys.selectSecondary || edge.has(PAD_BUTTON.DPAD_RIGHT),
+      selectMelee: keys.selectMelee,
+      isMeleeAttack: keys.isMeleeAttack,
       isTogglingFlashlight: keys.isTogglingFlashlight || edge.has(PAD_BUTTON.B),
       isTogglingNvg: keys.isTogglingNvg
     };
@@ -199,6 +204,8 @@ export class InputManager {
       isSwitchingWeapon: this.justPressed.has('KeyQ'),
       selectPrimary: this.justPressed.has('Digit1'),
       selectSecondary: this.justPressed.has('Digit2'),
+      selectMelee: this.justPressed.has('Digit3'),
+      isMeleeAttack: this.keys.has('KeyV'),
       isTogglingFlashlight: this.justPressed.has('KeyT'),
       isTogglingNvg: this.justPressed.has('KeyN')
     }));
@@ -219,6 +226,8 @@ export class InputManager {
       isReloading: input.isReloading || t.reload,
       isInteracting: input.isInteracting || t.interact,
       isSwitchingWeapon: input.isSwitchingWeapon || t.justPressed.has('swap'),
+      selectMelee: input.selectMelee,
+      isMeleeAttack: input.isMeleeAttack || t.melee,
       isTogglingFlashlight: input.isTogglingFlashlight || t.justPressed.has('light'),
       isTogglingNvg: input.isTogglingNvg || t.justPressed.has('nvg')
     };
@@ -258,6 +267,8 @@ export class InputManager {
       isSwitchingWeapon: this.justPressed.has('Comma'),
       selectPrimary: this.justPressed.has('Numpad1'),
       selectSecondary: this.justPressed.has('Numpad2'),
+      selectMelee: this.justPressed.has('Numpad3'),
+      isMeleeAttack: this.keys.has('NumpadDecimal'),
       isTogglingFlashlight: this.justPressed.has('Quote'),
       isTogglingNvg: this.justPressed.has('Backslash')
     });

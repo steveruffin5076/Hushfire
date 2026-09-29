@@ -25,17 +25,19 @@ export const DEFAULT_LOADOUTS: [WeaponLoadout, WeaponLoadout] = [
     secondaryRail: 'spotlight',
     primaryAmmoType: 'standard',
     secondaryAmmoType: 'standard',
+    meleeWeapon: 'knife',
     operativeGear: 'none'
   },
   {
     primaryWeapon: 'mpx',
-    secondaryWeapon: 'knife',
+    secondaryWeapon: 'glock17',
     primaryMuzzle: 'compensator',
     secondaryMuzzle: 'none',
     primaryRail: 'flood_light',
     secondaryRail: 'spotlight',
     primaryAmmoType: 'standard',
     secondaryAmmoType: 'standard',
+    meleeWeapon: 'knife',
     operativeGear: 'none'
   }
 ];
@@ -60,6 +62,9 @@ const pick = <T extends string>(value: unknown, valid: Record<string, unknown>, 
 const pickWeapon = (value: unknown, slot: 'primary' | 'secondary', fallback: string): string =>
   typeof value === 'string' && WEAPON_REGISTRY[value]?.type === slot ? value : fallback;
 
+const pickMelee = (value: unknown, fallback: string): string =>
+  typeof value === 'string' && WEAPON_REGISTRY[value]?.type === 'melee' ? value : fallback;
+
 /**
  * Validates field-by-field against the live registries, so a save from an
  * older build (a renamed weapon, a removed attachment) only resets the
@@ -67,9 +72,16 @@ const pickWeapon = (value: unknown, slot: 'primary' | 'secondary', fallback: str
  */
 const sanitizeLoadout = (raw: unknown, fallback: WeaponLoadout): WeaponLoadout => {
   const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  let secondaryWeapon = pickWeapon(r.secondaryWeapon, 'secondary', fallback.secondaryWeapon);
+  let meleeWeapon = pickMelee(r.meleeWeapon, fallback.meleeWeapon);
+  if (typeof r.secondaryWeapon === 'string' && WEAPON_REGISTRY[r.secondaryWeapon]?.type === 'melee') {
+    meleeWeapon = r.secondaryWeapon;
+    secondaryWeapon = fallback.secondaryWeapon;
+  }
   return {
     primaryWeapon: pickWeapon(r.primaryWeapon, 'primary', fallback.primaryWeapon),
-    secondaryWeapon: pickWeapon(r.secondaryWeapon, 'secondary', fallback.secondaryWeapon),
+    secondaryWeapon,
+    meleeWeapon,
     primaryMuzzle: normalizeMuzzleType(
       typeof r.primaryMuzzle === 'string' ? r.primaryMuzzle : undefined,
       fallback.primaryMuzzle

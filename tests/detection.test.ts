@@ -22,7 +22,8 @@ const loadout: WeaponLoadout = {
   primaryRail: 'none',
   secondaryRail: 'none',
   primaryAmmoType: 'standard',
-  secondaryAmmoType: 'standard'
+  secondaryAmmoType: 'standard',
+  meleeWeapon: 'knife',
 };
 
 // Open floor in Sector 1, left of the first wall column (x 310).

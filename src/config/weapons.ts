@@ -15,7 +15,7 @@ export type AmmoType = 'standard' | 'subsonic' | 'hollow_point' | 'armor_piercin
 export interface WeaponDef {
   id: string;
   name: string;
-  type: 'primary' | 'secondary';
+  type: 'primary' | 'secondary' | 'melee';
   baseDamage: number;
   fireRateRPM: number;
   magSize: number;
@@ -98,7 +98,7 @@ export const WEAPON_REGISTRY: Record<string, WeaponDef> = {
   knife: {
     id: 'knife',
     name: 'Carbon Combat Knife',
-    type: 'secondary',
+    type: 'melee',
     baseDamage: 60,
     fireRateRPM: 110,
     magSize: 1,
@@ -216,7 +216,9 @@ export const PRIMARY_WEAPON_ARMORY_ORDER: string[] = [
   'shotgun'
 ];
 
-export const SECONDARY_WEAPON_ARMORY_ORDER: string[] = ['glock17', 'p226', 'deagle', 'revolver', 'knife'];
+export const SECONDARY_WEAPON_ARMORY_ORDER: string[] = ['glock17', 'p226', 'deagle', 'revolver'];
+
+export const MELEE_WEAPON_ARMORY_ORDER: string[] = ['knife'];
 
 // recoilMult scales hitscan spread in CombatSystem (lower = tighter grouping).
 // moveSpeedMult applies while that weapon is drawn (walk/sprint/sneak).

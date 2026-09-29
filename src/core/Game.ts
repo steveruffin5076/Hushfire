@@ -399,6 +399,8 @@ export class Game {
       isSwitchingWeapon: false,
       selectPrimary: false,
       selectSecondary: false,
+      selectMelee: false,
+      isMeleeAttack: false,
       isTogglingFlashlight: false,
       isTogglingNvg: false
     };
@@ -421,7 +423,8 @@ export class Game {
       flashlightOn: player.flashlightOn,
       battery: player.flashlightBattery,
       hasKeycard: player.hasKeycard,
-      nvgOn: player.nvgOn
+      nvgOn: player.nvgOn,
+      nvgBattery: player.nvgBattery
     };
   }
 
@@ -439,7 +442,10 @@ export class Game {
     player.flashlightOn = snap.flashlightOn;
     player.flashlightBattery = snap.battery;
     player.hasKeycard = snap.hasKeycard;
-    if (player.operativeGear === 'nvg') player.nvgOn = snap.nvgOn;
+    if (player.operativeGear === 'nvg') {
+      player.nvgOn = snap.nvgOn;
+      player.nvgBattery = snap.nvgBattery;
+    }
   }
 
   private buildSnapshot(missionOver?: { victory: boolean }): NetSnapshotMessage {
@@ -1080,12 +1086,22 @@ export class Game {
   }
 
   private handleFiring(player: Player, input: PlayerInputState) {
-    if (!input.isFiring || player.isDowned || player.isEliminated) return;
+    if (player.isDowned || player.isEliminated) return;
+
+    if (input.isMeleeAttack && player.activeSlot !== 'melee') {
+      const beforeMelee = player.shotsFired;
+      this.combat.swingMelee(player, this.zombies, this.decals);
+      if (player.shotsFired > beforeMelee) return;
+    }
+
+    if (!input.isFiring) return;
 
     const beforeShots = player.shotsFired;
     this.combat.fire(player, this.zombies, this.decals, this.projectiles);
 
     if (player.shotsFired > beforeShots) {
+      const weapon = WEAPON_REGISTRY[player.activeWeaponId];
+      if (weapon.type === 'melee') return;
       const listener = this.audioListener();
       const suppressed = isSuppressedMuzzle(player.activeMuzzle);
       this.sound.playGunshot(listener, player.position, this.map.countWallsCrossed(player.position, listener), suppressed);

@@ -5,7 +5,8 @@ import { Player, WeaponLoadout } from '../src/entities/Player';
 
 const loadout = (primaryWeapon: string, secondaryWeapon: string): WeaponLoadout => ({
   primaryWeapon, secondaryWeapon, primaryMuzzle: 'none', secondaryMuzzle: 'none',
-  primaryRail: 'none', secondaryRail: 'none', primaryAmmoType: 'standard', secondaryAmmoType: 'standard'
+  primaryRail: 'none', secondaryRail: 'none', primaryAmmoType: 'standard', secondaryAmmoType: 'standard',
+  meleeWeapon: 'knife',
 });
 
 const stuckBoltAt = (x: number, y: number) => {
