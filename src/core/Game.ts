@@ -985,6 +985,12 @@ export class Game {
     return player.playerNumber === 1 ? this.p1Anim : this.p2Anim;
   }
 
+  /** Baked knife swing sheet is shipped for Operative 1 (infiltrator) only. */
+  private triggerPlayerMeleeAnim(player: Player) {
+    if (player.playerNumber !== 1) return;
+    this.animForPlayer(player)?.triggerAttack();
+  }
+
   private applyOperativeGear(player: Player) {
     player.applyDeployGearBonus();
   }
@@ -1146,7 +1152,10 @@ export class Game {
     if (input.isMeleeAttack && player.activeSlot !== 'melee') {
       const beforeMelee = player.shotsFired;
       this.combat.swingMelee(player, this.zombies, this.decals);
-      if (player.shotsFired > beforeMelee) return;
+      if (player.shotsFired > beforeMelee) {
+        this.triggerPlayerMeleeAnim(player);
+        return;
+      }
     }
 
     if (!input.isFiring) return;
@@ -1156,7 +1165,10 @@ export class Game {
 
     if (player.shotsFired > beforeShots) {
       const weapon = WEAPON_REGISTRY[player.activeWeaponId];
-      if (weapon.type === 'melee') return;
+      if (weapon.type === 'melee') {
+        this.triggerPlayerMeleeAnim(player);
+        return;
+      }
       const listener = this.audioListener();
       const suppressed = isSuppressedMuzzle(player.activeMuzzle);
       this.sound.playGunshot(listener, player.position, this.map.countWallsCrossed(player.position, listener), suppressed);
