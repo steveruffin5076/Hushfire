@@ -237,6 +237,7 @@ export class HUD {
       ctx.fillStyle = '#8A94A6';
       ctx.fillText('MELEE STAMINA [E]', x, barCursor + 11);
       ctx.font = '13px monospace';
+      barCursor += MELEE_HINT_H;
     }
 
     const grenadeKind = p.equippedThrowableKind();
