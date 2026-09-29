@@ -221,11 +221,11 @@ export class InputManager {
       isTogglingFlashlight: this.justPressed.has('KeyT'),
       isTogglingNvg: this.justPressed.has('KeyN'),
       isThrowing: this.justPressed.has('KeyG'),
-      cycleThrowable: this.justPressed.has('KeyB'),
-      selectThrowableHe: this.justPressed.has('Digit4'),
-      selectThrowableIncendiary: this.justPressed.has('Digit5'),
-      selectThrowableFlashbang: this.justPressed.has('Digit6'),
-      selectThrowableFlare: this.justPressed.has('Digit7')
+      cycleThrowable: false,
+      selectThrowableHe: false,
+      selectThrowableIncendiary: false,
+      selectThrowableFlashbang: false,
+      selectThrowableFlare: false
     }));
   }
 

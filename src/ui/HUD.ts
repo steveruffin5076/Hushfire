@@ -1,6 +1,6 @@
 import { Player } from '../entities/Player';
 import { WEAPON_REGISTRY } from '../config/weapons';
-import { THROWABLE_LABELS, THROWABLE_ORDER, THROWABLE_SHORT, THROW_MAX_RANGE_PX } from '../config/throwables';
+import { THROWABLE_LABELS, THROW_MAX_RANGE_PX } from '../config/throwables';
 import { MapManager } from '../systems/MapManager';
 import {
   CANVAS_WIDTH,
@@ -26,7 +26,7 @@ const NVG_BTN_GAP = 6;
 const NVG_GREEN = '#00E676';
 /** Space for the melee stamina hint under its bar — keeps the flashlight button from overlapping. */
 const MELEE_HINT_H = 14;
-const GRENADE_HUD_BLOCK_H = 36;
+const GRENADE_HUD_BLOCK_H = 18;
 
 export interface PlayerPanelLayout {
   flashlightBtn: { x: number; y: number; w: number; h: number };
@@ -239,21 +239,16 @@ export class HUD {
       ctx.font = '13px monospace';
     }
 
-    if (p.hasGrenadePouch()) {
+    const grenadeKind = p.equippedThrowableKind();
+    if (grenadeKind) {
       const grenadeTop = barCursor + RESOURCE_BAR_GAP;
       ctx.font = '11px monospace';
       ctx.fillStyle = '#FFAB40';
-      const parts = THROWABLE_ORDER.map(
-        k =>
-          `${THROWABLE_SHORT[k]}×${p.throwableCounts[k]}${p.selectedThrowable === k ? '*' : ''}`
-      );
-      ctx.fillText(`GRENADES [G] ${parts.join(' ')} — ${THROW_MAX_RANGE_PX}px`, x, grenadeTop + 6);
-      ctx.fillStyle = '#8A94A6';
-      ctx.font = '10px monospace';
+      const remaining = p.throwableCounts[grenadeKind];
       ctx.fillText(
-        `Selected: ${THROWABLE_LABELS[p.selectedThrowable]} — [4-7] pick, [B] cycle`,
+        `GRENADE [G] ${THROWABLE_LABELS[grenadeKind]} ×${remaining} — ${THROW_MAX_RANGE_PX}px`,
         x,
-        grenadeTop + 20
+        grenadeTop + 6
       );
       ctx.font = '13px monospace';
       barCursor = grenadeTop + GRENADE_HUD_BLOCK_H;

@@ -1181,12 +1181,8 @@ export class Game {
   }
 
   private handleThrowables(player: Player, input: PlayerInputState, useMouseAim: boolean) {
-    if (!player.hasThrowableLoadout() && player.totalThrowablesRemaining() <= 0) return;
-    if (input.selectThrowableHe) player.selectThrowable('he');
-    if (input.selectThrowableIncendiary) player.selectThrowable('incendiary');
-    if (input.selectThrowableFlashbang) player.selectThrowable('flashbang');
-    if (input.selectThrowableFlare) player.selectThrowable('flare');
-    if (input.cycleThrowable) player.cycleThrowable();
+    const equipped = player.equippedThrowableKind();
+    if (!equipped) return;
     if (!input.isThrowing) return;
 
     let targetX: number;
@@ -1205,7 +1201,7 @@ export class Game {
     }
 
     if (
-      this.throwableSystem.throw(player, player.selectedThrowable, targetX, targetY, this.thrownGrenades)
+      this.throwableSystem.throw(player, equipped, targetX, targetY, this.thrownGrenades)
     ) {
       this.camera.addTrauma(0.05);
     }

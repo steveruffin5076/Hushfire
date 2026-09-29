@@ -62,16 +62,11 @@ describe('throwables', () => {
     expect(player.throwableCounts.flashbang).toBe(1);
   });
 
-  it('cycles to next type with ammo', () => {
+  it('only throws the armory-selected grenade type', () => {
     const spawn = SECTORS[0].playerSpawns[0];
     const player = new Player(1, spawn.x, spawn.y, 100, baseLoadout());
-    player.throwableCounts = { he: 1, incendiary: 0, flashbang: 0, flare: 0 };
-    player.selectedThrowable = 'he';
-    player.cycleThrowable();
-    expect(player.selectedThrowable).toBe('he');
-    player.throwableCounts.he = 0;
-    player.throwableCounts.flashbang = 2;
-    player.cycleThrowable();
-    expect(player.selectedThrowable).toBe('flashbang');
+    expect(player.equippedThrowableKind()).toBe('flashbang');
+    expect(player.canThrow('he')).toBe(false);
+    expect(player.canThrow('flashbang')).toBe(true);
   });
 });
