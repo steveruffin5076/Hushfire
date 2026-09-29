@@ -26,6 +26,16 @@ export const FLASHLIGHT_FULL_CHARGE_SEC = 300;
 export const FLASHLIGHT_DRAIN_PER_SEC = FLASHLIGHT_BATTERY_MAX / FLASHLIGHT_FULL_CHARGE_SEC;
 export const BATTERY_PICKUP_CHARGE = 50;
 
+/** NVG power — separate from the weapon flashlight; spare cells do not refill this. */
+export const NVG_BATTERY_MAX = 100;
+export const NVG_FULL_CHARGE_SEC = 240;
+export const NVG_DRAIN_PER_SEC = NVG_BATTERY_MAX / NVG_FULL_CHARGE_SEC;
+
+/** Melee swings share one stamina pool — stops holding V / MELEE from machine-gunning knives. */
+export const MELEE_STAMINA_MAX = 100;
+export const MELEE_STAMINA_COST_PER_SWING = 40;
+export const MELEE_STAMINA_REGEN_PER_SEC = 22;
+
 // Audio & Noise Constants
 // Difficulty-tuned up from 0.65: walls muffle sound more, so a stray footstep
 // or shot is less likely to blow a stealth run sector-wide.

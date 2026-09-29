@@ -8,7 +8,8 @@ import {
   RailType,
   AmmoType,
   PRIMARY_WEAPON_ARMORY_ORDER,
-  SECONDARY_WEAPON_ARMORY_ORDER
+  SECONDARY_WEAPON_ARMORY_ORDER,
+  MELEE_WEAPON_ARMORY_ORDER
 } from '../config/weapons';
 import { OPERATIVE_GEAR_ORDER, OPERATIVE_GEAR_REGISTRY, OperativeGearId } from '../config/operativeGear';
 import { WeaponLoadout } from '../entities/Player';
@@ -470,8 +471,13 @@ export class ArmoryMenu {
       return row;
     };
 
-    const weaponOptions = (type: 'primary' | 'secondary'): [string, string][] => {
-      const order = type === 'primary' ? PRIMARY_WEAPON_ARMORY_ORDER : SECONDARY_WEAPON_ARMORY_ORDER;
+    const weaponOptions = (type: 'primary' | 'secondary' | 'melee'): [string, string][] => {
+      const order =
+        type === 'primary'
+          ? PRIMARY_WEAPON_ARMORY_ORDER
+          : type === 'secondary'
+            ? SECONDARY_WEAPON_ARMORY_ORDER
+            : MELEE_WEAPON_ARMORY_ORDER;
       return order
         .filter(id => WEAPON_REGISTRY[id]?.type === type)
         .map(id => {
@@ -515,6 +521,22 @@ export class ArmoryMenu {
           }
         )
       );
+
+      const meleeRow = document.createElement('div');
+      meleeRow.style.cssText = 'margin-bottom: 12px; max-width: 50%;';
+      meleeRow.appendChild(
+        this.buildSelect(
+          'MELEE WEAPON:',
+          weaponOptions('melee'),
+          loadout.meleeWeapon,
+          v => {
+            if (!isWeaponUnlocked(v)) return;
+            loadout.meleeWeapon = v;
+            renderLoadout();
+          }
+        )
+      );
+      loadoutBody.appendChild(meleeRow);
 
       const muzzleOptions = (): [string, string][] =>
         MUZZLE_ARMORY_ORDER.map(id => {
@@ -889,6 +911,8 @@ export class ArmoryMenu {
       stats(loadout.primaryWeapon, loadout.primaryMuzzle, loadout.primaryAmmoType) +
       heading('SECONDARY') +
       stats(loadout.secondaryWeapon, loadout.secondaryMuzzle, loadout.secondaryAmmoType) +
+      heading('MELEE') +
+      stats(loadout.meleeWeapon, 'none', 'standard') +
       heading('GEAR') +
       row('EQUIPPED', gear.name, CYAN) +
       row('ROLE', gear.description, MUTED);

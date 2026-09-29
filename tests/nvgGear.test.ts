@@ -14,6 +14,7 @@ const baseLoadout = (): WeaponLoadout => ({
   secondaryRail: 'none',
   primaryAmmoType: 'standard',
   secondaryAmmoType: 'standard',
+  meleeWeapon: 'knife',
   operativeGear: 'nvg'
 });
 
@@ -29,6 +30,8 @@ const idle = (overrides: Partial<PlayerInputState> = {}): PlayerInputState => ({
   isSwitchingWeapon: false,
   selectPrimary: false,
   selectSecondary: false,
+  selectMelee: false,
+  isMeleeAttack: false,
   isTogglingFlashlight: false,
   isTogglingNvg: false,
   ...overrides
@@ -53,5 +56,31 @@ describe('night vision gear', () => {
     expect(nvgLightsForPlayers([p])).toHaveLength(0);
     p.nvgOn = true;
     expect(nvgLightsForPlayers([p])).toHaveLength(1);
+  });
+
+  it('drains NVG battery separately from the flashlight', () => {
+    const spawn = SECTORS[0].playerSpawns[0];
+    const map = new MapManager();
+    const p = new Player(1, spawn.x, spawn.y, 100, baseLoadout());
+    p.nvgOn = true;
+    p.flashlightOn = false;
+    const startNvg = p.nvgBattery;
+    const startFlash = p.flashlightBattery;
+    p.update(2, idle(), map);
+    expect(p.nvgBattery).toBeLessThan(startNvg);
+    expect(p.flashlightBattery).toBe(startFlash);
+  });
+
+  it('spare battery cell gear only boosts the weapon flashlight', () => {
+    const spawn = SECTORS[0].playerSpawns[0];
+    const p = new Player(1, spawn.x, spawn.y, 100, {
+      ...baseLoadout(),
+      operativeGear: 'extra_battery'
+    });
+    p.flashlightBattery = 40;
+    p.nvgBattery = 80;
+    p.applyDeployGearBonus();
+    expect(p.flashlightBattery).toBe(90);
+    expect(p.nvgBattery).toBe(80);
   });
 });

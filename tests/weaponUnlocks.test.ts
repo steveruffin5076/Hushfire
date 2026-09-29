@@ -10,10 +10,12 @@ describe('weapon unlocks', () => {
     expect(isWeaponUnlocked('glock17', defaultPlayerProfile())).toBe(true);
   });
 
-  it('crossbow unlocks after a win', () => {
+  it('crossbow unlocks after two wins with grade C', () => {
     const p = defaultPlayerProfile();
     expect(isWeaponUnlocked('crossbow', p)).toBe(false);
-    p.totalWins = 1;
+    p.totalWins = 2;
+    expect(isWeaponUnlocked('crossbow', p)).toBe(false);
+    p.bestGrade = 'C';
     expect(isWeaponUnlocked('crossbow', p)).toBe(true);
   });
 

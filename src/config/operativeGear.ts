@@ -21,12 +21,12 @@ export const OPERATIVE_GEAR_REGISTRY: Record<OperativeGearId, OperativeGearDef> 
   extra_battery: {
     id: 'extra_battery',
     name: 'Spare Battery Cell',
-    description: '+50 flashlight charge at deploy.'
+    description: '+50 weapon flashlight charge at deploy (does not charge NVG).'
   },
   nvg: {
     id: 'nvg',
     name: 'Night Vision Goggles',
-    description: 'Toggle green NVG in-mission (reduced dependence on weapon lights).'
+    description: 'Toggle green NVG in-mission — uses its own battery, separate from your flashlight.'
   },
   flare_pack: {
     id: 'flare_pack',

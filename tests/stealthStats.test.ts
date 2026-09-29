@@ -26,7 +26,8 @@ describe('silent kills', () => {
     primaryRail: 'none',
     secondaryRail: 'none',
     primaryAmmoType: 'standard',
-    secondaryAmmoType: 'standard'
+    secondaryAmmoType: 'standard',
+  meleeWeapon: 'knife',
   };
   const stab = (z: Zombie) => {
     const p = new Player(1, 150, 360, 100, loadout);

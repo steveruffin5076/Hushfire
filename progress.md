@@ -164,16 +164,16 @@ images/                   Raw art uploads from the owner (source material, not l
 - **Dependency:** `peerjs` in `package.json`.
 
 ### Controls
-- **Keyboard/mouse** (P1 WASD + mouse, P2 arrows + IJKL). The full table is in `docs/COOP_SESSION_GUIDE.md` §5.
+- **Keyboard/mouse** — one operative per machine: P1 WASD + mouse (online guest uses the same layout on their PC; host does not read a local P2 keyboard). See `AGENTS.md`.
 - **Gamepad** (standard layout):
-  - Solo → the first pad is P1. Co-op with one pad → P2. Two pads → one each.
+  - First standard pad drives local P1 only (solo or online). No local P2 pad routing.
   - The menus are pad-navigable too: a cyan highlight moves between buttons, A presses, and B resumes from pause.
 - **Touch:**
   - On-screen twin-stick controls for P1 appear after the first touch.
   - Pushing the aim stick past its ring fires.
   - Buttons: SPRINT/SNEAK toggles, RELOAD, USE, SWAP, LIGHT, **NVG** (when goggles equipped), pause.
   - Upright phones get a "rotate to landscape" prompt.
-- **NVG (night vision goggles):** selectable as **operative gear** in the armory. Toggle **N** (each player's own PC in online co-op), HUD button, touch **NVG**; green visibility bubble + screen tint (`GearSystem`). **`\`** is only for rare same-keyboard local P2 on one PC — online guest uses **N** on their machine. **Flare pack** still armory-only (no throw yet).
+- **NVG (night vision goggles):** selectable as **operative gear** in the armory. Toggle **N** on your machine, HUD button, touch **NVG**; green visibility bubble + screen tint (`GearSystem`). **Flare pack** still armory-only (no throw yet).
 - **Mouse aim:** P1 aim uses `Camera.screenToWorld(mousePos)` so shots match the reticle when the camera pans/zooms (PR #43).
 - The armory remembers mode, difficulty and both loadouts in `localStorage`. Saves from older builds are checked field by field.
 
@@ -192,7 +192,7 @@ images/                   Raw art uploads from the owner (source material, not l
 
 - **Split HUD button:** the HUD flashlight button only takes clicks for P1, since co-op shares one mouse on the host machine.
 - **Touch is P1 only:** two players on one phone isn't supported.
-- **No same-machine 2P armory mode:** legacy `coop` / LOCAL was removed; only SOLO and ONLINE in the armory. Re-add only if couch co-op is wanted again.
+- **No local co-op:** legacy `coop` / couch / second-keyboard P2 is **out of scope** — only SOLO and ONLINE in the armory. Do not re-add same-machine P2 controls (`AGENTS.md`).
 - **Online co-op limits:**
   - **TURN not configured on GitHub Pages** — strict NAT / school Wi‑Fi / VPN often blocks STUN-only P2P. Sign up at [Metered Open Relay](https://www.metered.ca/tools/openrelay/), set `VITE_TURN_CREDENTIALS_URL` in CI secrets, rebuild.
   - Free `0.peerjs.com` PeerServer has no SLA — consider self-hosted `peerjs-server` for production.

@@ -10,24 +10,26 @@ import { SECTOR_ALERT_SOUND_RADIUS_PX } from '../src/config/constants';
 
 const loudLoadout: WeaponLoadout = {
   primaryWeapon: 'shotgun',
-  secondaryWeapon: 'knife',
+  secondaryWeapon: 'glock17',
   primaryMuzzle: 'none',
   secondaryMuzzle: 'none',
   primaryRail: 'none',
   secondaryRail: 'none',
   primaryAmmoType: 'standard',
-  secondaryAmmoType: 'standard'
+  secondaryAmmoType: 'standard',
+  meleeWeapon: 'knife',
 };
 
 const stealthLoadout: WeaponLoadout = {
   primaryWeapon: 'mpx',
-  secondaryWeapon: 'knife',
+  secondaryWeapon: 'glock17',
   primaryMuzzle: 'titanium_suppressor',
   secondaryMuzzle: 'none',
   primaryRail: 'none',
   secondaryRail: 'none',
   primaryAmmoType: 'standard',
-  secondaryAmmoType: 'standard'
+  secondaryAmmoType: 'standard',
+  meleeWeapon: 'knife',
 };
 
 const soundRadius = (weaponId: string, muzzle: WeaponLoadout['primaryMuzzle'], ammo: WeaponLoadout['primaryAmmoType']) => {

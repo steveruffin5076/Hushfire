@@ -16,7 +16,7 @@ import { applyDeadzone } from './Gamepad';
  * Hidden until the first touch, so desktop players never see it.
  */
 
-export type TouchButtonId = 'light' | 'nvg' | 'swap' | 'reload' | 'use' | 'sprint' | 'sneak' | 'pause';
+export type TouchButtonId = 'melee' | 'light' | 'nvg' | 'swap' | 'reload' | 'use' | 'sprint' | 'sneak' | 'pause';
 
 interface TouchButton {
   id: TouchButtonId;
@@ -29,6 +29,7 @@ interface TouchButton {
 }
 
 export const TOUCH_BUTTONS: readonly TouchButton[] = [
+  { id: 'melee', label: 'MELEE', x: 1210, y: 130, r: 36 },
   { id: 'nvg', label: 'NVG', x: 1210, y: 190, r: 36 },
   { id: 'light', label: 'LIGHT', x: 1210, y: 250, r: 40 },
   { id: 'swap', label: 'SWAP', x: 1210, y: 345, r: 40 },
@@ -65,6 +66,8 @@ export interface TouchState {
   sneak: boolean;
   reload: boolean;
   interact: boolean;
+  /** Held melee button — quick knife swing without swapping weapons. */
+  melee: boolean;
   /** One-shot buttons tapped since the last endFrame(). */
   justPressed: Set<TouchButtonId>;
 }
@@ -147,6 +150,7 @@ export class TouchControls {
       sneak: this.toggles.sneak,
       reload: held.has('reload'),
       interact: held.has('use'),
+      melee: held.has('melee'),
       justPressed: new Set(this.edges)
     };
   }

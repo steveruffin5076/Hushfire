@@ -294,7 +294,7 @@ export class Game {
     this.ctx = canvas.getContext('2d')!;
     this.assets = assets;
     this.hud = new HUD(assets);
-    this.input = new InputManager(canvas, solo);
+    this.input = new InputManager(canvas);
     this.camera = new Camera(CANVAS_WIDTH, CANVAS_HEIGHT, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
     canvas.addEventListener('mousedown', () => this.sound.resume(), { once: true });
@@ -313,7 +313,6 @@ export class Game {
     // Solo mode never puts a second operative in play — eliminating it up front
     // makes every system that already filters on isEliminated/alive (AI targeting,
     // camera framing, HUD, revive, combat) treat it as if it were never there.
-    if (this.solo) this.p2.eliminate();
     this.wireSheetFootfalls(this.p1, this.p1Anim);
     this.wireSheetFootfalls(this.p2, this.p2Anim);
 
@@ -355,6 +354,9 @@ export class Game {
       this.session = online.session;
       this.wireNetSession();
     }
+    // Second operative only exists in online co-op (guest on another device). No
+    // same-keyboard / couch P2 — arrows, numpad, and IJKL are not read.
+    if (this.solo || this.netRole === 'local') this.p2.eliminate();
   }
 
   private wireNetSession() {
@@ -399,6 +401,8 @@ export class Game {
       isSwitchingWeapon: false,
       selectPrimary: false,
       selectSecondary: false,
+      selectMelee: false,
+      isMeleeAttack: false,
       isTogglingFlashlight: false,
       isTogglingNvg: false
     };
@@ -421,7 +425,9 @@ export class Game {
       flashlightOn: player.flashlightOn,
       battery: player.flashlightBattery,
       hasKeycard: player.hasKeycard,
-      nvgOn: player.nvgOn
+      nvgOn: player.nvgOn,
+      nvgBattery: player.nvgBattery,
+      meleeStamina: player.meleeStamina
     };
   }
 
@@ -439,7 +445,11 @@ export class Game {
     player.flashlightOn = snap.flashlightOn;
     player.flashlightBattery = snap.battery;
     player.hasKeycard = snap.hasKeycard;
-    if (player.operativeGear === 'nvg') player.nvgOn = snap.nvgOn;
+    if (player.operativeGear === 'nvg') {
+      player.nvgOn = snap.nvgOn;
+      player.nvgBattery = snap.nvgBattery;
+    }
+    player.meleeStamina = snap.meleeStamina;
   }
 
   private buildSnapshot(missionOver?: { victory: boolean }): NetSnapshotMessage {
@@ -843,10 +853,7 @@ export class Game {
     this.sound.setAmbientTension(Math.min(1, this.zombiesAlerted / 6));
 
     const in1 = this.input.getPlayer1Input({ x: this.p1.x, y: this.p1.y }, this.camera);
-    const in2 =
-      this.netRole === 'host'
-        ? (this.guestRemoteInput ?? Game.emptyInput())
-        : this.input.getPlayer2Input({ x: this.p2.x, y: this.p2.y }, { x: this.p1.x, y: this.p1.y });
+    const in2 = this.netRole === 'host' ? (this.guestRemoteInput ?? Game.emptyInput()) : Game.emptyInput();
     this.input.endFrame();
 
     if (!this.p1.isEliminated) this.p1.update(dt, in1, this.map);
@@ -1080,12 +1087,22 @@ export class Game {
   }
 
   private handleFiring(player: Player, input: PlayerInputState) {
-    if (!input.isFiring || player.isDowned || player.isEliminated) return;
+    if (player.isDowned || player.isEliminated) return;
+
+    if (input.isMeleeAttack && player.activeSlot !== 'melee') {
+      const beforeMelee = player.shotsFired;
+      this.combat.swingMelee(player, this.zombies, this.decals);
+      if (player.shotsFired > beforeMelee) return;
+    }
+
+    if (!input.isFiring) return;
 
     const beforeShots = player.shotsFired;
     this.combat.fire(player, this.zombies, this.decals, this.projectiles);
 
     if (player.shotsFired > beforeShots) {
+      const weapon = WEAPON_REGISTRY[player.activeWeaponId];
+      if (weapon.type === 'melee') return;
       const listener = this.audioListener();
       const suppressed = isSuppressedMuzzle(player.activeMuzzle);
       this.sound.playGunshot(listener, player.position, this.map.countWallsCrossed(player.position, listener), suppressed);
@@ -1470,8 +1487,7 @@ export class Game {
 
     this.renderLighting(ctx);
     this.renderNvgScreenTint(ctx);
-    const localKeyboardCoop = this.netRole === 'local' && !this.solo;
-    this.hud.renderScreenSpace(ctx, this.p1, this.p2, this.map, this.runModifier, this.tutorialBanner, localKeyboardCoop);
+    this.hud.renderScreenSpace(ctx, this.p1, this.p2, this.map, this.runModifier, this.tutorialBanner);
     this.renderBlasts(ctx);
     this.renderSurgeWarning(ctx);
     this.renderDamageFlash(ctx);

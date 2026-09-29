@@ -86,6 +86,19 @@ export const HIT_FLASH_SEC = 0.08;
 export class CombatSystem {
   constructor(private map: MapManager, private noise: NoiseSystem, private events: CombatEvents = {}) {}
 
+  /** Quick melee (V / touch MELEE) without swapping off the drawn gun. */
+  swingMelee(player: Player, zombies: Zombie[], decals: Decal[]) {
+    const weapon = WEAPON_REGISTRY[player.loadout.meleeWeapon];
+    if (weapon.type !== 'melee' || !player.canMeleeSwing()) return;
+    player.consumeMeleeSwing();
+    const ammoMod = AMMO_MODIFIERS.standard;
+    const damage = weapon.baseDamage;
+    const soundRadius = weapon.baseSoundRadiusPx;
+    player.noiseRadius = Math.max(player.noiseRadius, soundRadius);
+    this.noise.emit({ x: player.x, y: player.y, radius: soundRadius, type: 'footstep' });
+    this.meleeAttack(player, zombies, damage, ammoMod.armorPen, decals);
+  }
+
   fire(player: Player, zombies: Zombie[], decals: Decal[], projectiles: Projectile[]) {
     if (!player.canFire()) return;
 
@@ -104,7 +117,7 @@ export class CombatSystem {
 
     const damage = weapon.baseDamage * muzzleMod.dmgMult * ammoMod.dmgMult;
 
-    if (weapon.id === 'knife') {
+    if (weapon.type === 'melee') {
       this.meleeAttack(player, zombies, damage, ammoMod.armorPen, decals);
       return;
     }

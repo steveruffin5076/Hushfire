@@ -40,7 +40,8 @@ describe('difficulty levels', () => {
   it('scales how close a zombie notices a walking player', () => {
     const loadout: WeaponLoadout = {
       primaryWeapon: 'mpx', secondaryWeapon: 'glock17', primaryMuzzle: 'none', secondaryMuzzle: 'none',
-      primaryRail: 'none', secondaryRail: 'none', primaryAmmoType: 'standard', secondaryAmmoType: 'standard'
+      primaryRail: 'none', secondaryRail: 'none', primaryAmmoType: 'standard', secondaryAmmoType: 'standard',
+  meleeWeapon: 'knife',
     };
     const notices = (noticeMult: number, dist: number) => {
       const z = new Zombie(150, 360, Math.PI, 'lurker');

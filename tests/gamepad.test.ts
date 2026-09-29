@@ -61,20 +61,13 @@ describe('assignPads', () => {
   const a = pad(0);
   const b = pad(1);
 
-  it('solo: first usable pad drives P1', () => {
-    expect(assignPads([null, b], true)).toEqual({ p1: b, p2: null });
-  });
-
-  it('co-op with one pad: it goes to P2, P1 keeps the mouse', () => {
-    expect(assignPads([a], false)).toEqual({ p1: null, p2: a });
-  });
-
-  it('co-op with two pads: one each, in order', () => {
-    expect(assignPads([a, b], false)).toEqual({ p1: a, p2: b });
+  it('first usable pad drives local P1 only', () => {
+    expect(assignPads([null, b])).toEqual({ p1: b, p2: null });
+    expect(assignPads([a, b])).toEqual({ p1: a, p2: null });
   });
 
   it('skips disconnected and non-standard pads', () => {
-    expect(assignPads([pad(0, { connected: false }), pad(1, { mapping: '' }), b], true)).toEqual({ p1: b, p2: null });
+    expect(assignPads([pad(0, { connected: false }), pad(1, { mapping: '' }), b])).toEqual({ p1: b, p2: null });
   });
 });
 
@@ -92,7 +85,7 @@ describe('InputManager with a gamepad', () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it('drives P1 in solo: stick move, stick aim, trigger fire', () => {
-    const input = new InputManager(canvas, true);
+    const input = new InputManager(canvas);
     pads = [pad(0, { axes: [0, -1, -1, 0], down: [PAD_BUTTON.RT] })];
     input.poll();
     const s = input.getPlayer1Input(at, cam());
@@ -103,7 +96,7 @@ describe('InputManager with a gamepad', () => {
   });
 
   it('keeps the last stick aim after the stick is released', () => {
-    const input = new InputManager(canvas, true);
+    const input = new InputManager(canvas);
     pads = [pad(0, { axes: [0, 0, 0, 1] })];
     input.poll();
     pads = [pad(0)];
@@ -112,7 +105,7 @@ describe('InputManager with a gamepad', () => {
   });
 
   it('fires one-shot actions once per press, not every frame held', () => {
-    const input = new InputManager(canvas, true);
+    const input = new InputManager(canvas);
     pads = [pad(0, { down: [PAD_BUTTON.B, PAD_BUTTON.Y] })];
     input.poll();
     const first = input.getPlayer1Input(at, cam());
@@ -127,7 +120,7 @@ describe('InputManager with a gamepad', () => {
   });
 
   it('keeps a tap that lands between physics ticks until endFrame', () => {
-    const input = new InputManager(canvas, true);
+    const input = new InputManager(canvas);
     pads = [pad(0, { down: [PAD_BUTTON.DPAD_RIGHT] })];
     input.poll();
     pads = [pad(0)]; // released before the next poll
@@ -136,28 +129,14 @@ describe('InputManager with a gamepad', () => {
   });
 
   it('reports Start as a pause edge', () => {
-    const input = new InputManager(canvas, true);
+    const input = new InputManager(canvas);
     pads = [pad(0, { down: [PAD_BUTTON.START] })];
     expect(input.poll()).toBe(true);
     expect(input.poll()).toBe(false);
   });
 
-  it('routes a single co-op pad to P2 and leaves P1 on keyboard/mouse', () => {
-    const input = new InputManager(canvas, false);
-    pads = [pad(0, { axes: [1, 0, 0, -1], down: [PAD_BUTTON.RT] })];
-    input.poll();
-    const p1 = input.getPlayer1Input(at, cam());
-    const p2 = input.getPlayer2Input(at, { x: 0, y: 0 });
-    expect(p1.moveX).toBe(0);
-    expect(p1.isFiring).toBe(false);
-    expect(input.p1AimSource).toBe('mouse');
-    expect(p2.moveX).toBeCloseTo(1);
-    expect(p2.aimAngle).toBeCloseTo(-Math.PI / 2);
-    expect(p2.isFiring).toBe(true);
-  });
-
   it('falls back to the mouse when the pad is unplugged', () => {
-    const input = new InputManager(canvas, true);
+    const input = new InputManager(canvas);
     pads = [pad(0, { axes: [0, 0, 1, 0] })];
     input.poll();
     expect(input.p1AimSource).toBe('stick');

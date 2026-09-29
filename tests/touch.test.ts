@@ -125,7 +125,7 @@ describe('InputManager with touch', () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it('drives P1 and keeps the aim after the thumb lifts', () => {
-    const input = new InputManager(canvas, true);
+    const input = new InputManager(canvas);
     input.touch.onStart(1, 300, 500);
     input.touch.onMove(1, 300, 500 + STICK_RADIUS);
     input.touch.onStart(2, 900, 500);
@@ -145,7 +145,7 @@ describe('InputManager with touch', () => {
   });
 
   it('turns a flashlight tap into a one-frame toggle', () => {
-    const input = new InputManager(canvas, true);
+    const input = new InputManager(canvas);
     input.touch.onStart(3, btn('light').x, btn('light').y);
     input.touch.onEnd(3);
     input.poll();
@@ -155,17 +155,10 @@ describe('InputManager with touch', () => {
   });
 
   it('reports the pause button through poll()', () => {
-    const input = new InputManager(canvas, true);
+    const input = new InputManager(canvas);
     input.touch.onStart(3, btn('pause').x, btn('pause').y);
     expect(input.poll()).toBe(true);
     expect(input.poll()).toBe(false);
   });
 
-  it('leaves P2 untouched', () => {
-    const input = new InputManager(canvas, false);
-    input.touch.onStart(1, 300, 500);
-    input.touch.onMove(1, 300 + STICK_RADIUS, 500);
-    input.poll();
-    expect(input.getPlayer2Input(at, { x: 0, y: 0 }).moveX).toBe(0);
-  });
 });

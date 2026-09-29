@@ -16,6 +16,8 @@ describe('network snapshot codec', () => {
       isSwitchingWeapon: false,
       selectPrimary: false,
       selectSecondary: true,
+      selectMelee: false,
+      isMeleeAttack: true,
       isTogglingFlashlight: false,
       isTogglingNvg: false
     };

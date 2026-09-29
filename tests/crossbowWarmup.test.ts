@@ -9,7 +9,8 @@ const loadout = (primary: string, secondary: string): WeaponLoadout => ({
   primaryRail: 'none',
   secondaryRail: 'none',
   primaryAmmoType: 'standard',
-  secondaryAmmoType: 'standard'
+  secondaryAmmoType: 'standard',
+  meleeWeapon: 'knife',
 });
 
 describe('crossbow warm-up', () => {

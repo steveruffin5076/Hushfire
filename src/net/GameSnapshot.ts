@@ -21,6 +21,8 @@ export interface NetInputMessage {
   isSwitchingWeapon: boolean;
   selectPrimary: boolean;
   selectSecondary: boolean;
+  selectMelee: boolean;
+  isMeleeAttack: boolean;
   isTogglingFlashlight: boolean;
   isTogglingNvg: boolean;
 }
@@ -34,7 +36,7 @@ export interface NetPlayerSnap {
   downed: boolean;
   eliminated: boolean;
   activeWeaponId: string;
-  activeSlot: 'primary' | 'secondary';
+  activeSlot: 'primary' | 'secondary' | 'melee';
   mag: number;
   reserve: number;
   reloading: boolean;
@@ -42,6 +44,8 @@ export interface NetPlayerSnap {
   battery: number;
   hasKeycard: boolean;
   nvgOn: boolean;
+  nvgBattery: number;
+  meleeStamina: number;
 }
 
 export interface NetZombieSnap {
@@ -108,6 +112,8 @@ export function inputToNet(seq: number, input: PlayerInputState): NetInputMessag
     isSwitchingWeapon: input.isSwitchingWeapon,
     selectPrimary: input.selectPrimary,
     selectSecondary: input.selectSecondary,
+    selectMelee: input.selectMelee,
+    isMeleeAttack: input.isMeleeAttack,
     isTogglingFlashlight: input.isTogglingFlashlight,
     isTogglingNvg: input.isTogglingNvg
   };
@@ -126,6 +132,8 @@ export function netToInput(msg: NetInputMessage): PlayerInputState {
     isSwitchingWeapon: msg.isSwitchingWeapon,
     selectPrimary: msg.selectPrimary,
     selectSecondary: msg.selectSecondary,
+    selectMelee: msg.selectMelee,
+    isMeleeAttack: msg.isMeleeAttack,
     isTogglingFlashlight: msg.isTogglingFlashlight,
     isTogglingNvg: msg.isTogglingNvg
   };
@@ -141,4 +149,4 @@ export type NetMessage =
   | NetInputMessage
   | NetSnapshotMessage;
 
-export const PROTO_VERSION = 4;
+export const PROTO_VERSION = 6;

@@ -1,7 +1,13 @@
 import { Player } from '../entities/Player';
 import { WEAPON_REGISTRY } from '../config/weapons';
 import { MapManager } from '../systems/MapManager';
-import { CANVAS_WIDTH, CANVAS_HEIGHT, FLASHLIGHT_BATTERY_MAX } from '../config/constants';
+import {
+  CANVAS_WIDTH,
+  CANVAS_HEIGHT,
+  FLASHLIGHT_BATTERY_MAX,
+  NVG_BATTERY_MAX,
+  MELEE_STAMINA_MAX
+} from '../config/constants';
 import { SectorModifierId, getSectorModifier } from '../config/sectorModifiers';
 import { AssetLoader } from '../core/AssetLoader';
 import { Camera } from '../core/Camera';
@@ -108,12 +114,10 @@ export class HUD {
     p2: Player,
     map: MapManager,
     runModifier: SectorModifierId,
-    tutorialBanner: string | null = null,
-    /** True when P2 is driven from this keyboard (arrows/IJKL); false for online guest on another PC. */
-    localKeyboardCoop = false
+    tutorialBanner: string | null = null
   ) {
-    this.renderPlayerPanel(ctx, p1, 30, 30, localKeyboardCoop);
-    if (!p2.isEliminated) this.renderPlayerPanel(ctx, p2, CANVAS_WIDTH - 330, 30, localKeyboardCoop);
+    this.renderPlayerPanel(ctx, p1, 30, 30);
+    if (!p2.isEliminated) this.renderPlayerPanel(ctx, p2, CANVAS_WIDTH - 330, 30);
     this.renderMissionStatus(ctx, map, !p2.isEliminated, runModifier);
     if (tutorialBanner) {
       ctx.save();
@@ -125,7 +129,7 @@ export class HUD {
     }
   }
 
-  private renderPlayerPanel(ctx: CanvasRenderingContext2D, p: Player, x: number, y: number, localKeyboardCoop: boolean) {
+  private renderPlayerPanel(ctx: CanvasRenderingContext2D, p: Player, x: number, y: number) {
     ctx.save();
     ctx.font = '13px monospace';
     ctx.fillStyle = PANEL_COLOR;
@@ -136,7 +140,12 @@ export class HUD {
     if (!p.isDowned) {
       const weapon = WEAPON_REGISTRY[p.activeWeaponId];
       ctx.fillStyle = '#00E5FF';
-      const ammoLabel = weapon.infiniteAmmo ? 'MELEE' : p.isReloading ? 'RELOADING...' : `${p.currentMag}/${p.reserveAmmo}`;
+      const ammoLabel =
+        weapon.type === 'melee' || weapon.infiniteAmmo
+          ? 'MELEE'
+          : p.isReloading
+            ? 'RELOADING...'
+            : `${p.currentMag}/${p.reserveAmmo}`;
       ctx.fillText(`${weapon.name} [${p.activeMuzzle.toUpperCase()}] — ${ammoLabel}`, x, y + 20);
 
       ctx.fillStyle = p.noiseRadius > 150 ? '#FF5252' : p.noiseRadius > 40 ? '#FFC107' : '#00E676';
@@ -162,19 +171,35 @@ export class HUD {
       ctx.fillRect(x, y + 63, 200 * charge, 5);
     }
 
-    this.renderFlashlightButton(ctx, p, localKeyboardCoop);
-    if (p.operativeGear === 'nvg') this.renderNvgButton(ctx, p, localKeyboardCoop);
+    this.renderFlashlightButton(ctx, p);
+    if (p.operativeGear === 'nvg') {
+      this.renderNvgButton(ctx, p);
+      const nvgCharge = p.nvgBattery / NVG_BATTERY_MAX;
+      if (p.nvgOn || nvgCharge < 0.3) {
+        ctx.strokeStyle = '#3A4252';
+        ctx.strokeRect(x, y + 78, 200, 5);
+        ctx.fillStyle = nvgCharge > 0.3 ? '#00E676' : nvgCharge > 0 ? '#FFC107' : '#FF5252';
+        ctx.fillRect(x, y + 78, 200 * nvgCharge, 5);
+      }
+    }
+
+    const meleeCharge = p.meleeStamina / MELEE_STAMINA_MAX;
+    if (meleeCharge < 1) {
+      const barY = p.operativeGear === 'nvg' ? y + 88 : y + 78;
+      ctx.strokeStyle = '#3A4252';
+      ctx.strokeRect(x, barY, 200, 5);
+      ctx.fillStyle = meleeCharge > 0.35 ? '#B388FF' : meleeCharge > 0 ? '#FFC107' : '#FF5252';
+      ctx.fillRect(x, barY, 200 * meleeCharge, 5);
+    }
 
     ctx.restore();
   }
 
-  /** Only P1's button is actually clickable (see Game.ts's canvas click handler) — local
-   * co-op shares one mouse, and P2 already has their own dedicated key. Still drawn for
-   * both so P2 can read their state and keybind at a glance. */
-  private renderFlashlightButton(ctx: CanvasRenderingContext2D, p: Player, localKeyboardCoop: boolean) {
+  /** Only P1's button is clickable (see Game.ts). P2 in online co-op is remote — no local key hints. */
+  private renderFlashlightButton(ctx: CanvasRenderingContext2D, p: Player) {
     const rect = HUD.getFlashlightButtonRect(p.playerNumber);
     const disabled = p.isDowned;
-    const key = p.playerNumber === 1 ? 'T' : localKeyboardCoop ? "'" : 'T';
+    const keyHint = p.playerNumber === 1 ? ' [T]' : '';
 
     ctx.strokeStyle = disabled ? '#2A2F3A' : p.flashlightOn ? '#00E5FF' : '#3A4252';
     ctx.fillStyle = disabled ? 'rgba(20,22,28,0.6)' : p.flashlightOn ? 'rgba(0,229,255,0.15)' : 'rgba(20,22,28,0.6)';
@@ -187,15 +212,15 @@ export class HUD {
     ctx.font = '11px monospace';
     ctx.fillStyle = disabled ? '#4A5468' : p.flashlightOn ? '#00E5FF' : '#8A94A6';
     ctx.textBaseline = 'middle';
-    const label = `FLASHLIGHT ${p.flashlightOn ? 'ON' : 'OFF'} [${key}]`;
+    const label = `FLASHLIGHT ${p.flashlightOn ? 'ON' : 'OFF'}${keyHint}`;
     ctx.fillText(label, rect.x + 8, rect.y + rect.h / 2 + 1);
     ctx.textBaseline = 'alphabetic';
   }
 
-  private renderNvgButton(ctx: CanvasRenderingContext2D, p: Player, localKeyboardCoop: boolean) {
+  private renderNvgButton(ctx: CanvasRenderingContext2D, p: Player) {
     const rect = HUD.getNvgButtonRect(p.playerNumber);
     const disabled = p.isDowned;
-    const key = p.playerNumber === 1 ? 'N' : localKeyboardCoop ? '\\' : 'N';
+    const keyHint = p.playerNumber === 1 ? ' [N]' : '';
 
     ctx.strokeStyle = disabled ? '#2A2F3A' : p.nvgOn ? NVG_GREEN : '#3A4252';
     ctx.fillStyle = disabled ? 'rgba(20,22,28,0.6)' : p.nvgOn ? 'rgba(0,230,118,0.18)' : 'rgba(20,22,28,0.6)';
@@ -208,7 +233,7 @@ export class HUD {
     ctx.font = '11px monospace';
     ctx.fillStyle = disabled ? '#4A5468' : p.nvgOn ? NVG_GREEN : '#8A94A6';
     ctx.textBaseline = 'middle';
-    const label = `NIGHT VISION ${p.nvgOn ? 'ON' : 'OFF'} [${key}]`;
+    const label = `NIGHT VISION ${p.nvgOn ? 'ON' : 'OFF'}${keyHint}`;
     ctx.fillText(label, rect.x + 8, rect.y + rect.h / 2 + 1);
     ctx.textBaseline = 'alphabetic';
   }

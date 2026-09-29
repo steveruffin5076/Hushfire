@@ -89,15 +89,8 @@ export function readPad(pad: PadSnapshot): PadState {
   };
 }
 
-/**
- * Which connected pad drives which operative. Solo: the first pad is P1's.
- * Co-op with one pad: it goes to P2, whose keyboard layout (arrows + IJKL)
- * is the cramped one, while P1 keeps mouse aim. Co-op with two or more: the
- * first two pads go to P1 and P2 in connection order.
- */
-export function assignPads(pads: readonly (PadSnapshot | null)[], solo: boolean): { p1: PadSnapshot | null; p2: PadSnapshot | null } {
+/** First standard gamepad drives the local operative (P1). Co-op P2 is online-only. */
+export function assignPads(pads: readonly (PadSnapshot | null)[]): { p1: PadSnapshot | null; p2: PadSnapshot | null } {
   const usable = pads.filter((p): p is PadSnapshot => !!p && p.connected && p.mapping === 'standard');
-  if (solo) return { p1: usable[0] ?? null, p2: null };
-  if (usable.length === 1) return { p1: null, p2: usable[0] };
-  return { p1: usable[0] ?? null, p2: usable[1] ?? null };
+  return { p1: usable[0] ?? null, p2: null };
 }

@@ -15,7 +15,12 @@ import {
   BLEEDOUT_SEC,
   FLASHLIGHT_BATTERY_MAX,
   FLASHLIGHT_DRAIN_PER_SEC,
-  BATTERY_PICKUP_CHARGE
+  BATTERY_PICKUP_CHARGE,
+  NVG_BATTERY_MAX,
+  NVG_DRAIN_PER_SEC,
+  MELEE_STAMINA_MAX,
+  MELEE_STAMINA_COST_PER_SWING,
+  MELEE_STAMINA_REGEN_PER_SEC
 } from '../config/constants';
 
 export type MovementState = 'sneak' | 'walk' | 'sprint';
@@ -23,6 +28,8 @@ export type MovementState = 'sneak' | 'walk' | 'sprint';
 export interface WeaponLoadout {
   primaryWeapon: string;
   secondaryWeapon: string;
+  /** Sidearm slot is pistols only; melee is equipped separately. */
+  meleeWeapon: string;
   // Every attachment is mounted per-weapon: switching weapons switches which
   // muzzle, sight, and chambered ammo are actually in effect.
   primaryMuzzle: MuzzleType;
@@ -51,7 +58,7 @@ export class Player extends Entity {
 
   public loadout: WeaponLoadout;
   public operativeGear: OperativeGearId;
-  public activeSlot: 'primary' | 'secondary' = 'primary';
+  public activeSlot: 'primary' | 'secondary' | 'melee' = 'primary';
   private ammoBySlot: { primary: { mag: number; reserve: number }; secondary: { mag: number; reserve: number } };
   public isReloading = false;
   public reloadTimer = 0;
@@ -62,6 +69,10 @@ export class Player extends Entity {
   public flashlightBattery = FLASHLIGHT_BATTERY_MAX;
   /** Night vision goggles — only toggleable when `operativeGear === 'nvg'`. */
   public nvgOn = false;
+  public nvgBattery = 0;
+  /** Fire-rate gate for melee swings (drawn melee slot or quick-melee key). */
+  public lastMeleeSwingTime = -Infinity;
+  public meleeStamina = MELEE_STAMINA_MAX;
 
   public isDowned = false;
   public reviveProgress = 0;
@@ -80,6 +91,7 @@ export class Player extends Entity {
     this.playerNumber = playerNumber;
     this.loadout = loadout;
     this.operativeGear = loadout.operativeGear ?? 'none';
+    if (this.operativeGear === 'nvg') this.nvgBattery = NVG_BATTERY_MAX;
     const primary = WEAPON_REGISTRY[loadout.primaryWeapon];
     const secondary = WEAPON_REGISTRY[loadout.secondaryWeapon];
     this.ammoBySlot = {
@@ -145,35 +157,43 @@ export class Player extends Entity {
   }
 
   get activeWeaponId(): string {
+    if (this.activeSlot === 'melee') return this.loadout.meleeWeapon;
     return this.activeSlot === 'primary' ? this.loadout.primaryWeapon : this.loadout.secondaryWeapon;
   }
 
   /** The rail/sight actually lit right now — swaps with whichever weapon is drawn. */
   get activeRail(): RailType {
+    if (this.activeSlot === 'melee') return 'none';
     return this.activeSlot === 'primary' ? this.loadout.primaryRail : this.loadout.secondaryRail;
   }
 
   get activeMuzzle(): MuzzleType {
+    if (this.activeSlot === 'melee') return 'none';
     return this.activeSlot === 'primary' ? this.loadout.primaryMuzzle : this.loadout.secondaryMuzzle;
   }
 
   get activeAmmoType(): AmmoType {
+    if (this.activeSlot === 'melee') return 'standard';
     return this.activeSlot === 'primary' ? this.loadout.primaryAmmoType : this.loadout.secondaryAmmoType;
   }
 
   get currentMag(): number {
+    if (this.activeSlot === 'melee') return 1;
     return this.ammoBySlot[this.activeSlot].mag;
   }
 
   set currentMag(value: number) {
+    if (this.activeSlot === 'melee') return;
     this.ammoBySlot[this.activeSlot].mag = value;
   }
 
   get reserveAmmo(): number {
+    if (this.activeSlot === 'melee') return 0;
     return this.ammoBySlot[this.activeSlot].reserve;
   }
 
   set reserveAmmo(value: number) {
+    if (this.activeSlot === 'melee') return;
     this.ammoBySlot[this.activeSlot].reserve = value;
   }
 
@@ -183,7 +203,10 @@ export class Player extends Entity {
     if (!this.isDowned && !this.isReloading) {
       if (input.selectPrimary) this.activeSlot = 'primary';
       else if (input.selectSecondary) this.activeSlot = 'secondary';
-      else if (input.isSwitchingWeapon) this.activeSlot = this.activeSlot === 'primary' ? 'secondary' : 'primary';
+      else if (input.selectMelee) this.activeSlot = 'melee';
+      else if (input.isSwitchingWeapon) {
+        this.activeSlot = this.activeSlot === 'primary' ? 'secondary' : 'primary';
+      }
     }
     if (input.isTogglingFlashlight && !this.isDowned) this.toggleFlashlight();
     if (input.isTogglingNvg && !this.isDowned) this.toggleNvg();
@@ -191,6 +214,16 @@ export class Player extends Entity {
     if (this.flashlightOn && !this.isDowned) {
       this.flashlightBattery = Math.max(0, this.flashlightBattery - FLASHLIGHT_DRAIN_PER_SEC * dt);
       if (this.flashlightBattery <= 0) this.flashlightOn = false;
+    }
+    if (this.nvgOn && this.operativeGear === 'nvg' && !this.isDowned) {
+      this.nvgBattery = Math.max(0, this.nvgBattery - NVG_DRAIN_PER_SEC * dt);
+      if (this.nvgBattery <= 0) this.nvgOn = false;
+    }
+    if (!this.isDowned) {
+      this.meleeStamina = Math.min(
+        MELEE_STAMINA_MAX,
+        this.meleeStamina + MELEE_STAMINA_REGEN_PER_SEC * dt
+      );
     }
 
     if (this.isDowned) {
@@ -245,7 +278,8 @@ export class Player extends Entity {
   /** Toggling off is always allowed; toggling on needs charge left, so an empty battery can't just be switched back on with no cost. Also callable directly from a UI button click, not just the keyboard shortcut. */
   toggleNvg() {
     if (this.operativeGear !== 'nvg') return;
-    this.nvgOn = !this.nvgOn;
+    if (this.nvgOn) this.nvgOn = false;
+    else if (this.nvgBattery > 0) this.nvgOn = true;
   }
 
   toggleFlashlight() {
@@ -308,16 +342,45 @@ export class Player extends Entity {
 
   canFire(): boolean {
     const weapon = WEAPON_REGISTRY[this.activeWeaponId];
+    if (weapon.type === 'melee') return this.canMeleeSwing(weapon.id);
     const minInterval = 60000 / weapon.fireRateRPM;
     const hasAmmo = weapon.infiniteAmmo || this.currentMag > 0;
     return !this.isDowned && !this.isReloading && hasAmmo && performance.now() - this.lastShotTime > minInterval;
   }
 
+  canMeleeSwing(meleeId = this.loadout.meleeWeapon): boolean {
+    const weapon = WEAPON_REGISTRY[meleeId];
+    if (weapon.type !== 'melee') return false;
+    const minInterval = 60000 / weapon.fireRateRPM;
+    return (
+      !this.isDowned &&
+      !this.isReloading &&
+      this.meleeStamina >= MELEE_STAMINA_COST_PER_SWING &&
+      performance.now() - this.lastMeleeSwingTime > minInterval
+    );
+  }
+
+  private spendMeleeStamina() {
+    this.meleeStamina = Math.max(0, this.meleeStamina - MELEE_STAMINA_COST_PER_SWING);
+  }
+
   consumeShot() {
     const weapon = WEAPON_REGISTRY[this.activeWeaponId];
+    if (weapon.type === 'melee') {
+      this.lastMeleeSwingTime = performance.now();
+      this.spendMeleeStamina();
+      this.shotsFired++;
+      return;
+    }
     if (!weapon.infiniteAmmo) this.currentMag = Math.max(0, this.currentMag - 1);
     this.lastShotTime = performance.now();
     this.shotsFired++;
     this.muzzleFlashTimer = Math.max(0.04, 320 / weapon.fireRateRPM / 1000);
+  }
+
+  consumeMeleeSwing() {
+    this.lastMeleeSwingTime = performance.now();
+    this.spendMeleeStamina();
+    this.shotsFired++;
   }
 }
