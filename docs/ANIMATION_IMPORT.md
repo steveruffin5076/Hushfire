@@ -15,7 +15,7 @@ The script prefers `.tmp_anim_pack_v2`, then `.tmp_anim_pack`, then an optional 
 
 3. Commit `public/assets/animations/` when shipping new art.
 
-**Operative 1 knife:** place Hushfire-format `attack_sheet.json` + `attack_sheet.webp` under `player_infiltrator/` (256×256 row strip; see existing `attack_sheet.json` there). Only P1 loads and plays it on melee.
+**Operative 1 knife:** `attack_sheet` uses the same **556×304** cells as `walk_sheet` (rebake from 256 source: `node scripts/rebake-knife-attack-sheet.mjs`). Only P1 loads and plays it on melee.
 
 4. Verify on GitHub Pages: `GITHUB_ACTIONS=true npm run build` and confirm `/Hushfire/assets/animations/**` returns 200.
 

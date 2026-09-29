@@ -14,14 +14,14 @@ const walkMeta: WalkSheetMeta = {
 
 const attackMeta: SimpleClipSheetMeta = {
   image: 'attack.webp',
-  frame_width: 256,
-  frame_height: 256,
+  frame_width: 556,
+  frame_height: 304,
   layout: 'row',
   clips: [{ name: 'knife_attack', frames: 8, frame_ms: 68, loop: false }],
-  pivot_cell_px: [63.2, 117.1]
+  pivots_cell_px: { torso: [137.3, 139.2] }
 };
 
-const fakeImg = { width: 2048, height: 256 } as HTMLImageElement;
+const fakeImg = { width: 556 * 8, height: 304 } as HTMLImageElement;
 
 describe('CharacterAnimController knife attack', () => {
   it('plays attack clip for ~total duration then stops', () => {

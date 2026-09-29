@@ -18,6 +18,8 @@ describe('animation pack assets in public/', () => {
     expect(fs.existsSync(path.join(dir, 'attack_sheet.webp'))).toBe(true);
     const meta = JSON.parse(fs.readFileSync(path.join(dir, 'attack_sheet.json'), 'utf8'));
     expect(meta.clips[0].frames).toBe(8);
+    expect(meta.frame_width).toBe(556);
+    expect(meta.frame_height).toBe(304);
     expect(meta.image).toBe('attack_sheet.webp');
   });
 

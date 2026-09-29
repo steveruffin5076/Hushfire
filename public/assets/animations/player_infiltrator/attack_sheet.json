@@ -1,6 +1,6 @@
 {
-  "frame_width": 256,
-  "frame_height": 256,
+  "frame_width": 556,
+  "frame_height": 304,
   "layout": "row",
   "clips": [
     {
@@ -13,10 +13,12 @@
       }
     }
   ],
-  "pivot_cell_px": [63.2, 117.1],
   "pivots_cell_px": {
-    "torso": [63.2, 117.1]
+    "torso": [
+      137.3,
+      139.2
+    ]
   },
-  "note": "Operative 1 knife slash; hit_frames 3-5 per source pack",
+  "note": "Cell geometry matches walk_sheet / recoil_sheet",
   "image": "attack_sheet.webp"
 }
