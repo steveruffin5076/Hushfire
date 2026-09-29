@@ -900,8 +900,6 @@ export class Game {
     if (!this.p1.isEliminated) this.p1.update(dt, in1, this.map);
     if (!this.p2.isEliminated) this.p2.update(dt, in2, this.map);
 
-    this.updateCharacterAnimations(dt);
-
     this.handleFootsteps(this.p1);
     this.handleFootsteps(this.p2);
 
@@ -919,6 +917,9 @@ export class Game {
 
     this.handleThrowables(this.p1, in1, true);
     this.handleThrowables(this.p2, in2, false);
+
+    // After combat input so melee triggerAttack() advances on the same simulation tick.
+    this.updateCharacterAnimations(dt);
 
     this.throwableSystem.update(
       dt,
@@ -983,12 +984,6 @@ export class Game {
 
   private animForPlayer(player: Player): CharacterAnimController | null {
     return player.playerNumber === 1 ? this.p1Anim : this.p2Anim;
-  }
-
-  /** Baked knife swing sheet is shipped for Operative 1 (infiltrator) only. */
-  private triggerPlayerMeleeAnim(player: Player) {
-    if (player.playerNumber !== 1) return;
-    this.animForPlayer(player)?.triggerAttack();
   }
 
   private applyOperativeGear(player: Player) {
@@ -1152,10 +1147,7 @@ export class Game {
     if (input.isMeleeAttack && player.activeSlot !== 'melee') {
       const beforeMelee = player.shotsFired;
       this.combat.swingMelee(player, this.zombies, this.decals);
-      if (player.shotsFired > beforeMelee) {
-        this.triggerPlayerMeleeAnim(player);
-        return;
-      }
+      if (player.shotsFired > beforeMelee) return;
     }
 
     if (!input.isFiring) return;
@@ -1165,10 +1157,7 @@ export class Game {
 
     if (player.shotsFired > beforeShots) {
       const weapon = WEAPON_REGISTRY[player.activeWeaponId];
-      if (weapon.type === 'melee') {
-        this.triggerPlayerMeleeAnim(player);
-        return;
-      }
+      if (weapon.type === 'melee') return;
       const listener = this.audioListener();
       const suppressed = isSuppressedMuzzle(player.activeMuzzle);
       this.sound.playGunshot(listener, player.position, this.map.countWallsCrossed(player.position, listener), suppressed);
