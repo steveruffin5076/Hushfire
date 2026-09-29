@@ -131,12 +131,12 @@ export class ArmoryMenu {
     const stageShell = document.createElement('div');
     stageShell.style.cssText = `
       flex: 1; min-height: 0; width: 100%; overflow: hidden; box-sizing: border-box;
-      display: flex; justify-content: center; align-items: flex-start;
-      padding: 52px 24px 10px;
+      display: flex; justify-content: flex-start; align-items: flex-start;
+      padding: 52px 28px 10px 24px;
     `;
     const stage = document.createElement('div');
     stage.style.cssText = `
-      width: 100%; display: flex; flex-direction: column; transform-origin: top center;
+      width: 100%; display: flex; flex-direction: column; transform-origin: top left;
     `;
     stageShell.appendChild(stage);
     this.root.appendChild(stageShell);
