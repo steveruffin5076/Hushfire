@@ -178,7 +178,7 @@ export class Game {
     const cx = (e.clientX - rect.left) * scaleX;
     const cy = (e.clientY - rect.top) * scaleY;
 
-    const lightBtn = HUD.getFlashlightButtonRect(1);
+    const lightBtn = HUD.getFlashlightButtonRect(this.p1);
     if (cx >= lightBtn.x && cx <= lightBtn.x + lightBtn.w && cy >= lightBtn.y && cy <= lightBtn.y + lightBtn.h) {
       this.p1.toggleFlashlight();
       e.stopPropagation();
@@ -186,8 +186,14 @@ export class Game {
       return;
     }
     if (this.p1.operativeGear === 'nvg') {
-      const nvgBtn = HUD.getNvgButtonRect(1);
-      if (cx >= nvgBtn.x && cx <= nvgBtn.x + nvgBtn.w && cy >= nvgBtn.y && cy <= nvgBtn.y + nvgBtn.h) {
+      const nvgBtn = HUD.layoutPlayerPanel(this.p1).nvgBtn;
+      if (
+        nvgBtn &&
+        cx >= nvgBtn.x &&
+        cx <= nvgBtn.x + nvgBtn.w &&
+        cy >= nvgBtn.y &&
+        cy <= nvgBtn.y + nvgBtn.h
+      ) {
         this.p1.toggleNvg();
         e.stopPropagation();
         e.preventDefault();
@@ -209,13 +215,15 @@ export class Game {
     const cx = (e.clientX - rect.left) * scaleX;
     const cy = (e.clientY - rect.top) * scaleY;
 
-    const lightBtn = HUD.getFlashlightButtonRect(1);
+    const lightBtn = HUD.getFlashlightButtonRect(this.p1);
     let hovering =
       cx >= lightBtn.x && cx <= lightBtn.x + lightBtn.w && cy >= lightBtn.y && cy <= lightBtn.y + lightBtn.h;
     if (!hovering && this.p1.operativeGear === 'nvg') {
-      const nvgBtn = HUD.getNvgButtonRect(1);
-      hovering =
-        cx >= nvgBtn.x && cx <= nvgBtn.x + nvgBtn.w && cy >= nvgBtn.y && cy <= nvgBtn.y + nvgBtn.h;
+      const nvgBtn = HUD.layoutPlayerPanel(this.p1).nvgBtn;
+      if (nvgBtn) {
+        hovering =
+          cx >= nvgBtn.x && cx <= nvgBtn.x + nvgBtn.w && cy >= nvgBtn.y && cy <= nvgBtn.y + nvgBtn.h;
+      }
     }
     this.canvas.style.cursor = hovering ? 'pointer' : 'none';
   };

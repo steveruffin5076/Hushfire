@@ -16,9 +16,18 @@ import { Point } from '../lighting/Raycaster';
 const PANEL_COLOR = '#EBF4FA';
 const FLASHLIGHT_BTN_W = 150;
 const FLASHLIGHT_BTN_H = 22;
-const FLASHLIGHT_BTN_Y_OFFSET = 76;
-const NVG_BTN_Y_OFFSET = 102;
+const PANEL_X_P1 = 30;
+const PANEL_Y = 30;
+const RESOURCE_BAR_H = 5;
+const RESOURCE_BAR_GAP = 6;
+const PANEL_BTN_GAP = 8;
+const NVG_BTN_GAP = 6;
 const NVG_GREEN = '#00E676';
+
+export interface PlayerPanelLayout {
+  flashlightBtn: { x: number; y: number; w: number; h: number };
+  nvgBtn: { x: number; y: number; w: number; h: number } | null;
+}
 
 // Reticle — #FF1744 is the red ART_SPECIFICATION.md §4 already specifies for the
 // laser sight, so the aim reticle reads as the same system rather than a new
@@ -45,14 +54,38 @@ export class HUD {
    * Game.ts's click hit-test so the drawn button and the clickable region
    * never drift apart.
    */
-  static getFlashlightButtonRect(playerNumber: 1 | 2): { x: number; y: number; w: number; h: number } {
-    const x = playerNumber === 1 ? 30 : CANVAS_WIDTH - 330;
-    return { x, y: 30 + FLASHLIGHT_BTN_Y_OFFSET, w: FLASHLIGHT_BTN_W, h: FLASHLIGHT_BTN_H };
+  /** Stacks resource bars then buttons so melee/NVG bars never paint over the flashlight control. */
+  static layoutPlayerPanel(p: Player): PlayerPanelLayout {
+    const x = p.playerNumber === 1 ? PANEL_X_P1 : CANVAS_WIDTH - 330;
+    let cursor = PANEL_Y + 58;
+
+    const flashlightCharge = p.flashlightBattery / FLASHLIGHT_BATTERY_MAX;
+    if (p.flashlightOn || flashlightCharge < 0.3) cursor += RESOURCE_BAR_GAP + RESOURCE_BAR_H;
+
+    if (p.operativeGear === 'nvg') {
+      const nvgCharge = p.nvgBattery / NVG_BATTERY_MAX;
+      if (p.nvgOn || nvgCharge < 0.3) cursor += RESOURCE_BAR_GAP + RESOURCE_BAR_H;
+    }
+
+    const meleeCharge = p.meleeStamina / MELEE_STAMINA_MAX;
+    if (meleeCharge < 1) cursor += RESOURCE_BAR_GAP + RESOURCE_BAR_H;
+
+    cursor += PANEL_BTN_GAP;
+    const flashlightBtn = { x, y: cursor, w: FLASHLIGHT_BTN_W, h: FLASHLIGHT_BTN_H };
+    const nvgBtn =
+      p.operativeGear === 'nvg'
+        ? { x, y: cursor + FLASHLIGHT_BTN_H + NVG_BTN_GAP, w: FLASHLIGHT_BTN_W, h: FLASHLIGHT_BTN_H }
+        : null;
+    return { flashlightBtn, nvgBtn };
   }
 
-  static getNvgButtonRect(playerNumber: 1 | 2): { x: number; y: number; w: number; h: number } {
-    const x = playerNumber === 1 ? 30 : CANVAS_WIDTH - 330;
-    return { x, y: 30 + NVG_BTN_Y_OFFSET, w: FLASHLIGHT_BTN_W, h: FLASHLIGHT_BTN_H };
+  static getFlashlightButtonRect(p: Player): { x: number; y: number; w: number; h: number } {
+    return HUD.layoutPlayerPanel(p).flashlightBtn;
+  }
+
+  static getNvgButtonRect(p: Player): { x: number; y: number; w: number; h: number } {
+    const layout = HUD.layoutPlayerPanel(p);
+    return layout.nvgBtn ?? layout.flashlightBtn;
   }
 
   /**
@@ -161,43 +194,49 @@ export class HUD {
     ctx.fillStyle = p.health > p.maxHealth * 0.3 ? '#00E676' : '#FF5252';
     ctx.fillRect(x, y + 50, 200 * (p.health / p.maxHealth), 8);
 
-    // Flashlight battery — only worth showing once it's on or actually low,
-    // so a fresh spawn's HUD isn't cluttered with an always-full bar.
+    let barCursor = y + 58;
+    const drawResourceBar = (fill: number, color: string) => {
+      barCursor += RESOURCE_BAR_GAP;
+      ctx.strokeStyle = '#3A4252';
+      ctx.strokeRect(x, barCursor, 200, RESOURCE_BAR_H);
+      ctx.fillStyle = color;
+      ctx.fillRect(x, barCursor, 200 * fill, RESOURCE_BAR_H);
+      barCursor += RESOURCE_BAR_H;
+    };
+
     const charge = p.flashlightBattery / FLASHLIGHT_BATTERY_MAX;
     if (p.flashlightOn || charge < 0.3) {
-      ctx.strokeStyle = '#3A4252';
-      ctx.strokeRect(x, y + 63, 200, 5);
-      ctx.fillStyle = charge > 0.3 ? '#00E5FF' : charge > 0 ? '#FFC107' : '#FF5252';
-      ctx.fillRect(x, y + 63, 200 * charge, 5);
+      const color = charge > 0.3 ? '#00E5FF' : charge > 0 ? '#FFC107' : '#FF5252';
+      drawResourceBar(charge, color);
     }
 
-    this.renderFlashlightButton(ctx, p);
     if (p.operativeGear === 'nvg') {
-      this.renderNvgButton(ctx, p);
       const nvgCharge = p.nvgBattery / NVG_BATTERY_MAX;
       if (p.nvgOn || nvgCharge < 0.3) {
-        ctx.strokeStyle = '#3A4252';
-        ctx.strokeRect(x, y + 78, 200, 5);
-        ctx.fillStyle = nvgCharge > 0.3 ? '#00E676' : nvgCharge > 0 ? '#FFC107' : '#FF5252';
-        ctx.fillRect(x, y + 78, 200 * nvgCharge, 5);
+        const color = nvgCharge > 0.3 ? '#00E676' : nvgCharge > 0 ? '#FFC107' : '#FF5252';
+        drawResourceBar(nvgCharge, color);
       }
     }
 
     const meleeCharge = p.meleeStamina / MELEE_STAMINA_MAX;
     if (meleeCharge < 1) {
-      const barY = p.operativeGear === 'nvg' ? y + 88 : y + 78;
-      ctx.strokeStyle = '#3A4252';
-      ctx.strokeRect(x, barY, 200, 5);
-      ctx.fillStyle = meleeCharge > 0.35 ? '#B388FF' : meleeCharge > 0 ? '#FFC107' : '#FF5252';
-      ctx.fillRect(x, barY, 200 * meleeCharge, 5);
+      const color = meleeCharge > 0.35 ? '#B388FF' : meleeCharge > 0 ? '#FFC107' : '#FF5252';
+      drawResourceBar(meleeCharge, color);
+      ctx.font = '10px monospace';
+      ctx.fillStyle = '#8A94A6';
+      ctx.fillText('MELEE STAMINA [E]', x, barCursor + 11);
+      ctx.font = '13px monospace';
     }
+
+    this.renderFlashlightButton(ctx, p);
+    if (p.operativeGear === 'nvg') this.renderNvgButton(ctx, p);
 
     ctx.restore();
   }
 
   /** Only P1's button is clickable (see Game.ts). P2 in online co-op is remote — no local key hints. */
   private renderFlashlightButton(ctx: CanvasRenderingContext2D, p: Player) {
-    const rect = HUD.getFlashlightButtonRect(p.playerNumber);
+    const rect = HUD.getFlashlightButtonRect(p);
     const disabled = p.isDowned;
     const keyHint = p.playerNumber === 1 ? ' [T]' : '';
 
@@ -218,7 +257,7 @@ export class HUD {
   }
 
   private renderNvgButton(ctx: CanvasRenderingContext2D, p: Player) {
-    const rect = HUD.getNvgButtonRect(p.playerNumber);
+    const rect = HUD.getNvgButtonRect(p);
     const disabled = p.isDowned;
     const keyHint = p.playerNumber === 1 ? ' [N]' : '';
 
