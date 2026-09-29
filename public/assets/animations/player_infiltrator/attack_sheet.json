@@ -1,0 +1,31 @@
+{
+  "frame_width": 556,
+  "frame_height": 304,
+  "layout": "row",
+  "clips": [
+    {
+      "name": "knife_attack",
+      "frames": 6,
+      "frame_ms": [
+        70,
+        55,
+        50,
+        50,
+        55,
+        65
+      ],
+      "loop": false,
+      "events": {
+        "strike": 3
+      }
+    }
+  ],
+  "pivots_cell_px": {
+    "torso": [
+      137.3,
+      139.2
+    ]
+  },
+  "note": "Operative 1 knife swing — geometry matches walk_sheet anchor",
+  "image": "attack_sheet.webp"
+}
