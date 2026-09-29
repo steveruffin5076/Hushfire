@@ -1900,8 +1900,12 @@ export class Game {
       const anim = this.animForPlayer(p);
 
       if (anim) {
+        const knifeVisual =
+          p.playerNumber === 1 &&
+          anim.hasAttackSheet() &&
+          (p.activeSlot === 'melee' || anim.isAttackActive());
         anim.draw(ctx, PLAYER_SPRITE_SIZE, pose.angle, pose.x, pose.y, {
-          meleeStance: p.activeSlot === 'melee'
+          meleeStance: knifeVisual
         });
       } else {
         ctx.save();

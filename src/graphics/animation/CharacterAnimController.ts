@@ -81,6 +81,10 @@ export class CharacterAnimController {
     return !!this.sheets.attack;
   }
 
+  isAttackActive(): boolean {
+    return this.attackActive;
+  }
+
   triggerAttack() {
     if (!this.sheets.attack) return;
     this.attackActive = true;
@@ -197,7 +201,9 @@ export class CharacterAnimController {
     const cellW = 'cell_width' in meta ? meta.cell_width : meta.frame_width;
     const cellH = 'cell_height' in meta ? meta.cell_height : meta.frame_height;
     const pv = pivotSimple(meta as SimpleClipSheetMeta, walk.meta);
-    drawSheetFrame(ctx, attack.image, frameIndex, cellW, cellH, 0, pv, drawSize, refW, angle, cx, cy);
+    // Match walk-sheet body height on screen (gun vs knife cells differ in size).
+    const knifeSilhouette = drawSize * (walk.meta.frame_height / cellH);
+    drawSheetFrame(ctx, attack.image, frameIndex, cellW, cellH, 0, pv, knifeSilhouette, refW, angle, cx, cy);
   }
 
   draw(
