@@ -1181,7 +1181,6 @@ export class Game {
   }
 
   private handleThrowables(player: Player, input: PlayerInputState, useMouseAim: boolean) {
-    if (!player.hasThrowableLoadout() && player.totalThrowablesRemaining() <= 0) return;
     const equipped = player.equippedThrowableKind();
     if (!equipped) return;
     if (!input.isThrowing) return;
