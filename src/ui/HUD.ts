@@ -1,7 +1,13 @@
 import { Player } from '../entities/Player';
 import { WEAPON_REGISTRY } from '../config/weapons';
 import { MapManager } from '../systems/MapManager';
-import { CANVAS_WIDTH, CANVAS_HEIGHT, FLASHLIGHT_BATTERY_MAX, NVG_BATTERY_MAX } from '../config/constants';
+import {
+  CANVAS_WIDTH,
+  CANVAS_HEIGHT,
+  FLASHLIGHT_BATTERY_MAX,
+  NVG_BATTERY_MAX,
+  MELEE_STAMINA_MAX
+} from '../config/constants';
 import { SectorModifierId, getSectorModifier } from '../config/sectorModifiers';
 import { AssetLoader } from '../core/AssetLoader';
 import { Camera } from '../core/Camera';
@@ -177,6 +183,15 @@ export class HUD {
         ctx.fillStyle = nvgCharge > 0.3 ? '#00E676' : nvgCharge > 0 ? '#FFC107' : '#FF5252';
         ctx.fillRect(x, y + 78, 200 * nvgCharge, 5);
       }
+    }
+
+    const meleeCharge = p.meleeStamina / MELEE_STAMINA_MAX;
+    if (meleeCharge < 1) {
+      const barY = p.operativeGear === 'nvg' ? y + 88 : y + 78;
+      ctx.strokeStyle = '#3A4252';
+      ctx.strokeRect(x, barY, 200, 5);
+      ctx.fillStyle = meleeCharge > 0.35 ? '#B388FF' : meleeCharge > 0 ? '#FFC107' : '#FF5252';
+      ctx.fillRect(x, barY, 200 * meleeCharge, 5);
     }
 
     ctx.restore();

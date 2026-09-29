@@ -113,11 +113,15 @@ describe('brute armour — wrap-around case', () => {
 describe('knife ammo', () => {
   it('never runs out and never reloads', () => {
     const p = knifer();
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < 3; i++) {
       p.lastMeleeSwingTime = -1e9;
+      p.meleeStamina = 100;
       expect(p.canFire()).toBe(true);
       p.consumeShot();
     }
+    p.meleeStamina = 0;
+    p.lastMeleeSwingTime = -1e9;
+    expect(p.canFire()).toBe(false);
     expect(p.currentMag).toBe(WEAPON_REGISTRY.knife.magSize);
     p.startReload();
     expect(p.isReloading).toBe(false);

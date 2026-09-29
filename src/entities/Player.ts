@@ -17,7 +17,10 @@ import {
   FLASHLIGHT_DRAIN_PER_SEC,
   BATTERY_PICKUP_CHARGE,
   NVG_BATTERY_MAX,
-  NVG_DRAIN_PER_SEC
+  NVG_DRAIN_PER_SEC,
+  MELEE_STAMINA_MAX,
+  MELEE_STAMINA_COST_PER_SWING,
+  MELEE_STAMINA_REGEN_PER_SEC
 } from '../config/constants';
 
 export type MovementState = 'sneak' | 'walk' | 'sprint';
@@ -69,6 +72,7 @@ export class Player extends Entity {
   public nvgBattery = 0;
   /** Fire-rate gate for melee swings (drawn melee slot or quick-melee key). */
   public lastMeleeSwingTime = -Infinity;
+  public meleeStamina = MELEE_STAMINA_MAX;
 
   public isDowned = false;
   public reviveProgress = 0;
@@ -216,6 +220,12 @@ export class Player extends Entity {
       this.nvgBattery = Math.max(0, this.nvgBattery - NVG_DRAIN_PER_SEC * dt);
       if (this.nvgBattery <= 0) this.nvgOn = false;
     }
+    if (!this.isDowned) {
+      this.meleeStamina = Math.min(
+        MELEE_STAMINA_MAX,
+        this.meleeStamina + MELEE_STAMINA_REGEN_PER_SEC * dt
+      );
+    }
 
     if (this.isDowned) {
       this.movementState = 'sneak';
@@ -343,13 +353,23 @@ export class Player extends Entity {
     const weapon = WEAPON_REGISTRY[meleeId];
     if (weapon.type !== 'melee') return false;
     const minInterval = 60000 / weapon.fireRateRPM;
-    return !this.isDowned && !this.isReloading && performance.now() - this.lastMeleeSwingTime > minInterval;
+    return (
+      !this.isDowned &&
+      !this.isReloading &&
+      this.meleeStamina >= MELEE_STAMINA_COST_PER_SWING &&
+      performance.now() - this.lastMeleeSwingTime > minInterval
+    );
+  }
+
+  private spendMeleeStamina() {
+    this.meleeStamina = Math.max(0, this.meleeStamina - MELEE_STAMINA_COST_PER_SWING);
   }
 
   consumeShot() {
     const weapon = WEAPON_REGISTRY[this.activeWeaponId];
     if (weapon.type === 'melee') {
       this.lastMeleeSwingTime = performance.now();
+      this.spendMeleeStamina();
       this.shotsFired++;
       return;
     }
@@ -361,6 +381,7 @@ export class Player extends Entity {
 
   consumeMeleeSwing() {
     this.lastMeleeSwingTime = performance.now();
+    this.spendMeleeStamina();
     this.shotsFired++;
   }
 }

@@ -424,7 +424,8 @@ export class Game {
       battery: player.flashlightBattery,
       hasKeycard: player.hasKeycard,
       nvgOn: player.nvgOn,
-      nvgBattery: player.nvgBattery
+      nvgBattery: player.nvgBattery,
+      meleeStamina: player.meleeStamina
     };
   }
 
@@ -446,6 +447,7 @@ export class Game {
       player.nvgOn = snap.nvgOn;
       player.nvgBattery = snap.nvgBattery;
     }
+    player.meleeStamina = snap.meleeStamina;
   }
 
   private buildSnapshot(missionOver?: { victory: boolean }): NetSnapshotMessage {

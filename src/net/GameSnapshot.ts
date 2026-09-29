@@ -45,6 +45,7 @@ export interface NetPlayerSnap {
   hasKeycard: boolean;
   nvgOn: boolean;
   nvgBattery: number;
+  meleeStamina: number;
 }
 
 export interface NetZombieSnap {
@@ -148,4 +149,4 @@ export type NetMessage =
   | NetInputMessage
   | NetSnapshotMessage;
 
-export const PROTO_VERSION = 5;
+export const PROTO_VERSION = 6;
