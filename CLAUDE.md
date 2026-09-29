@@ -93,6 +93,11 @@ public/assets/         sprites, backgrounds, fx, animations/ (per-character WebP
 * No deterministic lockstep — `Math.random` / trig are not cross-browser-safe.
 * **NAT / TURN:** Optional `VITE_TURN_CREDENTIALS_URL` in `.env` (see `.env.example`, `src/net/iceConfig.ts`) for symmetric NAT or strict firewalls. Lobby shows a hint on connection errors.
 
+### 6. Co-op is online-only (no local couch / second keyboard)
+* **Solo:** Player 2 is eliminated at mission start; one human uses P1 input only.
+* **Online:** Operative 2 is driven only by the guest's network input on the host sim (`guestRemoteInput`). Each machine reads **one** keyboard/mouse/touch/gamepad via `getPlayer1Input` — never add `getPlayer2Input`, arrow/IJKL/numpad P2 bindings, or a second local gamepad slot for P2.
+* See `AGENTS.md` for the full do-not-revert list.
+
 ---
 
 ## Phase Milestones
