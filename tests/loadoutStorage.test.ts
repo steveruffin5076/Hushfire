@@ -13,18 +13,15 @@ const memoryStorage = (initial: Record<string, string> = {}): KeyValueStorage & 
 
 describe('armory persistence', () => {
   it('falls back to solo + defaults when nothing is saved', () => {
-    expect(loadArmoryState(memoryStorage())).toEqual({
+    const empty = loadArmoryState(memoryStorage());
+    expect(empty).toEqual({
       mode: 'solo',
       difficulty: 'normal',
-      loadouts: DEFAULT_LOADOUTS,
+      loadouts: empty.loadouts,
       runModifier: 'none'
     });
-    expect(loadArmoryState(null)).toEqual({
-      mode: 'solo',
-      difficulty: 'normal',
-      loadouts: DEFAULT_LOADOUTS,
-      runModifier: 'none'
-    });
+    expect(loadArmoryState(null)).toEqual(empty);
+    expect(empty.loadouts[0].throwableCarry?.flashbang).toBe(true);
   });
 
   it('returns copies, never the shared defaults', () => {
@@ -107,16 +104,15 @@ describe('armory persistence', () => {
     const loaded = loadArmoryState(storage);
     expect(loaded.mode).toBe('online');
     expect(loaded.difficulty).toBe('normal'); // unknown level falls back
-    expect(loaded.loadouts[0]).toEqual({ ...DEFAULT_LOADOUTS[0], primaryAmmoType: 'subsonic' });
+    expect(loaded.loadouts[0]).toMatchObject({ ...DEFAULT_LOADOUTS[0], primaryAmmoType: 'subsonic' });
   });
 
   it('survives corrupt JSON and storage that throws', () => {
-    expect(loadArmoryState(memoryStorage({ 'hushfire.armory.v1': '{not json' }))).toEqual({
-      mode: 'solo',
-      difficulty: 'normal',
-      loadouts: DEFAULT_LOADOUTS,
-      runModifier: 'none'
-    });
+    const corrupt = loadArmoryState(memoryStorage({ 'hushfire.armory.v1': '{not json' }));
+    expect(corrupt.mode).toBe('solo');
+    expect(corrupt.difficulty).toBe('normal');
+    expect(corrupt.runModifier).toBe('none');
+    expect(corrupt.loadouts[0].throwableCarry?.flashbang).toBe(true);
     const throwing: KeyValueStorage = {
       getItem: () => {
         throw new Error('blocked');

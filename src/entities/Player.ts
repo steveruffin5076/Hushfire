@@ -1,7 +1,12 @@
 import { Entity } from './Entity';
 import { MuzzleType, RailType, AmmoType, WeaponDef, WEAPON_REGISTRY, MUZZLE_MODIFIERS } from '../config/weapons';
 import { OperativeGearId } from '../config/operativeGear';
-import { ThrowableKind, THROWABLE_ORDER, THROW_COOLDOWN_SEC, startingThrowableCounts } from '../config/throwables';
+import { ThrowableKind, THROWABLE_ORDER, THROW_COOLDOWN_SEC } from '../config/throwables';
+import {
+  buildThrowableCountsFromLoadout,
+  DEFAULT_THROWABLE_CARRY,
+  ThrowableCarry
+} from '../config/throwableCarry';
 import { PlayerInputState } from '../core/Input';
 import { MapManager } from '../systems/MapManager';
 import {
@@ -41,6 +46,8 @@ export interface WeaponLoadout {
   secondaryAmmoType: AmmoType;
   /** Optional in saved JSON — defaults to `none` in Player and armory sanitize. */
   operativeGear?: OperativeGearId;
+  /** Grenade Pouch loadout — flashbang on by default; other types unlock via career. */
+  throwableCarry?: ThrowableCarry;
 }
 
 const PLAYER_RADIUS = 16;
@@ -96,7 +103,7 @@ export class Player extends Entity {
     this.loadout = loadout;
     this.operativeGear = loadout.operativeGear ?? 'none';
     if (this.operativeGear === 'nvg') this.nvgBattery = NVG_BATTERY_MAX;
-    if (this.hasThrowableGear()) this.initGrenadePouchInventory();
+    this.initThrowableInventory();
     const primary = WEAPON_REGISTRY[loadout.primaryWeapon];
     const secondary = WEAPON_REGISTRY[loadout.secondaryWeapon];
     this.ammoBySlot = {
@@ -141,32 +148,32 @@ export class Player extends Entity {
       case 'extra_battery':
         this.flashlightBattery = Math.min(FLASHLIGHT_BATTERY_MAX, this.flashlightBattery + BATTERY_PICKUP_CHARGE);
         break;
-      case 'grenade_pouch':
       case 'extra_grenade_pouches':
-        this.initGrenadePouchInventory();
+        this.initThrowableInventory();
         break;
       default:
         break;
     }
   }
 
-  hasThrowableGear(): boolean {
-    return this.operativeGear === 'grenade_pouch' || this.operativeGear === 'extra_grenade_pouches';
+  hasThrowableLoadout(): boolean {
+    const carry = this.loadout.throwableCarry ?? DEFAULT_THROWABLE_CARRY;
+    return THROWABLE_ORDER.some(k => carry[k]);
   }
 
-  /** @deprecated Use hasThrowableGear — kept for call-site clarity in HUD. */
+  /** True when this operative can use [G] throwables this mission. */
   hasGrenadePouch(): boolean {
-    return this.hasThrowableGear();
+    return this.totalThrowablesRemaining() > 0 || this.hasThrowableLoadout();
   }
 
-  initGrenadePouchInventory() {
-    if (!this.hasThrowableGear()) return;
-    const gear = this.operativeGear as 'grenade_pouch' | 'extra_grenade_pouches';
-    const starting = startingThrowableCounts(gear);
+  initThrowableInventory() {
+    const carry = this.loadout.throwableCarry ?? DEFAULT_THROWABLE_CARRY;
+    const extraHe = this.operativeGear === 'extra_grenade_pouches';
+    const counts = buildThrowableCountsFromLoadout(carry, undefined, extraHe);
     for (const kind of THROWABLE_ORDER) {
-      this.throwableCounts[kind] = starting[kind];
+      this.throwableCounts[kind] = counts[kind];
     }
-    this.selectedThrowable = this.firstThrowableWithAmmo() ?? 'he';
+    this.selectedThrowable = this.firstThrowableWithAmmo() ?? 'flashbang';
   }
 
   firstThrowableWithAmmo(): ThrowableKind | null {
@@ -194,7 +201,7 @@ export class Player extends Entity {
   }
 
   canThrow(kind = this.selectedThrowable): boolean {
-    if (!this.hasGrenadePouch() || this.isDowned || this.isEliminated) return false;
+    if (this.totalThrowablesRemaining() <= 0 || this.isDowned || this.isEliminated) return false;
     if (this.throwableCounts[kind] <= 0) return false;
     return performance.now() - this.lastThrowTime >= THROW_COOLDOWN_SEC * 1000;
   }
