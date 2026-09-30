@@ -3,10 +3,20 @@ import { drawSheetFrame } from './drawSheetFrame';
 
 export interface CharacterSheetSet {
   walk: { image: HTMLImageElement; meta: WalkSheetMeta };
+  idle?: { image: HTMLImageElement; meta: SimpleClipSheetMeta };
   downed?: { image: HTMLImageElement; meta: MultiClipSheetMeta };
   recoil?: { image: HTMLImageElement; meta: SimpleClipSheetMeta };
   hit?: { image: HTMLImageElement; meta: SimpleClipSheetMeta };
   attack?: { image: HTMLImageElement; meta: MultiClipSheetMeta | SimpleClipSheetMeta };
+}
+
+/** Per-weapon baked sheets under `player_infiltrator/loadouts/<id>/`. */
+export interface OperativeLoadoutPack {
+  walk: CharacterSheetSet['walk'];
+  idle?: CharacterSheetSet['idle'];
+  recoil?: CharacterSheetSet['recoil'];
+  hit?: CharacterSheetSet['hit'];
+  attack?: CharacterSheetSet['attack'];
 }
 
 function pivotWalk(m: WalkSheetMeta): [number, number] {
@@ -58,6 +68,7 @@ export interface CharacterDrawOpts {
 /** Runtime playback for one entity using baked sheets. */
 export class CharacterAnimController {
   walkPhase = 0;
+  idleTime = 0;
   downedMode: 'up' | 'falling' | 'idle' = 'up';
   downedTime = 0;
   recoilTime = 0;
@@ -69,7 +80,32 @@ export class CharacterAnimController {
   /** Fires when the walk sheet enters a `footfall_frames` index (pack JSON). */
   onFootfall?: (frameIndex: number) => void;
 
-  constructor(private readonly sheets: CharacterSheetSet) {}
+  /** Knife `attack_sheet` while a gun loadout is active (quick melee [E]). */
+  private quickMeleeAttack?: CharacterSheetSet['attack'];
+
+  constructor(private sheets: CharacterSheetSet) {}
+
+  /** Swap walk / idle / recoil / attack for Operative 1 weapon loadouts. */
+  applyOperativeLoadout(
+    pack: OperativeLoadoutPack,
+    sharedHit?: CharacterSheetSet['hit'],
+    quickMeleeAttack?: CharacterSheetSet['attack']
+  ) {
+    this.sheets.walk = pack.walk;
+    this.sheets.idle = pack.idle;
+    this.sheets.recoil = pack.recoil;
+    this.sheets.attack = pack.attack;
+    this.sheets.hit = pack.hit ?? sharedHit;
+    this.quickMeleeAttack = quickMeleeAttack;
+  }
+
+  setQuickMeleeAttack(sheet?: CharacterSheetSet['attack']) {
+    this.quickMeleeAttack = sheet;
+  }
+
+  private attackSheet(): CharacterSheetSet['attack'] | undefined {
+    return this.sheets.attack ?? this.quickMeleeAttack;
+  }
 
   triggerRecoil() {
     if (!this.sheets.recoil) return;
@@ -78,7 +114,7 @@ export class CharacterAnimController {
   }
 
   hasAttackSheet(): boolean {
-    return !!this.sheets.attack;
+    return !!this.attackSheet();
   }
 
   isAttackActive(): boolean {
@@ -86,7 +122,7 @@ export class CharacterAnimController {
   }
 
   triggerAttack() {
-    if (!this.sheets.attack) return;
+    if (!this.attackSheet()) return;
     this.attackActive = true;
     this.attackTime = 0;
   }
@@ -100,7 +136,8 @@ export class CharacterAnimController {
       isPlayer: boolean;
     }
   ) {
-    const { walk, downed, recoil, attack } = this.sheets;
+    const { walk, downed, recoil, idle } = this.sheets;
+    const attack = this.attackSheet();
 
     if (opts.isDowned && !this.wasDowned && downed) {
       this.downedMode = 'falling';
@@ -154,6 +191,13 @@ export class CharacterAnimController {
     } else {
       this.walkPhase = 0;
       this.lastWalkFrame = -1;
+      if (idle) {
+        const clip = idle.meta.clips[0];
+        const adv = advanceClip(clip, this.idleTime, dt);
+        this.idleTime = adv.time;
+      } else {
+        this.idleTime = 0;
+      }
     }
   }
 
@@ -186,8 +230,12 @@ export class CharacterAnimController {
     );
   }
 
-  private drawKnifeFrame(
+  private drawClipFrame(
     ctx: CanvasRenderingContext2D,
+    sheet: {
+      image: HTMLImageElement;
+      meta: SimpleClipSheetMeta | MultiClipSheetMeta;
+    },
     frameIndex: number,
     drawSize: number,
     refW: number,
@@ -195,13 +243,42 @@ export class CharacterAnimController {
     cx: number,
     cy: number
   ) {
-    const { walk, attack } = this.sheets;
-    if (!attack) return;
-    const meta = attack.meta;
+    const { walk } = this.sheets;
+    const meta = sheet.meta;
     const cellW = 'cell_width' in meta ? meta.cell_width : meta.frame_width;
     const cellH = 'cell_height' in meta ? meta.cell_height : meta.frame_height;
-    const pv = pivotSimple(meta as SimpleClipSheetMeta, walk.meta);
-    drawSheetFrame(ctx, attack.image, frameIndex, cellW, cellH, 0, pv, drawSize, refW, angle, cx, cy);
+    drawSheetFrame(
+      ctx,
+      sheet.image,
+      frameIndex,
+      cellW,
+      cellH,
+      0,
+      pivotSimple(meta as SimpleClipSheetMeta, walk.meta),
+      drawSize,
+      refW,
+      angle,
+      cx,
+      cy
+    );
+  }
+
+  private drawIdleFrame(
+    ctx: CanvasRenderingContext2D,
+    drawSize: number,
+    angle: number,
+    cx: number,
+    cy: number
+  ) {
+    const idle = this.sheets.idle;
+    if (!idle) {
+      this.drawWalkFrame(ctx, drawSize, angle, cx, cy);
+      return;
+    }
+    const clip = idle.meta.clips[0];
+    const adv = advanceClip(clip, this.idleTime, 0);
+    const refW = this.sheets.walk.meta.frame_width;
+    this.drawClipFrame(ctx, idle, adv.frame, drawSize, refW, angle, cx, cy);
   }
 
   draw(
@@ -212,7 +289,8 @@ export class CharacterAnimController {
     cy: number,
     opts?: CharacterDrawOpts
   ) {
-    const { walk, downed, recoil, attack } = this.sheets;
+    const { walk, downed, recoil } = this.sheets;
+    const attack = this.attackSheet();
     const refW = walk.meta.frame_width;
 
     if (this.downedMode !== 'up' && downed) {
@@ -242,17 +320,22 @@ export class CharacterAnimController {
 
     const knifeEquipped = !!opts?.meleeStance && !!attack;
     if (knifeEquipped) {
-      if (this.attackActive) {
+      if (this.attackActive && attack) {
         const clip = attack.meta.clips[0];
         const adv = advanceClip(clip, this.attackTime, 0);
-        this.drawKnifeFrame(ctx, adv.frame, drawSize, refW, angle, cx, cy);
+        this.drawClipFrame(ctx, attack, adv.frame, drawSize, refW, angle, cx, cy);
       } else {
-        this.drawKnifeFrame(ctx, 0, drawSize, refW, angle, cx, cy);
+        this.drawIdleFrame(ctx, drawSize, angle, cx, cy);
       }
       return;
     }
 
-    this.drawWalkFrame(ctx, drawSize, angle, cx, cy);
+    const moving = this.walkPhase > 0;
+    if (moving) {
+      this.drawWalkFrame(ctx, drawSize, angle, cx, cy);
+    } else {
+      this.drawIdleFrame(ctx, drawSize, angle, cx, cy);
+    }
 
     if (this.recoilActive && recoil) {
       const clip = recoil.meta.clips[0];

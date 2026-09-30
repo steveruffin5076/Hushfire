@@ -1,0 +1,22 @@
+{
+  "frame_width": 556,
+  "frame_height": 304,
+  "layout": "row",
+  "clips": [
+    {
+      "name": "idle",
+      "frames": 8,
+      "frame_ms": 130,
+      "loop": true,
+      "events": {}
+    }
+  ],
+  "pivots_cell_px": {
+    "torso": [
+      137.3,
+      139.2
+    ]
+  },
+  "note": "pistol loadout idle; play when not moving",
+  "image": "idle_sheet.webp"
+}
