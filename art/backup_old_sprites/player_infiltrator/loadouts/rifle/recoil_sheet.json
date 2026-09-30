@@ -8,15 +8,11 @@
       "frames": 6,
       "frame_ms": 50,
       "loop": false,
-      "events": {}
+      "events": {
+        "muzzle": 0
+      }
     }
   ],
-  "pivots_cell_px": {
-    "torso": [
-      137.3,
-      139.2
-    ]
-  },
-  "note": "baked from 3D (Blender) by render_sprites.py",
+  "note": "cell geometry identical to walk_sheet; loop=False, retrigger per shot",
   "image": "recoil_sheet.webp"
 }

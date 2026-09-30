@@ -1,6 +1,6 @@
 {
   "frame_width": 556,
-  "frame_height": 360,
+  "frame_height": 304,
   "frames": 8,
   "layout": "row",
   "stride_steps": 2,
@@ -10,11 +10,10 @@
   ],
   "pivots_cell_px": {
     "torso": [
-      200.0,
-      170.0
+      137.3,
+      139.2
     ]
   },
-  "steps_per_s": 1.5,
-  "note": "baked from 3D (Blender) by render_sprites.py",
+  "steps_per_s": 1.9,
   "image": "walk_sheet.webp"
 }

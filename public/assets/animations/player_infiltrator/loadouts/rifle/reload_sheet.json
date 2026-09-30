@@ -1,22 +1,22 @@
 {
-  "frame_width": 700,
-  "frame_height": 660,
+  "frame_width": 556,
+  "frame_height": 304,
   "layout": "row",
   "clips": [
     {
-      "name": "hit",
-      "frames": 5,
-      "frame_ms": 80,
+      "name": "reload",
+      "frames": 10,
+      "frame_ms": 120,
       "loop": false,
       "events": {}
     }
   ],
   "pivots_cell_px": {
     "torso": [
-      300.0,
-      240.0
+      137.3,
+      139.2
     ]
   },
   "note": "baked from 3D (Blender) by render_sprites.py",
-  "image": "hit_sheet.webp"
+  "image": "reload_sheet.webp"
 }
