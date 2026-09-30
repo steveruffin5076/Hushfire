@@ -25,7 +25,7 @@
 
 ### Sprite Dimensions & Frame Rates
 * **Authored Size:** $128 \times 128\text{ px}$ transparent PNG per character (top-down view looking down at helmet/shoulders). This is the source resolution the art ships at, and therefore the ceiling on draw size — past $128\text{ px}$ the sprite upscales, and `index.html` sets `image-rendering: pixelated`, so it goes crunchy rather than soft.
-* **Draw Size:** Operatives render at $94\text{ px}$ (`PLAYER_SPRITE_SIZE` in `src/core/Game.ts`); infected render per-archetype (see §3). Sheet width targets are $78$–$102\text{ px}$ for standard bakes; the armored brute uses a lower width scale because its cells are pre-rotated ($275 \times 556$).
+* **Draw Size:** Operatives render at $128\text{ px}$ (`PLAYER_SPRITE_SIZE` in `src/core/Game.ts`); infected render per-archetype (see §3). Sheet width targets are $78$–$102\text{ px}$ for standard bakes; the armored brute uses a lower width scale because its cells are pre-rotated ($275 \times 556$).
 * **Pivot Point:** Exact center $(64, 64)$ of the source art, drawn centered so it stays the rotation origin for smooth 360-degree rotation toward the mouse cursor.
 * **Format:** Transparent PNG spritesheet or procedural Canvas 2D vector drawing.
 * **Draw size is not hitbox size.** Collision uses a separate $16\text{ px}$ radius for both operatives and infected (`PLAYER_RADIUS`, `ZOMBIE_RADIUS`), so sprites render roughly $2.9\times$ their collision circle. Resizing sprites is therefore a purely visual change with no effect on hit detection, contact damage, collision resolution or pathfinding — keep it that way unless a difficulty change is actually intended.

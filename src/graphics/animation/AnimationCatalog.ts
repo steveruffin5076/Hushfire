@@ -174,8 +174,12 @@ export class AnimationCatalog {
   }
 
   /** Operative 1: swap baked sheets when primary / secondary / melee changes. */
-  syncInfiltratorLoadout(ctrl: CharacterAnimController, loadout: OperativeWeaponLoadoutId) {
-    if (this.infiltratorLoadoutApplied.get(ctrl) === loadout) return;
+  syncInfiltratorLoadout(
+    ctrl: CharacterAnimController,
+    loadout: OperativeWeaponLoadoutId,
+    opts?: { force?: boolean }
+  ) {
+    if (!opts?.force && this.infiltratorLoadoutApplied.get(ctrl) === loadout) return;
     const pack = this.infiltratorLoadouts.get(loadout);
     if (!pack) return;
     ctrl.applyOperativeLoadout(pack, this.infiltratorSharedHit, this.infiltratorKnifeAttack);
