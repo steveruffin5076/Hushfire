@@ -275,6 +275,7 @@ export class Game {
   private readonly p1Anim: CharacterAnimController | null;
   private readonly p2Anim: CharacterAnimController | null;
   private readonly zombieAnims = new Map<number, { key: CharacterAnimId; ctrl: CharacterAnimController }>();
+  private p1LastWeaponSlot: Player['activeSlot'] | null = null;
   /** Previous zombie positions — walk sheets only advance when the sim actually moved them. */
   private readonly zombiePrevWorld = new Map<number, { x: number; y: number }>();
   private readonly runKind: RunKind;
@@ -1008,7 +1009,15 @@ export class Game {
   private updatePlayerAnim(player: Player, anim: CharacterAnimController | null, dt: number) {
     if (!anim || player.isEliminated) return;
     if (player.playerNumber === 1 && this.animations) {
-      this.animations.syncInfiltratorLoadout(anim, operativeLoadoutForPlayer(player));
+      const slotChanged =
+        this.p1LastWeaponSlot !== null && this.p1LastWeaponSlot !== player.activeSlot;
+      if (slotChanged && this.p1LastWeaponSlot === 'melee') {
+        anim.cancelAttack();
+      }
+      this.animations.syncInfiltratorLoadout(anim, operativeLoadoutForPlayer(player), {
+        force: slotChanged
+      });
+      this.p1LastWeaponSlot = player.activeSlot;
     }
     anim.update(dt, {
       isDowned: player.isDowned,
@@ -1904,10 +1913,13 @@ export class Game {
       const anim = this.animForPlayer(p);
 
       if (anim) {
+        if (p.playerNumber === 1 && this.animations) {
+          this.animations.syncInfiltratorLoadout(anim, operativeLoadoutForPlayer(p));
+        }
         const knifeVisual =
           p.playerNumber === 1 &&
           anim.hasAttackSheet() &&
-          (p.activeSlot === 'melee' || anim.isAttackActive());
+          (p.activeSlot === 'melee' || (anim.isAttackActive() && p.activeSlot !== 'melee'));
         anim.draw(ctx, PLAYER_SPRITE_SIZE, pose.angle, pose.x, pose.y, {
           meleeStance: knifeVisual
         });

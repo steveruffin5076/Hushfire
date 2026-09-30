@@ -127,6 +127,12 @@ export class CharacterAnimController {
     this.attackTime = 0;
   }
 
+  /** Stop knife slash playback (e.g. when swapping off melee slot). */
+  cancelAttack() {
+    this.attackActive = false;
+    this.attackTime = 0;
+  }
+
   update(
     dt: number,
     opts: {
