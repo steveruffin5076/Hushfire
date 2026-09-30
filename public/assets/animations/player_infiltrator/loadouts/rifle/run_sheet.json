@@ -16,5 +16,5 @@
   },
   "steps_per_s": 1.5,
   "note": "baked from 3D (Blender) by render_sprites.py",
-  "image": "walk_sheet.webp"
+  "image": "run_sheet.webp"
 }

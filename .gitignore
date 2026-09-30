@@ -22,3 +22,6 @@ vite.config.ts.timestamp-*.mjs
 .tmp_anim_pack/
 .tmp_anim_pack_v2/
 .tmp_knife_attack/
+
+# Blender pipeline — raw frame sequences (see art/ and AGENTS.md).
+art/renders/

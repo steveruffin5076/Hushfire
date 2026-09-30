@@ -4,10 +4,10 @@
   "layout": "row",
   "clips": [
     {
-      "name": "recoil",
-      "frames": 6,
-      "frame_ms": 50,
-      "loop": false,
+      "name": "idle",
+      "frames": 8,
+      "frame_ms": 130,
+      "loop": true,
       "events": {}
     }
   ],
@@ -17,6 +17,6 @@
       139.2
     ]
   },
-  "note": "baked from 3D (Blender) by render_sprites.py",
-  "image": "recoil_sheet.webp"
+  "note": "rifle loadout idle; play when not moving",
+  "image": "idle_sheet.webp"
 }

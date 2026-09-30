@@ -1,16 +1,16 @@
 {
-  "cell_width": 800,
-  "cell_height": 640,
+  "cell_width": 612,
+  "cell_height": 328,
   "layout": "rows",
   "clips": [
     {
       "name": "downed",
       "row": 0,
-      "frames": 14,
+      "frames": 12,
       "frame_ms": 75,
       "loop": false,
       "events": {
-        "impact": 8
+        "impact": 5
       }
     },
     {
@@ -22,10 +22,9 @@
     }
   ],
   "pivot_cell_px": [
-    400,
-    320
+    179.6,
+    140.7
   ],
   "play": "play 'downed' once, then loop 'downed_idle'",
-  "note": "baked from 3D (Blender) by render_sprites.py",
   "image": "downed_sheet.webp"
 }
