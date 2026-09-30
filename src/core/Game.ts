@@ -93,7 +93,7 @@ const ZOMBIE_SPRITE_SIZE: Record<ZombieArchetype, number> = {
   armored_brute: 56
 };
 /** On-screen operative silhouette width (sheet cells are 556px; collision is separate). */
-const PLAYER_SPRITE_SIZE = 118;
+const PLAYER_SPRITE_SIZE = 122;
 
 /**
  * Light spill around each operative. The flashlight cone's apex is the
