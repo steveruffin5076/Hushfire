@@ -15,7 +15,7 @@ The script prefers `.tmp_anim_pack_v2`, then `.tmp_anim_pack`, then an optional 
 
 3. Commit `public/assets/animations/` when shipping new art.
 
-**Operative 1 knife:** `attack_sheet` uses the same **556×304** cells as `walk_sheet` (rebake from 256 source: `node scripts/rebake-knife-attack-sheet.mjs`). Only P1 loads and plays it on melee.
+**Operative 1 loadouts:** Shared `hit_sheet` + `downed_sheet` at `player_infiltrator/`. Per-weapon sheets under `loadouts/{knife,pistol,rifle}/` (`walk`, `idle`, plus `attack` or `recoil`). `AnimationCatalog` swaps loadouts by equipped slot; knife `attack_sheet` also drives quick melee [E] on gun loadouts.
 
 4. Verify on GitHub Pages: `GITHUB_ACTIONS=true npm run build` and confirm `/Hushfire/assets/animations/**` returns 200.
 

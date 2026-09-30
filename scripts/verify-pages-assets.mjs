@@ -21,7 +21,12 @@ const CHARS = [
 ];
 
 const REQUIRED = ['walk_sheet.webp', 'walk_sheet.json', 'downed_sheet.webp', 'downed_sheet.json'];
-const INFILTRATOR_ATTACK = ['attack_sheet.webp', 'attack_sheet.json'];
+const INFILTRATOR_LOADOUT = [
+  'loadouts/pistol/walk_sheet.webp',
+  'loadouts/knife/attack_sheet.webp',
+  'hit_sheet.webp',
+  'downed_sheet.webp',
+];
 
 let failed = false;
 if (!fs.existsSync(base)) {
@@ -36,20 +41,21 @@ for (const char of CHARS) {
     failed = true;
     continue;
   }
-  for (const file of REQUIRED) {
-    const p = path.join(dir, file);
-    if (!fs.existsSync(p)) {
-      console.error('Missing', path.relative(root, p));
-      failed = true;
-    }
-  }
   if (char === 'player_infiltrator') {
-    for (const file of INFILTRATOR_ATTACK) {
+    for (const file of INFILTRATOR_LOADOUT) {
       const p = path.join(dir, file);
       if (!fs.existsSync(p)) {
         console.error('Missing', path.relative(root, p));
         failed = true;
       }
+    }
+    continue;
+  }
+  for (const file of REQUIRED) {
+    const p = path.join(dir, file);
+    if (!fs.existsSync(p)) {
+      console.error('Missing', path.relative(root, p));
+      failed = true;
     }
   }
 }

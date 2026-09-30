@@ -47,6 +47,7 @@ import {
   playerAnimId,
   zombieAnimId
 } from '../graphics/animation/AnimationCatalog';
+import { operativeLoadoutForPlayer } from '../graphics/animation/operativeLoadout';
 import type { CharacterAnimId } from '../graphics/animation/sheetTypes';
 import { CharacterAnimController } from '../graphics/animation/CharacterAnimController';
 import { WEAPON_REGISTRY, MUZZLE_MODIFIERS, isSuppressedMuzzle } from '../config/weapons';
@@ -1006,6 +1007,9 @@ export class Game {
 
   private updatePlayerAnim(player: Player, anim: CharacterAnimController | null, dt: number) {
     if (!anim || player.isEliminated) return;
+    if (player.playerNumber === 1 && this.animations) {
+      this.animations.syncInfiltratorLoadout(anim, operativeLoadoutForPlayer(player));
+    }
     anim.update(dt, {
       isDowned: player.isDowned,
       isMoving: !player.isDowned && player.noiseRadius > 0,
