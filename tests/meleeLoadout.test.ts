@@ -15,15 +15,19 @@ import { PlayerInputState } from '../src/core/Input';
 import { SECTORS } from '../src/config/sectors';
 
 describe('melee loadout slot', () => {
-  it('quick melee swings without swapping off the primary', () => {
+  it('quick melee temporarily draws knife then restores the gun slot', () => {
     const combat = new CombatSystem(new MapManager(), new NoiseSystem());
     const p = new Player(1, 200, 360, 100, DEFAULT_LOADOUTS[0]);
     expect(p.activeSlot).toBe('primary');
     const z = new Zombie(230, 360, Math.PI, 'lurker');
     p.lastMeleeSwingTime = -1e9;
+    p.beginQuickMelee();
+    expect(p.activeSlot).toBe('melee');
     combat.swingMelee(p, [z], []);
-    expect(p.activeSlot).toBe('primary');
     expect(z.health).toBeLessThan(ZOMBIE_REGISTRY.lurker.maxHealth);
+    p.finishQuickMelee();
+    expect(p.activeSlot).toBe('primary');
+    expect(p.quickMeleeRestoreSlot).toBeNull();
   });
 
   it('blocks melee spam when stamina is empty', () => {

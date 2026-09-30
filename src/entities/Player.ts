@@ -68,6 +68,8 @@ export class Player extends Entity {
   public loadout: WeaponLoadout;
   public operativeGear: OperativeGearId;
   public activeSlot: 'primary' | 'secondary' | 'melee' = 'primary';
+  /** After quick melee [E], restore this gun slot when the knife slash finishes. */
+  public quickMeleeRestoreSlot: 'primary' | 'secondary' | null = null;
   private ammoBySlot: { primary: { mag: number; reserve: number }; secondary: { mag: number; reserve: number } };
   public isReloading = false;
   public reloadTimer = 0;
@@ -260,10 +262,16 @@ export class Player extends Entity {
     this.angle = input.aimAngle;
 
     if (!this.isDowned && !this.isReloading) {
-      if (input.selectPrimary) this.activeSlot = 'primary';
-      else if (input.selectSecondary) this.activeSlot = 'secondary';
-      else if (input.selectMelee) this.activeSlot = 'melee';
-      else if (input.isSwitchingWeapon) {
+      if (input.selectPrimary) {
+        this.quickMeleeRestoreSlot = null;
+        this.activeSlot = 'primary';
+      } else if (input.selectSecondary) {
+        this.quickMeleeRestoreSlot = null;
+        this.activeSlot = 'secondary';
+      } else if (input.selectMelee) {
+        this.quickMeleeRestoreSlot = null;
+        this.activeSlot = 'melee';
+      } else if (input.isSwitchingWeapon) {
         this.activeSlot = this.activeSlot === 'primary' ? 'secondary' : 'primary';
       }
     }
@@ -405,6 +413,20 @@ export class Player extends Entity {
     const minInterval = 60000 / weapon.fireRateRPM;
     const hasAmmo = weapon.infiniteAmmo || this.currentMag > 0;
     return !this.isDowned && !this.isReloading && hasAmmo && performance.now() - this.lastShotTime > minInterval;
+  }
+
+  /** Draw knife for [E] quick melee, then `finishQuickMelee()` returns to the prior gun slot. */
+  beginQuickMelee(): boolean {
+    if (this.activeSlot === 'melee') return false;
+    this.quickMeleeRestoreSlot = this.activeSlot;
+    this.activeSlot = 'melee';
+    return true;
+  }
+
+  finishQuickMelee() {
+    if (!this.quickMeleeRestoreSlot) return;
+    this.activeSlot = this.quickMeleeRestoreSlot;
+    this.quickMeleeRestoreSlot = null;
   }
 
   canMeleeSwing(meleeId = this.loadout.meleeWeapon): boolean {

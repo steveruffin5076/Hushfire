@@ -93,7 +93,7 @@ const ZOMBIE_SPRITE_SIZE: Record<ZombieArchetype, number> = {
   armored_brute: 56
 };
 /** On-screen operative silhouette width (sheet cells are 556px; collision is separate). */
-const PLAYER_SPRITE_SIZE = 122;
+const PLAYER_SPRITE_SIZE = 128;
 
 /**
  * Light spill around each operative. The flashlight cone's apex is the
@@ -1015,7 +1015,7 @@ export class Game {
     const prevSlot = this.p1LastWeaponSlot;
     const slotChanged = prevSlot !== null && prevSlot !== player.activeSlot;
     const loadoutChanged = this.p1LastAnimLoadout !== null && this.p1LastAnimLoadout !== loadout;
-    if (slotChanged && prevSlot === 'melee') {
+    if (slotChanged && prevSlot === 'melee' && !player.quickMeleeRestoreSlot) {
       anim.cancelAttack();
     }
     this.animations.syncInfiltratorLoadout(anim, loadout, {
@@ -1034,6 +1034,12 @@ export class Game {
       moveSpeedMult: this.playerMoveMult(player),
       isPlayer: true
     });
+    if (player.quickMeleeRestoreSlot && !anim.isAttackActive()) {
+      player.finishQuickMelee();
+      if (player.playerNumber === 1) {
+        this.syncOperative1AnimSheets(player, anim);
+      }
+    }
   }
 
   private updateCharacterAnimations(dt: number) {
@@ -1173,10 +1179,18 @@ export class Game {
   private handleFiring(player: Player, input: PlayerInputState) {
     if (player.isDowned || player.isEliminated) return;
 
-    if (input.isMeleeAttack && player.activeSlot !== 'melee') {
+    if (input.isMeleeAttack) {
+      if (player.activeSlot !== 'melee') {
+        player.beginQuickMelee();
+      }
       const beforeMelee = player.shotsFired;
       this.combat.swingMelee(player, this.zombies, this.decals);
-      if (player.shotsFired > beforeMelee) return;
+      if (player.shotsFired > beforeMelee) {
+        const anim = this.animForPlayer(player);
+        if (!anim || player.playerNumber !== 1) player.finishQuickMelee();
+        return;
+      }
+      if (player.quickMeleeRestoreSlot) player.finishQuickMelee();
     }
 
     if (!input.isFiring) return;
