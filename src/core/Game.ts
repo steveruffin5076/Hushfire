@@ -1916,10 +1916,10 @@ export class Game {
         if (p.playerNumber === 1 && this.animations) {
           this.animations.syncInfiltratorLoadout(anim, operativeLoadoutForPlayer(p));
         }
+        const onMeleeSlot = p.activeSlot === 'melee';
+        const quickMeleeSlash = anim.isAttackActive() && !onMeleeSlot;
         const knifeVisual =
-          p.playerNumber === 1 &&
-          anim.hasAttackSheet() &&
-          (p.activeSlot === 'melee' || (anim.isAttackActive() && p.activeSlot !== 'melee'));
+          p.playerNumber === 1 && anim.hasAttackSheet() && (onMeleeSlot || quickMeleeSlash);
         anim.draw(ctx, PLAYER_SPRITE_SIZE, pose.angle, pose.x, pose.y, {
           meleeStance: knifeVisual
         });
