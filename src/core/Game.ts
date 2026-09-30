@@ -92,7 +92,8 @@ const ZOMBIE_SPRITE_SIZE: Record<ZombieArchetype, number> = {
   bio_carrier: 102,
   armored_brute: 56
 };
-const PLAYER_SPRITE_SIZE = 94;
+/** On-screen operative silhouette width (sheet cells are 556px; collision is separate). */
+const PLAYER_SPRITE_SIZE = 118;
 
 /**
  * Light spill around each operative. The flashlight cone's apex is the
@@ -276,6 +277,7 @@ export class Game {
   private readonly p2Anim: CharacterAnimController | null;
   private readonly zombieAnims = new Map<number, { key: CharacterAnimId; ctrl: CharacterAnimController }>();
   private p1LastWeaponSlot: Player['activeSlot'] | null = null;
+  private p1LastAnimLoadout: ReturnType<typeof operativeLoadoutForPlayer> | null = null;
   /** Previous zombie positions — walk sheets only advance when the sim actually moved them. */
   private readonly zombiePrevWorld = new Map<number, { x: number; y: number }>();
   private readonly runKind: RunKind;
@@ -1006,19 +1008,26 @@ export class Game {
     return muzzle;
   }
 
+  /** Keeps Operative 1 baked sheets aligned with active weapon slot (1 / 2 / 3). */
+  private syncOperative1AnimSheets(player: Player, anim: CharacterAnimController) {
+    if (!this.animations || player.playerNumber !== 1) return;
+    const loadout = operativeLoadoutForPlayer(player);
+    const prevSlot = this.p1LastWeaponSlot;
+    const slotChanged = prevSlot !== null && prevSlot !== player.activeSlot;
+    const loadoutChanged = this.p1LastAnimLoadout !== null && this.p1LastAnimLoadout !== loadout;
+    if (slotChanged && prevSlot === 'melee') {
+      anim.cancelAttack();
+    }
+    this.animations.syncInfiltratorLoadout(anim, loadout, {
+      force: slotChanged || loadoutChanged
+    });
+    this.p1LastWeaponSlot = player.activeSlot;
+    this.p1LastAnimLoadout = loadout;
+  }
+
   private updatePlayerAnim(player: Player, anim: CharacterAnimController | null, dt: number) {
     if (!anim || player.isEliminated) return;
-    if (player.playerNumber === 1 && this.animations) {
-      const slotChanged =
-        this.p1LastWeaponSlot !== null && this.p1LastWeaponSlot !== player.activeSlot;
-      if (slotChanged && this.p1LastWeaponSlot === 'melee') {
-        anim.cancelAttack();
-      }
-      this.animations.syncInfiltratorLoadout(anim, operativeLoadoutForPlayer(player), {
-        force: slotChanged
-      });
-      this.p1LastWeaponSlot = player.activeSlot;
-    }
+    if (player.playerNumber === 1) this.syncOperative1AnimSheets(player, anim);
     anim.update(dt, {
       isDowned: player.isDowned,
       isMoving: !player.isDowned && player.noiseRadius > 0,
@@ -1913,9 +1922,7 @@ export class Game {
       const anim = this.animForPlayer(p);
 
       if (anim) {
-        if (p.playerNumber === 1 && this.animations) {
-          this.animations.syncInfiltratorLoadout(anim, operativeLoadoutForPlayer(p));
-        }
+        if (p.playerNumber === 1) this.syncOperative1AnimSheets(p, anim);
         const onMeleeSlot = p.activeSlot === 'melee';
         const quickMeleeSlash = anim.isAttackActive() && !onMeleeSlot;
         const knifeVisual =
@@ -1961,7 +1968,7 @@ export class Game {
       if (size < 1) continue;
 
       // Offset scales with the operative's draw size so the flash stays at the
-      // muzzle; a hardcoded 26 was fine at a 70px sprite but lands mid-chest at 94px.
+      // muzzle; offset scales with PLAYER_SPRITE_SIZE so the flash stays at the barrel.
       this.assets.draw(
         ctx,
         'muzzle_flash',
